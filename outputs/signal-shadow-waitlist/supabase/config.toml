@@ -1,0 +1,4 @@
+project_id = "signal-shadow-waitlist"
+
+[functions.waitlist-signup]
+verify_jwt = false

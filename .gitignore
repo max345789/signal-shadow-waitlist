@@ -1,0 +1,8 @@
+node_modules/
+outputs/signal-shadow-waitlist/node_modules/
+outputs/signal-shadow-waitlist/dist/
+outputs/signal-shadow-waitlist/.env
+outputs/signal-shadow-waitlist/.env.local
+.vercel/
+pnpm-lock.yaml
+outputs/signal-shadow-waitlist/pnpm-lock.yaml

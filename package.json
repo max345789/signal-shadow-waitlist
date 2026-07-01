@@ -1,0 +1,9 @@
+{
+  "name": "signal-shadow-deploy-root",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --dir outputs/signal-shadow-waitlist install --no-frozen-lockfile && pnpm --dir outputs/signal-shadow-waitlist build"
+  },
+  "packageManager": "pnpm@11.7.0"
+}

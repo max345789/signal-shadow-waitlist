@@ -1,0 +1,4 @@
+{
+  "buildCommand": "pnpm --dir outputs/signal-shadow-waitlist install --no-frozen-lockfile && pnpm --dir outputs/signal-shadow-waitlist build",
+  "outputDirectory": "outputs/signal-shadow-waitlist/dist"
+}
