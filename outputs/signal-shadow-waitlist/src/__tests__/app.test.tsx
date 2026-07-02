@@ -8,17 +8,17 @@ describe('landing page reveal contract', () => {
     render(
       <App
         forceIntroComplete
-        signupClient={async () => ({ display_id: 'SW-4X9K2', referral_code: 'ABC123', success: true })}
+        signupClient={async () => ({ display_id: 'DHU-4X9K2', referral_code: 'ABC123', success: true })}
       />,
     )
 
     expect(screen.queryByTestId('countdown')).not.toBeInTheDocument()
-    expect(screen.queryByText(/release signal/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/launch call/i)).not.toBeInTheDocument()
   })
 
   it('mounts countdown and player id after a successful signup', async () => {
     const signupClient = vi.fn(async () => ({
-      display_id: 'SW-4X9K2',
+      display_id: 'DHU-4X9K2',
       referral_code: 'ABC123',
       success: true as const,
     }))
@@ -26,10 +26,10 @@ describe('landing page reveal contract', () => {
     render(<App forceIntroComplete signupClient={signupClient} />)
 
     await userEvent.type(screen.getByLabelText(/email/i), 'player@example.com')
-    await userEvent.click(screen.getByRole('button', { name: /notify me/i }))
+    await userEvent.click(screen.getByRole('button', { name: /join the waitlist/i }))
 
     await waitFor(() => expect(screen.getByTestId('countdown')).toBeInTheDocument())
-    expect(screen.getByText('SW-4X9K2')).toBeInTheDocument()
+    expect(screen.getByText('DHU-4X9K2')).toBeInTheDocument()
     expect(signupClient).toHaveBeenCalledWith({
       email: 'player@example.com',
       referred_by: null,

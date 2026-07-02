@@ -52,75 +52,63 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
       {!introComplete && <StudioIntro onComplete={completeIntro} />}
       {introComplete && (
         <main className="page-shell">
-          <div className="fog-layer" aria-hidden="true" />
           <header className="brand-ribbon">
-            <span className="brand-mark" aria-hidden="true">MGS</span>
-            <span>Maxwel Game Studio</span>
-          </header>
-
-          <section className="hero" aria-labelledby="hero-title">
+            <a className="brand-wordmark" href="#waitlist" aria-label="Don't Hang Up home">
+              DHU
+            </a>
             <nav className="hero-nav" aria-label="Game sections">
               <a href="#waitlist">Waitlist</a>
               <a href="#story">Story</a>
               <a href="#signal">Player ID</a>
             </nav>
+            <a className="menu-link" href="#waitlist">
+              Menu
+              <span aria-hidden="true" />
+            </a>
+          </header>
 
+          <section className="hero" aria-labelledby="hero-title">
             <div className="hero-copy">
-              <p className="section-kicker">Co-op mystery from Maxwel Game Studio</p>
-              <h1 id="hero-title">Don&apos;t Hang Up</h1>
-              <p className="hook">Two friends. One strange call. Stay together until the line goes quiet.</p>
+              <p className="section-kicker">Maxwel Game Studio waitlist</p>
+              <h1 id="hero-title">
+                Join Before
+                <span> The Call Drops.</span>
+              </h1>
+              <p id="story" className="hook">
+                Get your player ID for <strong>Don&apos;t Hang Up</strong>, the co-op mystery where two friends have to stay
+                connected until the line goes quiet.
+              </p>
+
+              <form id="waitlist" className="signup-form" onSubmit={handleSubmit} noValidate>
+                <label htmlFor="email">Email</label>
+                <div className="form-row">
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    autoComplete="email"
+                    placeholder="Your fav email here..."
+                    onChange={(event) => setEmail(event.target.value)}
+                    aria-invalid={status === 'error'}
+                  />
+                  <button type="submit" disabled={status === 'loading'}>
+                    {status === 'loading' ? 'Saving...' : 'Join the Waitlist'}
+                  </button>
+                </div>
+                {message && (
+                  <p className={status === 'error' ? 'form-message form-message--error' : 'form-message'} role="status">
+                    {message}
+                  </p>
+                )}
+              </form>
             </div>
 
-            <div className="storybook-scene" aria-hidden="true">
-              <div className="sun-glow" />
-              <div className="mountain mountain--left" />
-              <div className="mountain mountain--right" />
-              <div className="valley">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="river" />
-              <div className="cliff">
-                <div className="character character--boy">
-                  <span className="head" />
-                  <span className="body" />
-                  <span className="leg leg--left" />
-                  <span className="leg leg--right" />
-                </div>
-                <div className="character character--girl">
-                  <span className="hair" />
-                  <span className="head" />
-                  <span className="body" />
-                  <span className="leg leg--left" />
-                  <span className="leg leg--right" />
-                </div>
-                <div className="phone-orb" />
-              </div>
-            </div>
-
-            <form id="waitlist" className="signup-form" onSubmit={handleSubmit} noValidate>
-              <label htmlFor="email">Email</label>
-              <div className="form-row">
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  onChange={(event) => setEmail(event.target.value)}
-                  aria-invalid={status === 'error'}
-                />
-                <button type="submit" disabled={status === 'loading'}>
-                  {status === 'loading' ? 'Saving...' : 'Get Player ID'}
-                </button>
-              </div>
-              {message && (
-                <p className={status === 'error' ? 'form-message form-message--error' : 'form-message'} role="status">
-                  {message}
-                </p>
-              )}
-            </form>
+            <aside className="studio-strip" aria-label="Studio details">
+              <span>Created By</span>
+              <strong>Maxwel</strong>
+              <strong>MGS</strong>
+              <strong>Don&apos;t Hang Up</strong>
+            </aside>
           </section>
 
           {signup && <Countdown displayId={signup.display_id} referralCode={signup.referral_code} />}
