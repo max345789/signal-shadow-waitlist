@@ -1,4 +1,4 @@
-# Signal & Shadow Waitlist
+# Don't Hang Up Waitlist
 
 The app lives in `outputs/signal-shadow-waitlist`.
 
@@ -17,36 +17,51 @@ pnpm build
 
 ## Deployment
 
-Vercel can build from the repository root using `vercel.json`; it installs and builds `outputs/signal-shadow-waitlist`, then serves `outputs/signal-shadow-waitlist/dist`.
+Vercel builds `outputs/signal-shadow-waitlist` during deployment, serves the generated `dist`, and exposes the first-party API route in `api/waitlist.js`.
 
-The Supabase Edge Function is in:
+## Backend Datastore
+
+The frontend posts signups to:
+
+```txt
+/api/waitlist
+```
+
+That endpoint stores normalized emails and generated `DHU-XXXXX` player IDs in an Upstash/Vercel KV-compatible Redis datastore. Duplicate email submits return the same player ID, and new signups are rate-limited per connection.
+
+Configure these environment variables in Vercel:
+
+```txt
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+WAITLIST_RATE_LIMIT_MAX=5
+WAITLIST_RATE_LIMIT_WINDOW_SECONDS=3600
+```
+
+## Legacy Supabase Function
+
+The older Supabase Edge Function remains in the repo as a fallback implementation:
 
 ```txt
 outputs/signal-shadow-waitlist/supabase/functions/waitlist-signup
 ```
-
-Deploy it to the correct Supabase project with JWT verification disabled for this public signup endpoint, matching `supabase/config.toml`.
 
 ## Required Environment
 
 Frontend:
 
 ```txt
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
 VITE_DEMO_SIGNUP=false
 ```
 
-Supabase Edge Function:
+Optional legacy Supabase Edge Function:
 
 ```txt
 RESEND_API_KEY=
 WAITLIST_FROM_EMAIL=Maxwel Game Studio <waitlist@example.com>
-SITE_URL=https://yoursite.com
+SITE_URL=https://www.dabcloud.in
 WAITLIST_RATE_LIMIT_MAX=5
 WAITLIST_RATE_LIMIT_WINDOW_SECONDS=3600
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 ```
-
-If `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set, the function uses Redis-backed rate limiting. Without them it falls back to in-memory limiting for local/prototype runs.
