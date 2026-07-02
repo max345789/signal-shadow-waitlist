@@ -1,7 +1,10 @@
 {
-  "name": "signal-shadow-deploy-root",
+  "name": "dont-hang-up-deploy-root",
   "version": "0.1.0",
   "private": true,
+  "dependencies": {
+    "redis": "6.1.0"
+  },
   "scripts": {
     "build": "echo \"Static build is committed in outputs/signal-shadow-waitlist/dist\""
   },
