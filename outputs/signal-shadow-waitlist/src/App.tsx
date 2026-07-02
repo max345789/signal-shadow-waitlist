@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useMemo, useState } from 'react'
 import Countdown from './components/Countdown'
 import StudioIntro, { hasPlayedIntro } from './components/StudioIntro'
-import { submitSignup } from './lib/supabase'
+import { submitSignup } from './lib/signup'
 import { isValidEmail, normalizeEmail, readReferralCode, type SignupClient, type SignupResponse } from './lib/waitlist'
 import './styles.css'
 
@@ -38,10 +38,10 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
       })
       setSignup(response)
       setStatus('idle')
-      setMessage('Your signal is locked. Save the ID below.')
+      setMessage('Your player ID is ready. Save it below.')
     } catch (error) {
       setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'The signal failed. Try again in a moment.')
+      setMessage(error instanceof Error ? error.message : 'The call failed. Try again in a moment.')
     }
   }
 
@@ -59,13 +59,47 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
           </header>
 
           <section className="hero" aria-labelledby="hero-title">
+            <nav className="hero-nav" aria-label="Game sections">
+              <a href="#waitlist">Waitlist</a>
+              <a href="#story">Story</a>
+              <a href="#signal">Player ID</a>
+            </nav>
+
             <div className="hero-copy">
-              <p className="section-kicker">Pre-launch transmission</p>
-              <h1 id="hero-title">Signal &amp; Shadow</h1>
-              <p className="hook">A horror game you can only survive together.</p>
+              <p className="section-kicker">Co-op mystery from Maxwel Game Studio</p>
+              <h1 id="hero-title">Don&apos;t Hang Up</h1>
+              <p className="hook">Two friends. One strange call. Stay together until the line goes quiet.</p>
             </div>
 
-            <form className="signup-form" onSubmit={handleSubmit} noValidate>
+            <div className="storybook-scene" aria-hidden="true">
+              <div className="sun-glow" />
+              <div className="mountain mountain--left" />
+              <div className="mountain mountain--right" />
+              <div className="valley">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="river" />
+              <div className="cliff">
+                <div className="character character--boy">
+                  <span className="head" />
+                  <span className="body" />
+                  <span className="leg leg--left" />
+                  <span className="leg leg--right" />
+                </div>
+                <div className="character character--girl">
+                  <span className="hair" />
+                  <span className="head" />
+                  <span className="body" />
+                  <span className="leg leg--left" />
+                  <span className="leg leg--right" />
+                </div>
+                <div className="phone-orb" />
+              </div>
+            </div>
+
+            <form id="waitlist" className="signup-form" onSubmit={handleSubmit} noValidate>
               <label htmlFor="email">Email</label>
               <div className="form-row">
                 <input
@@ -78,7 +112,7 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
                   aria-invalid={status === 'error'}
                 />
                 <button type="submit" disabled={status === 'loading'}>
-                  {status === 'loading' ? 'Tuning...' : 'Notify Me'}
+                  {status === 'loading' ? 'Saving...' : 'Get Player ID'}
                 </button>
               </div>
               {message && (
