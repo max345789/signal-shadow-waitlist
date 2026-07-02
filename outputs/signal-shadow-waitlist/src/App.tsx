@@ -11,7 +11,7 @@ type AppProps = {
 }
 
 const heroBackground =
-  'linear-gradient(180deg, rgba(9, 30, 46, 0.12), rgba(7, 13, 8, 0.72)), url("/assets/dont-hang-up-mountain-hero-mini.jpg")'
+  'linear-gradient(180deg, rgba(9, 30, 46, 0.12), rgba(7, 13, 8, 0.72)), url("/assets/dont-hang-up-mountain-hero.svg")'
 
 export default function App({ forceIntroComplete = false, signupClient = submitSignup }: AppProps) {
   const [introComplete, setIntroComplete] = useState(() => forceIntroComplete || hasPlayedIntro())

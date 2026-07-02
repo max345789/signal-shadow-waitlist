@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#2f7fc4"/>
+      <stop offset=".45" stop-color="#8fcae4"/>
+      <stop offset=".78" stop-color="#f2dc8d"/>
+      <stop offset="1" stop-color="#1e5c3c"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity=".12"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" seed="8"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 .11"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <g opacity=".75" fill="#fff" filter="url(#soft)">
+    <ellipse cx="180" cy="140" rx="150" ry="54"/>
+    <ellipse cx="270" cy="120" rx="120" ry="64"/>
+    <ellipse cx="610" cy="110" rx="145" ry="60"/>
+    <ellipse cx="735" cy="135" rx="170" ry="64"/>
+    <ellipse cx="1230" cy="90" rx="120" ry="38"/>
+  </g>
+  <g fill="#eff8ff" opacity=".92">
+    <path d="M45 174c47-36 83-38 120-8 28-52 94-69 138-25 35-20 79-11 107 21 44-20 90-11 135 26H45z"/>
+    <path d="M503 147c42-34 85-38 125-6 33-58 106-65 152-14 45-15 82 1 112 40H503z"/>
+    <path d="M1120 130c56-37 110-39 163-4 30-35 78-40 116-9 33-10 74 5 105 36h-384z"/>
+  </g>
+  <g opacity=".58">
+    <path fill="#bfd7e5" d="M0 430 173 270l126 128 136-98 170 150H0z"/>
+    <path fill="#7898af" d="M173 270 299 398 245 382l-72-112z"/>
+    <path fill="#f1f8fb" d="m173 270 40 94 32 18-72-112z"/>
+    <path fill="#b5ccda" d="m342 450 256-245 235 245H342z"/>
+    <path fill="#7593aa" d="m598 205 235 245-124-37-111-208z"/>
+    <path fill="#fff" d="m598 205 54 158 57 50-111-208z"/>
+  </g>
+  <g>
+    <path fill="#dbeaf1" d="M545 585 960 72l520 603H545z"/>
+    <path fill="#5f83a4" d="M960 72 1480 675 1150 580 960 72z"/>
+    <path fill="#274b70" opacity=".66" d="m1128 557 352 118H950l45-187 62 67 63-122 86 151-78-27z"/>
+    <path fill="#fff" d="m960 72 70 231 120 277-110-84-36 112-75-230-96 132 42-166-124 81 209-353z"/>
+    <path fill="#c7dde7" d="m1019 237 82 79-61 180-36 112-75-230 90-141z"/>
+    <path fill="#eff8ff" d="m960 72 34 169-99 98 34-131 31-136z"/>
+  </g>
+  <path fill="url(#mist)" opacity=".88" d="M0 438c160-38 323-28 493 32 129 46 277 31 443-12 192-50 410-30 664 57v96H0z"/>
+  <g>
+    <path fill="#73af59" d="M0 725c164-84 333-112 506-85 141 22 263 12 366-34 161-71 334-57 519 43 81 44 151 57 209 39v212H0z"/>
+    <path fill="#3d843d" d="M0 768c202-74 392-83 570-28 172 53 336 51 491-9 192-74 371-54 539 59v110H0z"/>
+    <path fill="#1f5a32" d="M0 820c238-54 445-49 620 16 159 58 332 59 519 1 149-46 302-43 461 10v53H0z"/>
+  </g>
+  <g fill="#13381f" opacity=".92">
+    <path d="M26 892h42l-21-172-21 172zm48 0h62L105 660 74 892zm79 0h45l-23-183-22 183zm1175 0h52l-26-210-26 210zm62 0h78l-39-266-39 266zm96 0h60l-30-224-30 224z"/>
+  </g>
+  <rect width="1600" height="900" filter="url(#grain)" opacity=".4"/>
+</svg>
