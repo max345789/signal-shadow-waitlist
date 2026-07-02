@@ -10,6 +10,9 @@ type AppProps = {
   signupClient?: SignupClient
 }
 
+const heroBackground =
+  'linear-gradient(180deg, rgba(9, 30, 46, 0.12), rgba(7, 13, 8, 0.72)), url("/assets/dont-hang-up-mountain-hero-compact.jpg")'
+
 export default function App({ forceIntroComplete = false, signupClient = submitSignup }: AppProps) {
   const [introComplete, setIntroComplete] = useState(() => forceIntroComplete || hasPlayedIntro())
   const [email, setEmail] = useState('')
@@ -51,7 +54,7 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
     <>
       {!introComplete && <StudioIntro onComplete={completeIntro} />}
       {introComplete && (
-        <main className="page-shell">
+        <main className="page-shell" style={{ backgroundImage: heroBackground }}>
           <header className="brand-ribbon">
             <a className="brand-wordmark" href="#waitlist" aria-label="Don't Hang Up home">
               DHU
