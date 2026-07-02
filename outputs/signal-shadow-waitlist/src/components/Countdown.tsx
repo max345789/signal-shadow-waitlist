@@ -26,8 +26,8 @@ export default function Countdown({ displayId, referralCode }: CountdownProps) {
   }
 
   return (
-    <section className="reveal-panel" data-testid="countdown" aria-label="Release signal">
-      <p className="section-kicker">Release signal</p>
+    <section id="signal" className="reveal-panel" data-testid="countdown" aria-label="Launch call">
+      <p className="section-kicker">Launch call</p>
       <div className="countdown-grid" role="timer" aria-live="polite">
         <CountdownUnit label="days" value={parts.days} width={3} />
         <CountdownUnit label="hours" value={parts.hours} width={2} />
