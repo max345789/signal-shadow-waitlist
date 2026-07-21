@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import Countdown from './components/Countdown'
 import StudioIntro, { hasPlayedIntro } from './components/StudioIntro'
 import { submitSignup } from './lib/signup'
@@ -13,7 +13,7 @@ type AppProps = {
 const heroBackground =
   'linear-gradient(180deg, rgba(9, 30, 46, 0.12), rgba(7, 13, 8, 0.72)), url("/assets/dont-hang-up-mountain-hero.jpg")'
 
-export default function App({ forceIntroComplete = false, signupClient = submitSignup }: AppProps) {
+function MgsApp({ forceIntroComplete = false, signupClient = submitSignup }: AppProps) {
   const [introComplete, setIntroComplete] = useState(() => forceIntroComplete || hasPlayedIntro())
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -56,13 +56,14 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
       {introComplete && (
         <main className="page-shell" style={{ backgroundImage: heroBackground }}>
           <header className="brand-ribbon">
-            <a className="brand-wordmark" href="#waitlist" aria-label="Don't Hang Up home">
+            <a className="brand-wordmark" href="/" aria-label="Brandlift Creations home">
               DHU
             </a>
             <nav className="hero-nav" aria-label="Game sections">
               <a href="#waitlist">Waitlist</a>
               <a href="#story">Story</a>
               <a href="#signal">Player ID</a>
+              <a href="/">Brandlift</a>
             </nav>
             <a className="menu-link" href="#waitlist">
               Menu
@@ -119,4 +120,58 @@ export default function App({ forceIntroComplete = false, signupClient = submitS
       )}
     </>
   )
+}
+
+function BrandliftHub() {
+  const [splashVisible, setSplashVisible] = useState(true)
+  const [splashLeaving, setSplashLeaving] = useState(false)
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const leave = window.setTimeout(() => setSplashLeaving(true), reducedMotion ? 350 : 1900)
+    const remove = window.setTimeout(() => setSplashVisible(false), reducedMotion ? 500 : 2550)
+    return () => {
+      window.clearTimeout(leave)
+      window.clearTimeout(remove)
+    }
+  }, [])
+
+  return (
+    <main className="brandlift-hub">
+      {splashVisible && (
+        <section className={`brandlift-splash${splashLeaving ? ' brandlift-splash--leaving' : ''}`} role="status" aria-label="Loading Brandlift Creations">
+          <div className="brandlift-splash__grid" />
+          <div className="brandlift-splash__center">
+            <div className="brandlift-monogram"><span>B</span><span>L</span></div>
+            <strong>Brandlift Creations</strong>
+            <i><b /></i>
+          </div>
+          <footer><span>CREATIVE TECHNOLOGY</span><span>INDIA · 2026</span></footer>
+        </section>
+      )}
+
+      <header className="brandlift-nav">
+        <a href="/" className="brandlift-logo"><span>BL</span><strong>Brandlift<br />Creations</strong></a>
+        <nav aria-label="Brandlift brands"><a href="#brands">Our brands</a><span>Independent products,<br />one creative house.</span></nav>
+      </header>
+      <section className="brandlift-hero">
+        <p>00 / BRAND HOUSE</p>
+        <h1>We create<br /><em>worlds</em> worth<br />entering.</h1>
+        <div><p>Brandlift Creations is the home of independent products shaped by technology, craft, and a point of view.</p><span>SCROLL TO EXPLORE<br />↓</span></div>
+      </section>
+      <section className="brandlift-manifesto"><span>ONE HOUSE. DISTINCT VISIONS.</span><p>From immersive digital worlds to native AI tools, every Brandlift creation begins with the same idea:</p><h2>Technology should feel<br /><em>less like machinery</em><br />and more like possibility.</h2></section>
+      <section className="brandlift-brands" id="brands"><header><span>01 / OUR BRANDS</span><h2>Choose a world.</h2></header><div>
+        <a className="brandlift-card brandlift-card--mgs" href="/mgs"><span>01</span><b>↗</b><i>M</i><div><small>Interactive worlds</small><h3>MGS</h3><p>Original games and real-time experiences built to make imagined worlds feel tangible.</p><strong>Enter MGS →</strong></div></a>
+        <a className="brandlift-card brandlift-card--alto" href="https://alto-space-macos.iitsmesarath.chatgpt.site"><span>02</span><b>↗</b><i>A</i><div><small>Native intelligence</small><h3>Alto Space</h3><p>A focused, private AI workspace that brings powerful models to the Mac desktop.</p><strong>Enter Alto Space →</strong></div></a>
+      </div></section>
+      <footer className="brandlift-footer"><a href="/" className="brandlift-logo"><span>BL</span><strong>Brandlift<br />Creations</strong></a><p>Creative technology. Distinctly human.</p><nav><a href="/mgs">MGS</a><a href="https://alto-space-macos.iitsmesarath.chatgpt.site">Alto Space</a></nav><small>© 2026 Brandlift Creations</small></footer>
+    </main>
+  )
+}
+
+export default function App(props: AppProps) {
+  if (props.forceIntroComplete || window.location.pathname.startsWith('/mgs')) {
+    return <MgsApp {...props} />
+  }
+  return <BrandliftHub />
 }
