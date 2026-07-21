@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm --prefix outputs/signal-shadow-waitlist install && npm --prefix outputs/signal-shadow-waitlist run build",
-  "outputDirectory": "outputs/signal-shadow-waitlist/dist"
+  "outputDirectory": "outputs/signal-shadow-waitlist/dist",
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
 }

@@ -162,14 +162,54 @@ function BrandliftHub() {
       <section className="brandlift-manifesto"><span>ONE HOUSE. DISTINCT VISIONS.</span><p>From immersive digital worlds to native AI tools, every Brandlift creation begins with the same idea:</p><h2>Technology should feel<br /><em>less like machinery</em><br />and more like possibility.</h2></section>
       <section className="brandlift-brands" id="brands"><header><span>01 / OUR BRANDS</span><h2>Choose a world.</h2></header><div>
         <a className="brandlift-card brandlift-card--mgs" href="/mgs"><span>01</span><b>↗</b><i>M</i><div><small>Interactive worlds</small><h3>MGS</h3><p>Original games and real-time experiences built to make imagined worlds feel tangible.</p><strong>Enter MGS →</strong></div></a>
-        <a className="brandlift-card brandlift-card--alto" href="https://alto-space-macos.iitsmesarath.chatgpt.site"><span>02</span><b>↗</b><i>A</i><div><small>Native intelligence</small><h3>Alto Space</h3><p>A focused, private AI workspace that brings powerful models to the Mac desktop.</p><strong>Enter Alto Space →</strong></div></a>
+        <a className="brandlift-card brandlift-card--alto" href="/alto-space"><span>02</span><b>↗</b><i>A</i><div><small>Native intelligence</small><h3>Alto Space</h3><p>A focused, private AI workspace that brings powerful models to the Mac desktop.</p><strong>Enter Alto Space →</strong></div></a>
       </div></section>
-      <footer className="brandlift-footer"><a href="/" className="brandlift-logo"><span>BL</span><strong>Brandlift<br />Creations</strong></a><p>Creative technology. Distinctly human.</p><nav><a href="/mgs">MGS</a><a href="https://alto-space-macos.iitsmesarath.chatgpt.site">Alto Space</a></nav><small>© 2026 Brandlift Creations</small></footer>
+      <footer className="brandlift-footer"><a href="/" className="brandlift-logo"><span>BL</span><strong>Brandlift<br />Creations</strong></a><p>Creative technology. Distinctly human.</p><nav><a href="/mgs">MGS</a><a href="/alto-space">Alto Space</a></nav><small>© 2026 Brandlift Creations</small></footer>
+    </main>
+  )
+}
+
+function AltoSpacePage() {
+  return (
+    <main className="alto-page">
+      <header className="brandlift-nav alto-nav">
+        <a href="/" className="brandlift-logo"><span>BL</span><strong>Brandlift<br />Creations</strong></a>
+        <nav aria-label="Alto Space navigation"><a href="/">Brandlift</a><a href="/mgs">MGS</a></nav>
+      </header>
+
+      <section className="alto-hero">
+        <p>ALTO SPACE / DESKTOP AI</p>
+        <h1>Alto Space</h1>
+        <div>
+          <p>A focused macOS workspace for private AI sessions, project context, and faster local creative work.</p>
+          <a className="alto-download" href="/downloads/Alto-Space-1.1.0-macOS.dmg" download>
+            Download for macOS
+          </a>
+        </div>
+      </section>
+
+      <section className="alto-downloads" aria-label="Downloads">
+        <article>
+          <span>macOS</span>
+          <h2>Alto Space 1.1.0</h2>
+          <p>Download the signed disk image, open it, then drag Alto Space into Applications.</p>
+          <a href="/downloads/Alto-Space-1.1.0-macOS.dmg" download>Download DMG</a>
+        </article>
+        <article aria-disabled="true">
+          <span>Windows</span>
+          <h2>Installer pending</h2>
+          <p>The Windows installer is not uploaded in this repository yet. This page will expose it when the setup file is added.</p>
+          <strong>Coming soon</strong>
+        </article>
+      </section>
     </main>
   )
 }
 
 export default function App(props: AppProps) {
+  if (window.location.pathname.startsWith('/alto-space')) {
+    return <AltoSpacePage />
+  }
   if (props.forceIntroComplete || window.location.pathname.startsWith('/mgs')) {
     return <MgsApp {...props} />
   }
