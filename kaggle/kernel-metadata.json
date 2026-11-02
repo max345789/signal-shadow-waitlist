@@ -1,0 +1,17 @@
+{
+  "id": "sara8877/dabcloudbp-dual-gpu-30s-video-engine",
+  "id_no": 141681181,
+  "title": "DabcloudBP Dual GPU 30s Video Engine",
+  "code_file": "dabcloudbp-dual-gpu-30s-video-engine.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}

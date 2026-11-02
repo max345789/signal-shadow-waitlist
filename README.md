@@ -40,6 +40,16 @@ The signed-in UI uses protected Vercel routes `/api/tasks/{code}` and `/api/task
 
 Workflow versions and task run history are stored in `studio_workflow_versions` and `studio_runs`. Apply the additive migrations in `outputs/signal-shadow-waitlist/supabase/migrations/` to the studio Supabase project.
 
+## Kaggle Video Model Engine
+
+The production video diffusion model runs on Kaggle via [`sara8877/dabcloudbp-dual-gpu-30s-video-engine`](https://www.kaggle.com/code/sara8877/dabcloudbp-dual-gpu-30s-video-engine).
+
+- **Pipeline**: Dual Tesla T4 GPUs (30 GB combined VRAM). Master keyframe generation on GPU 0 with temporal autoregressive segment diffusion on GPU 1 (SVD-XT) + cinematic procedural synthesizer fallback.
+- **Output**: Full 30-second 2K (1920x1080) video clips at 24 FPS with H.264 MP4 encoding.
+- **Two-Way Bridge**: Connects to the studio using Cloudflare Quick Tunnel over WebSocket (`wss://.../ws`).
+- **In-Browser Video Playback**: Generated video outputs are dynamically displayed with inline video players directly on the Video Generation canvas node, the Final Output node, the Node Inspector, and the Task Output dialog.
+- **Source Code**: Located under `kaggle/` with `dabcloudbp-dual-gpu-30s-video-engine.py` and `kernel-metadata.json`.
+
 Run unit tests with `npm --prefix outputs/signal-shadow-waitlist test`.
 
 ## Legacy waitlist backend
