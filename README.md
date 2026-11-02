@@ -1,67 +1,41 @@
-# Don't Hang Up Waitlist
+# DabCloud Movie Workflow Studio
 
-The app lives in `outputs/signal-shadow-waitlist`.
+This repository now serves the node-based movie production workflow studio. The frontend lives in `outputs/signal-shadow-waitlist`; Vercel builds it and serves its `dist` directory.
 
-## Local Checks
-
-```sh
-pnpm --dir outputs/signal-shadow-waitlist test
-pnpm --dir outputs/signal-shadow-waitlist build
-```
-
-The repository root also has a Vercel bridge build:
+## Local development
 
 ```sh
-pnpm build
+npm --prefix outputs/signal-shadow-waitlist install
+npm --prefix outputs/signal-shadow-waitlist run dev
 ```
 
-## Deployment
+## Build
 
-Vercel builds `outputs/signal-shadow-waitlist` during deployment, serves the generated `dist`, and exposes the first-party API route in `api/waitlist.js`.
-
-## Backend Datastore
-
-The frontend posts signups to:
-
-```txt
-/api/waitlist
+```sh
+npm --prefix outputs/signal-shadow-waitlist run build
 ```
 
-That endpoint stores normalized emails and generated `DHU-XXXXX` player IDs in an Upstash/Vercel KV-compatible Redis datastore. Duplicate email submits return the same player ID, and new signups are rate-limited per connection.
+Vercel uses the root `vercel.json` to build the nested frontend. The existing `/api/waitlist` endpoint remains in the repository for compatibility, but the movie studio UI does not use it.
 
-Configure these environment variables in Vercel:
+## Accounts and saved workflows
 
-```txt
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-WAITLIST_RATE_LIMIT_MAX=5
-WAITLIST_RATE_LIMIT_WINDOW_SECONDS=3600
-```
+The studio uses Supabase Auth for email/password accounts, Google OAuth, email confirmation, and password reset. Passwords are sent directly to Supabase Auth and are never stored by this application. The signed-in user's workflow graph, node instructions, task code, and optimized image references are autosaved to `public.studio_workflows`; Supabase row-level security limits access to the owner.
 
-## Legacy Supabase Function
+To enable accounts in production:
 
-The older Supabase Edge Function remains in the repo as a fallback implementation:
+1. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel for Production, Preview, and Development as needed. These are the Supabase project URL and publishable/anon key; never use a service-role key in a `VITE_` variable.
+2. Apply `outputs/signal-shadow-waitlist/supabase/migrations/20261102000000_create_studio_accounts_and_workflows.sql` to that same Supabase project (for example, with the Supabase SQL Editor or `supabase db push`).
+3. In Supabase Auth, add the deployed site URL and its redirect URLs. Configure custom SMTP for reliable signup and reset email delivery. If enabling Google sign-in, configure the Google provider credentials and callback URL there.
+4. Redeploy the Vercel site after setting environment variables.
 
-```txt
-outputs/signal-shadow-waitlist/supabase/functions/waitlist-signup
-```
+The frontend build can complete without Supabase credentials, but sign-in and persistent storage stay disabled until those project values and the migration are configured. See `outputs/signal-shadow-waitlist/.env.example`.
 
-## Required Environment
+## MCP server
 
-Frontend:
+The Vercel function at `api/mcp.js` is exposed at `/mcp` through a rewrite. It provides `get_workflow`, `get_task`, and `run_task`. Configure the server-side environment variables in Vercel before connecting a model client. See [MCP_SETUP.md](MCP_SETUP.md).
 
-```txt
-VITE_DEMO_SIGNUP=false
-```
+The frontend currently uses `https://mcp.dabcloud.in/api/tasks` for task actions. Keep that API on a separate origin from the Vercel site hosting `/mcp`.
 
-Optional legacy Supabase Edge Function:
+## Legacy waitlist backend
 
-```txt
-RESEND_API_KEY=
-WAITLIST_FROM_EMAIL=Maxwel Game Studio <waitlist@example.com>
-SITE_URL=https://www.dabcloud.in
-WAITLIST_RATE_LIMIT_MAX=5
-WAITLIST_RATE_LIMIT_WINDOW_SECONDS=3600
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-```
+The existing `/api/waitlist` handler and the older Supabase fallback remain in the repository, but the new studio UI does not call them. If the waitlist endpoint is still needed, configure `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `WAITLIST_RATE_LIMIT_MAX`, and `WAITLIST_RATE_LIMIT_WINDOW_SECONDS` in Vercel.

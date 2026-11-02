@@ -1,12 +1,12 @@
 {
-  "name": "dont-hang-up-deploy-root",
-  "version": "0.1.0",
+  "name": "dabcloud-movie-workflow-deploy-root",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "redis": "6.1.0"
   },
   "scripts": {
-    "build": "echo \"Static build is committed in outputs/signal-shadow-waitlist/dist\""
+    "build": "npm --prefix outputs/signal-shadow-waitlist install && npm --prefix outputs/signal-shadow-waitlist run build"
   },
   "packageManager": "pnpm@11.7.0"
 }
