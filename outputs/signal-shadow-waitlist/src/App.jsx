@@ -1371,6 +1371,12 @@ function Workspace({ user, onSignOut }) {
     type: "smoothstep",
     style: { stroke: "#aeb5c2", strokeWidth: 1.8 },
   }, current)), []);
+  const onEdgeClick = useCallback((event, edge) => {
+    if (!event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setEdges((current) => current.filter((item) => item.id !== edge.id));
+  }, []);
 
   const addNode = useCallback((definition, dropPosition) => {
     if (["start", "output"].includes(definition.kind) && nodes.some((node) => node.data.kind === definition.kind)) {
@@ -1635,6 +1641,7 @@ function Workspace({ user, onSignOut }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
             onDragOver={onDragOver}
             onDrop={onDrop}
             onNodeClick={(_, node) => { setSelectedNodeId(node.id); setConnectionMenu(""); }}
