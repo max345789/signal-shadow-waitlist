@@ -1726,8 +1726,6 @@ button {
 
 .auth-heading-block,
 .auth-form,
-.auth-divider,
-.auth-google,
 .auth-notice,
 .auth-terms,
 .auth-switch,
@@ -1849,40 +1847,7 @@ button {
 .auth-submit:hover { transform: translateY(-1px); background: #9bd45a; }
 .auth-submit span { font-size: 17px; }
 
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px 0 13px;
-  color: #90968e;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.auth-divider span {
-  flex: 1;
-  height: 1px;
-  background: #edf0ea;
-}
-
-.auth-google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 45px;
-  border: 1px solid #e5e9e1;
-  border-radius: 13px;
-  color: #363e36;
-  background: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.auth-google:hover { background: #f8fbf5; border-color: #ceddc1; }
-.auth-submit:disabled,
-.auth-google:disabled { opacity: .55; cursor: not-allowed; }
-.google-g { color: #4285f4; font-family: Arial, sans-serif; font-size: 16px; font-weight: 800; }
+.auth-submit:disabled { opacity: .55; cursor: not-allowed; }
 
 .auth-notice {
   margin: 12px 0 0;

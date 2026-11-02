@@ -1581,11 +1581,6 @@ function AuthScreen({ onAuthenticated }) {
             <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Please wait…" : isCreate ? "Create account" : "Sign in"}<span aria-hidden="true">→</span></button>
           </form>
 
-          <div className="auth-divider"><span />or continue with<span /></div>
-          <button className="auth-google" type="button" disabled={busy || !configured} onClick={async () => {
-            const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
-            if (error) setNotice(error.message);
-          }}><span className="google-g">G</span>Continue with Google</button>
           {notice && <p className="auth-notice" role="status">{notice}</p>}
           <p className="auth-terms">By continuing, you agree to our <a href="#terms" onClick={(event) => event.preventDefault()}>Terms</a> and <a href="#privacy" onClick={(event) => event.preventDefault()}>Privacy Policy</a>.</p>
           <p className="auth-switch">{isCreate ? "Already have an account?" : "New to DabCloud Studio?"} <button type="button" onClick={() => switchMode(isCreate ? "login" : "create")}>{isCreate ? "Sign in" : "Create account"}</button></p>
