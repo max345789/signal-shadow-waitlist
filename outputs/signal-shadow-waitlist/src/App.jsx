@@ -206,6 +206,7 @@ const initialEdges = [
 }));
 
 const palette = [
+  { kind: "start", title: "Task Code", tone: "blue", description: "Add a six-digit production trigger." },
   { kind: "brief", title: "MCP Brief & Script", tone: "orange", description: "Retrieve the complete task brief." },
   { kind: "cast", title: "Character Design", tone: "mint", description: "Create a consistent seven-view character sheet." },
   { kind: "environment", title: "Environment Design", tone: "blue", description: "Describe the setting and add visual references.", instructions: "Keep location, time of day, weather, lighting, colors, and set details consistent across every shot.", environmentDescription: "", referenceImages: [], details: ["Location", "Lighting + weather", "Color palette"] },
