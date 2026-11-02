@@ -1732,11 +1732,27 @@ function PasswordUpdateScreen({ onComplete }) {
     } catch (error) { setNotice(error.message || "Could not update your password. Try again."); }
     finally { setBusy(false); }
   }
-  return <main className="auth-page"><section className="auth-card auth-reset-card"><div className="auth-card-brand">DabCloud <b>Studio</b></div><div className="auth-heading-block"><div className="auth-eyebrow">ACCOUNT SECURITY</div><h1>Set a new<br />password</h1><p>Choose a new password for your account.</p></div><form className="auth-form" onSubmit={updatePassword}><label className="auth-field"><span>New password</span><input name="password" type="password" minLength={8} autoComplete="new-password" required /></label><label className="auth-field"><span>Confirm password</span><input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required /></label><button className="auth-submit" disabled={busy}>{busy ? "Saving…" : "Update password"}</button></form>{notice && <p className="auth-notice" role="status">{notice}</p>}</section></main>;
+  return (
+    <main className="auth-page">
+      <div className="auth-frame">
+        <section className="auth-card auth-reset-card" aria-labelledby="auth-heading">
+          <div className="auth-brand-mark" aria-hidden="true"><FilmReel size={20} weight="fill" /></div>
+          <div className="auth-heading-block"><h1 id="auth-heading">Set a new<br />password</h1><p>Choose a new password for your account.</p></div>
+          <form className="auth-form" onSubmit={updatePassword}>
+            <label className="auth-field"><span>New password</span><input name="password" type="password" minLength={8} autoComplete="new-password" required /></label>
+            <label className="auth-field"><span>Confirm password</span><input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required /></label>
+            <button className="auth-submit" disabled={busy}>{busy ? "Saving…" : "Update password"}</button>
+          </form>
+          {notice && <p className="auth-notice" role="status">{notice}</p>}
+        </section>
+        <div className="auth-art" aria-hidden="true"><img src="/images/auth-halftone.png" alt="" /></div>
+      </div>
+    </main>
+  );
 }
 
 function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("create");
+  const [mode, setMode] = useState("login");
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1777,44 +1793,50 @@ function AuthScreen({ onAuthenticated }) {
     setNotice("");
   }
 
+  async function requestPasswordReset() {
+    if (!configured) return setNotice("Account service setup is required before password reset can be used.");
+    const email = String(document.querySelector(".auth-form input[name=email]")?.value || "").trim();
+    if (!email) return setNotice("Enter your email address first.");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      setNotice(error ? error.message : "If an account exists for that email, a password reset link is on its way.");
+    } catch (error) { setNotice(error.message || "Could not send the password reset request. Try again."); }
+  }
+
   return (
     <main className="auth-page">
       <div className="auth-frame">
         <section className="auth-card" aria-labelledby="auth-heading">
+          <div className="auth-brand-mark" aria-hidden="true"><FilmReel size={20} weight="fill" /></div>
           <div className="auth-heading-block">
-            <h1 id="auth-heading">{isCreate ? <>Create your<br />account</> : <>Welcome<br />back</>}</h1>
-            <p>{isCreate ? "Create an account to save your movie workflows." : "Sign in to continue to your movie workflows."}</p>
+            <h1 id="auth-heading">{isCreate ? <>Create an<br />account</> : "Sign In"}</h1>
+            <p>{isCreate ? "Create an account to save your movie workflows." : "Continue to access your dashboard."}</p>
           </div>
 
           {!configured && <p className="auth-notice auth-config-notice" role="status">The sign-in service is not configured for this deployment yet.</p>}
           <form className="auth-form" onSubmit={submitAuth}>
             <label className="auth-field">
-              <span>Email address</span>
-              <input type="email" name="email" autoComplete="email" placeholder="you@example.com" required />
+              <span>Email</span>
+              <input type="email" name="email" autoComplete="email" placeholder="Enter your email" required />
             </label>
             <label className="auth-field auth-password-field">
-              <span>Password</span>
+              <div className="auth-field-label-row">
+                <span>Password</span>
+                {!isCreate && <button className="auth-forgot" type="button" onClick={requestPasswordReset}>Forgot Password?</button>}
+              </div>
               <div className="auth-password-wrap">
-                <input type={showPassword ? "text" : "password"} name="password" autoComplete={isCreate ? "new-password" : "current-password"} placeholder="At least 8 characters" minLength={8} required />
+                <input type={showPassword ? "text" : "password"} name="password" autoComplete={isCreate ? "new-password" : "current-password"} placeholder="Enter your password" minLength={8} required />
                 <button type="button" className="auth-show-password" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button>
               </div>
             </label>
             {isCreate && <label className="auth-field"><span>Confirm password</span><input type={showPassword ? "text" : "password"} name="confirmPassword" autoComplete="new-password" placeholder="Enter your password again" minLength={8} required /></label>}
-            {!isCreate && <button className="auth-forgot" type="button" onClick={async () => {
-              if (!configured) return setNotice("Account service setup is required before password reset can be used.");
-              const email = String(new FormData(document.querySelector(".auth-form")).get("email") || "").trim();
-              if (!email) return setNotice("Enter your email address first.");
-              try {
-                const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-                setNotice(error ? error.message : "If an account exists for that email, a password reset link is on its way.");
-              } catch (error) { setNotice(error.message || "Could not send the password reset request. Try again."); }
-            }}>Forgot password?</button>}
-            <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Please wait…" : isCreate ? "Create account" : "Sign in"}<span aria-hidden="true">→</span></button>
+            <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Please wait…" : isCreate ? "Create Account" : "Sign In"}</button>
           </form>
 
           {notice && <p className="auth-notice" role="status">{notice}</p>}
-          <p className="auth-switch">{isCreate ? "Already have an account?" : "New to DabCloud Studio?"} <button type="button" onClick={() => switchMode(isCreate ? "login" : "create")}>{isCreate ? "Sign in" : "Create account"}</button></p>
+          <p className="auth-switch"><span>{isCreate ? "Already have an account?" : "Don’t have an account?"}</span><button type="button" onClick={() => switchMode(isCreate ? "login" : "create")}>{isCreate ? "Sign In" : "Create an Account"}</button></p>
         </section>
+        <div className="auth-art" aria-hidden="true"><img src="/images/auth-halftone.png" alt="" /></div>
       </div>
     </main>
   );
