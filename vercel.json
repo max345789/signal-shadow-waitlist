@@ -3,6 +3,10 @@
   "outputDirectory": "outputs/signal-shadow-waitlist/dist",
   "rewrites": [
     {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
