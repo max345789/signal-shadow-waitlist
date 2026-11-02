@@ -1,4 +1,4 @@
-const { forwardTaskRequest } = require('../../../lib/task-api.cjs')
+const { forwardTaskRequest } = require('../lib/task-api.cjs')
 
 module.exports = async function completeTaskHandler(req, res) {
   if (req.method !== 'POST') return res.setHeader('Allow', 'POST').status(405).json({ error: 'Method not allowed.' })

@@ -7,6 +7,14 @@
       "destination": "/api/mcp"
     },
     {
+      "source": "/api/tasks/:code/complete",
+      "destination": "/api/task-complete?code=:code"
+    },
+    {
+      "source": "/api/tasks/:code",
+      "destination": "/api/task?code=:code"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
