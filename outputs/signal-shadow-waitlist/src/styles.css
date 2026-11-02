@@ -211,6 +211,10 @@ button {
   background: #58c99b;
 }
 
+.status-dot.connected { background: #52c98a; box-shadow: 0 0 0 3px rgba(82, 201, 138, 0.12); }
+.status-dot.checking { background: #e5a64a; box-shadow: 0 0 0 3px rgba(229, 166, 74, 0.12); animation: pulse 1.2s ease-in-out infinite; }
+.status-dot.error { background: #df5f50; box-shadow: 0 0 0 3px rgba(223, 95, 80, 0.12); }
+
 .connection-popover {
   position: absolute;
   top: calc(100% + 10px);
@@ -1945,6 +1949,87 @@ button {
 .account-signout { border: 1px solid #e3e8df; border-radius: 999px; background: white; padding: 7px 11px; color: #50594e; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
 .account-signout:hover { border-color: #aec997; color: #4c7131; }
 
+.account-save-button,
+.account-terminal-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #e4e8e1;
+  border-radius: 999px;
+  color: #4e594b;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.account-save-button:hover:not(:disabled),
+.account-terminal-button:hover { border-color: #b5d69b; background: #f8fcf3; }
+.account-save-button:disabled { cursor: wait; opacity: .58; }
+.account-terminal-button.active { border-color: #bfdbab; color: #426b2b; background: #f3f9ec; }
+.account-save-state.error { color: #c4574a; }
+
+.pipeline-terminal {
+  position: absolute;
+  z-index: 40;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(490px, calc(100dvh - 104px));
+  overflow: hidden;
+  border: 1px solid #343b45;
+  border-radius: 16px;
+  color: #edf2eb;
+  background: #20262e;
+  box-shadow: 0 18px 54px rgba(28, 35, 43, .25);
+}
+.terminal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 12px 0 16px; border-bottom: 1px solid #39414b; background: #272e37; }
+.terminal-title, .terminal-header-actions { display: flex; align-items: center; gap: 9px; }
+.terminal-title { font-size: 12px; color: #f5f8f3; }
+.terminal-title > svg { color: #a6d774; }
+.terminal-title > strong { font-size: 12px; }
+.terminal-title > span:last-of-type { margin-left: 4px; color: #aab4a7; font-size: 10px; }
+.terminal-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #a6d774; box-shadow: 0 0 0 3px rgba(166, 215, 116, .12); }
+.terminal-tab { height: 28px; padding: 0 9px; border: 0; border-radius: 7px; color: #adb5bf; background: transparent; font-size: 10px; font-weight: 800; }
+.terminal-tab.active { color: #242c24; background: #c7eaa4; }
+.terminal-close { width: 28px; height: 28px; color: #aeb6c0; }
+.terminal-output { min-height: 145px; max-height: 230px; overflow: auto; padding: 13px 15px; background: #171d24; font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-line { display: flex; align-items: flex-start; gap: 9px; padding: 2px 0; color: #d4dcd2; }
+.terminal-line > span { flex: 0 0 auto; color: #94c76a; }
+.terminal-line pre { min-width: 0; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font: inherit; }
+.terminal-line.command { color: #f5f7f1; }
+.terminal-line.command > span { color: #b8e594; }
+.terminal-line.success { color: #bce48f; }
+.terminal-line.error { color: #f1a295; }
+.terminal-line.error > span { color: #e97668; }
+.terminal-command { display: flex; align-items: center; gap: 9px; min-height: 43px; padding: 0 13px; border-top: 1px solid #303943; background: #1c2229; }
+.terminal-command > span { color: #a5d772; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-command input { flex: 1; min-width: 0; height: 34px; border: 0; outline: 0; color: #f5f7f3; background: transparent; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.terminal-command input::placeholder { color: #75808c; }
+.terminal-command button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 8px; color: #263323; background: #b7e28d; }
+.terminal-hint { padding: 0 14px 11px; color: #929ca6; background: #1c2229; font-size: 9px; line-height: 1.7; }
+.terminal-hint code { margin: 0 2px; color: #d9e4d3; font: inherit; }
+.terminal-connections { overflow: auto; padding: 11px 14px 14px; background: #f8faf7; color: #303a31; }
+.terminal-note { margin: 0 0 10px; color: #737d70; font-size: 10px; line-height: 1.45; }
+.terminal-connection-card { display: grid; grid-template-columns: 1fr auto; gap: 7px 10px; margin: 0 0 9px; padding: 11px; border: 1px solid #e5e9e1; border-radius: 12px; background: #fff; }
+.terminal-connection-head { display: flex; align-items: center; justify-content: space-between; grid-column: 1 / -1; margin-bottom: 1px; }
+.terminal-connection-head strong { color: #303a31; font-size: 11px; }
+.terminal-connection-status { color: #858d82; font-size: 9px; font-weight: 800; }
+.terminal-connection-status.connected { color: #5d9138; }
+.terminal-connection-status.checking { color: #bd8127; }
+.terminal-connection-status.error { color: #c35448; }
+.terminal-field-label { grid-column: 1 / -1; color: #687166; font-size: 9px; font-weight: 800; }
+.terminal-field-label span { margin-left: 4px; color: #9aa194; font-weight: 500; }
+.terminal-connection-card input { grid-column: 1 / -1; width: 100%; height: 32px; padding: 0 9px; border: 1px solid #e2e7df; border-radius: 8px; outline: 0; color: #303a31; background: #fff; font-size: 10px; }
+.terminal-connection-card input:focus { border-color: #9dc777; box-shadow: 0 0 0 2px rgba(157, 199, 119, .17); }
+.terminal-test-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; grid-column: 1; width: max-content; min-height: 29px; padding: 0 10px; border: 0; border-radius: 8px; color: #263323; background: #c7eaa4; font-size: 9px; font-weight: 800; }
+.terminal-test-button:disabled { opacity: .55; cursor: wait; }
+.terminal-connection-card small { grid-column: 1 / -1; color: #889184; font-size: 9px; line-height: 1.4; }
+
 .auth-footer {
   display: flex;
   align-items: center;
@@ -1958,6 +2043,9 @@ button {
 .auth-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: #77b743; }
 
 @media (max-width: 820px) {
+  .account-actions { gap: 7px; }
+  .account-email { display: none; }
+  .pipeline-terminal { right: 12px; bottom: 12px; }
   .auth-page { align-items: start; padding: 16px; }
   .auth-frame { min-height: auto; grid-template-columns: 1fr; gap: 9px; padding: 9px; border-width: 8px; border-radius: 32px; }
   .auth-art { min-height: clamp(210px, 34vh, 320px); border-radius: 21px; }
@@ -1971,6 +2059,13 @@ button {
 }
 
 @media (max-width: 440px) {
+  .account-save-state { display: none; }
+  .account-save-button, .account-terminal-button { min-height: 30px; padding: 0 8px; font-size: 10px; }
+  .pipeline-terminal { right: 8px; bottom: 8px; width: calc(100vw - 16px); max-height: calc(100dvh - 86px); }
+  .terminal-header { padding: 0 8px 0 11px; }
+  .terminal-title { gap: 6px; }
+  .terminal-title > strong { font-size: 10px; }
+  .terminal-tab { padding: 0 6px; font-size: 9px; }
   .auth-page { padding: 10px; }
   .auth-frame { border-width: 6px; padding: 6px; border-radius: 25px; }
   .auth-art { min-height: 185px; border-radius: 17px; }

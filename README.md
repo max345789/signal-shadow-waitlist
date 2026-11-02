@@ -21,6 +21,8 @@ Vercel uses the root `vercel.json` to build the nested frontend. The existing `/
 
 The studio uses Supabase Auth for email/password accounts, Google OAuth, email confirmation, and password reset. Passwords are sent directly to Supabase Auth and are never stored by this application. The signed-in user's workflow graph, node instructions, task code, and optimized image references are autosaved to `public.studio_workflows`; Supabase row-level security limits access to the owner.
 
+The canvas header also has a manual **Save** action. The **Terminal** opens a workflow-scoped pipeline console with `help`, `status`, `connect kaggle <url>`, `connect local <url>`, `test <provider>`, `models <provider>`, `save`, and `run` commands. It can check a Kaggle OpenAI-compatible `/v1/models` endpoint and a local Ollama `/api/tags` endpoint. Endpoint URLs are saved with the workflow; bearer tokens are used only for the current browser session and are not persisted. The console does not execute arbitrary computer shell commands. The configured task API remains responsible for dispatching generation jobs to a selected provider adapter.
+
 To enable accounts in production:
 
 1. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel for Production, Preview, and Development as needed. These are the Supabase project URL and publishable/anon key; never use a service-role key in a `VITE_` variable.
