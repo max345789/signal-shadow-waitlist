@@ -1441,6 +1441,12 @@ export function App() {
   const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
+    const preventCopy = (event) => event.preventDefault();
+    document.addEventListener("copy", preventCopy, true);
+    return () => document.removeEventListener("copy", preventCopy, true);
+  }, []);
+
+  useEffect(() => {
     if (!supabase) {
       setCheckingSession(false);
       return undefined;
