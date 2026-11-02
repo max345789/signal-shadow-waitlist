@@ -1,4 +1,5 @@
 const crypto = require('node:crypto')
+const { removePrivateFields } = require('../lib/task-api.cjs')
 
 const MCP_VERSION = '2025-11-25'
 const TASK_CODE = /^\d{6}$/
@@ -33,8 +34,13 @@ const TOOLS = [
   },
   {
     name: 'run_task',
-    description: 'Submit a task to the configured task API using POST /api/tasks/{code}/complete, the same route as the studio Run button. The API must be configured to execute or queue the work; this tool does not call a model directly.',
-    inputSchema: { type: 'object', properties: { task_code: { type: 'string', pattern: '^\\d{6}$', description: 'The six-digit movie task code.' } }, required: ['task_code'], additionalProperties: false },
+    description: 'Submit a task to the configured task API, including the selected provider and optional edited graph. The task API must execute or queue the work; this MCP tool does not call a model itself.',
+    inputSchema: { type: 'object', properties: {
+      task_code: { type: 'string', pattern: '^\\d{6}$', description: 'The six-digit movie task code.' },
+      provider: { type: 'string', enum: ['Cloud', 'Kaggle', 'Local'] },
+      run_id: { type: 'string', description: 'Optional run correlation/idempotency key.' },
+      graph: { type: 'object', description: 'Workflow graph with nodes, edges, instructions, and attached references.' },
+    }, required: ['task_code'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
 ]
@@ -80,7 +86,7 @@ function parseBody(body) {
   try { return JSON.parse(body) } catch { return null }
 }
 
-async function taskApi(req, code, action = '', method = 'GET') {
+async function taskApi(req, code, action = '', method = 'GET', body) {
   const apiOrigin = process.env.TASK_API_ORIGIN || 'https://mcp.dabcloud.in'
   let origin
   try { origin = new URL(apiOrigin) } catch { throw new Error('TASK_API_ORIGIN must be a valid HTTPS URL.') }
@@ -90,12 +96,63 @@ async function taskApi(req, code, action = '', method = 'GET') {
   if (url.origin === siteOrigin) throw new Error('TASK_API_ORIGIN points back to this website. Configure the separate task API origin to avoid a proxy loop.')
   const headers = { Accept: 'application/json' }
   if (process.env.TASK_API_TOKEN) headers.Authorization = `Bearer ${process.env.TASK_API_TOKEN}`
-  const response = await fetch(url, { method, headers, redirect: 'manual' })
+  const serializedBody = body === undefined ? undefined : JSON.stringify(body)
+  if (serializedBody) headers['Content-Type'] = 'application/json'
+  if (serializedBody && Buffer.byteLength(serializedBody) > 4_000_000) throw new Error('Workflow and reference images exceed the 4 MB task submission limit.')
+  const response = await fetch(url, { method, headers, body: serializedBody, redirect: 'manual', signal: AbortSignal.timeout(120000) })
   const text = await response.text()
   let data
   try { data = text ? JSON.parse(text) : {} } catch { data = { message: text.slice(0, 2000) } }
   if (!response.ok || data?.success === false) throw new Error(data?.error || data?.message || `Task API returned HTTP ${response.status}.`)
-  return { status: response.status, data }
+  return { status: response.status, data: removePrivateFields(data) }
+}
+
+function validateWorkflowGraph(graph) {
+  if (graph === undefined) return
+  if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) throw new Error('graph must contain nodes and edges arrays.')
+  const kind = (node) => node?.data?.kind || node?.kind
+  const starts = graph.nodes.filter((node) => kind(node) === 'start')
+  const outputs = graph.nodes.filter((node) => kind(node) === 'output')
+  const videos = graph.nodes.filter((node) => kind(node) === 'video')
+  if (starts.length !== 1 || outputs.length !== 1 || videos.length < 1) throw new Error('Workflow requires exactly one start and output node and at least one video node.')
+  if (graph.nodes.length > 100 || graph.edges.length > 250) throw new Error('Workflow exceeds the maximum node or connection count.')
+  const ids = new Set(graph.nodes.map((node) => node.id))
+  if (ids.size !== graph.nodes.length || graph.nodes.some((node) => typeof node.id !== 'string' || !node.id)) throw new Error('Workflow node IDs must be unique non-empty strings.')
+  const outgoing = new Map(graph.nodes.map((node) => [node.id, []]))
+  const incoming = new Map(graph.nodes.map((node) => [node.id, []]))
+  for (const edge of graph.edges) {
+    if (!ids.has(edge.source) || !ids.has(edge.target)) throw new Error('Workflow includes a connection to a missing node.')
+    outgoing.get(edge.source).push(edge.target)
+    incoming.get(edge.target).push(edge.source)
+  }
+  const reached = new Set()
+  const queue = [starts[0].id]
+  while (queue.length) {
+    const id = queue.pop()
+    if (reached.has(id)) continue
+    reached.add(id)
+    queue.push(...outgoing.get(id))
+  }
+  if (!reached.has(outputs[0].id) || reached.size !== graph.nodes.length) throw new Error('Every workflow node must connect from start through to the final output.')
+  const leadsToOutput = new Set()
+  const reverseQueue = [outputs[0].id]
+  while (reverseQueue.length) {
+    const id = reverseQueue.pop()
+    if (leadsToOutput.has(id)) continue
+    leadsToOutput.add(id)
+    reverseQueue.push(...incoming.get(id))
+  }
+  if (leadsToOutput.size !== graph.nodes.length) throw new Error('Every workflow node must lead to the final output.')
+  const visiting = new Set(); const visited = new Set()
+  function hasCycle(id) {
+    if (visiting.has(id)) return true
+    if (visited.has(id)) return false
+    visiting.add(id)
+    for (const next of outgoing.get(id)) if (hasCycle(next)) return true
+    visiting.delete(id); visited.add(id); return false
+  }
+  if (graph.nodes.some((node) => hasCycle(node.id))) throw new Error('Workflow contains a loop.')
+  if (videos.some((node) => !['Cloud', 'Kaggle', 'Local'].includes(node.data?.provider || node.provider))) throw new Error('Every video node must use Cloud, Kaggle, or Local.')
 }
 
 function toolResult(value) {
@@ -113,9 +170,18 @@ async function callTool(req, name, args) {
   if (name !== 'get_task' && name !== 'run_task') throw new Error(`Unknown tool: ${name}`)
   const code = String(args.task_code || '')
   if (!TASK_CODE.test(code)) throw new Error('task_code must contain exactly six digits.')
+  if (name === 'run_task') {
+    if (args.provider && !['Cloud', 'Kaggle', 'Local'].includes(args.provider)) throw new Error('provider must be Cloud, Kaggle, or Local.')
+    validateWorkflowGraph(args.graph)
+  }
   const result = name === 'get_task'
     ? await taskApi(req, code)
-    : await taskApi(req, code, '/complete', 'POST')
+    : await taskApi(req, code, '/complete', 'POST', {
+      task_code: code,
+      ...(args.provider ? { provider: args.provider } : {}),
+      ...(args.run_id ? { run_id: args.run_id } : {}),
+      ...(args.graph ? { graph: args.graph } : {}),
+    })
   return toolResult({ task_code: code, ...result })
 }
 
@@ -154,3 +220,6 @@ module.exports = async function mcpHandler(req, res) {
   }
   return rpcError(res, id, -32601, `Method not found: ${message.method}`)
 }
+
+module.exports.config = { api: { bodyParser: { sizeLimit: '4mb' } } }
+module.exports.validateWorkflowGraph = validateWorkflowGraph

@@ -38,18 +38,26 @@ import "@fontsource/nunito-sans/600.css";
 import "@fontsource/nunito-sans/700.css";
 import "@xyflow/react/dist/style.css";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+import { validateTaskCode, validateWorkflow } from "./lib/workflow.js";
 
 async function makePersistentImage(file) {
   if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Choose an image smaller than 15 MB.");
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  let scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+  let image = "";
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    image = canvas.toDataURL("image/webp", Math.max(0.48, 0.76 - attempt * 0.05));
+    if (image.length <= 180_000) break;
+    scale *= 0.78;
+  }
   bitmap.close();
-  return canvas.toDataURL("image/webp", 0.8);
+  if (image.length > 240_000) throw new Error("This image could not be compressed enough. Choose a smaller image.");
+  return image;
 }
 
 const ICONS = {
@@ -153,7 +161,7 @@ const initialNodes = [
       instructions: "Generate exactly 30 seconds from the pinned script, dialogue, character photos, environment, and storyboard. Do not invent or change scenes.",
       details: ["Duration · 30 sec", "Route · Cloud", "Continuity lock on"],
       status: "idle",
-      provider: "Cloud",
+      provider: "Kaggle",
     },
   },
   {
@@ -182,7 +190,7 @@ const initialNodes = [
       tone: "mint",
       description: "Check continuity, then save files by task code.",
       instructions: "Check the finished clip against the locked character design, script, dialogue, shot order, and environment. Save the approved result under the task-code folder.",
-      details: ["Continuity gate", "/movies/565349"],
+      details: ["Continuity gate", "SCENES/565349"],
       status: "idle",
     },
   },
@@ -294,7 +302,7 @@ function WorkflowNode({ id, data, selected }) {
           )}
           {data.kind === "output" && (
             <div className="output-node-actions">
-              <div className="folder-link"><FolderOpen size={15} weight="duotone" /> D: / {data.taskCode || "------"}</div>
+              <div className="folder-link"><FolderOpen size={15} weight="duotone" /> SCENES / {data.taskCode || "------"}</div>
               <button className="folder-link output-files-button" onClick={(event) => { event.stopPropagation(); data.onOpenOutput?.(); }}>
                 <FileText size={15} weight="duotone" /> {data.outputFiles?.length ? `${data.outputFiles.length} Kaggle output${data.outputFiles.length === 1 ? "" : "s"}` : "View outputs"}
               </button>
@@ -463,7 +471,7 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
             </section>
           ))}
           <button className="add-character-button" onClick={() => onCharacterAdd(node.id)}><Plus size={14} />Add character sheet</button>
-          <div className="field-hint">Uploaded images stay in this browser preview and are not sent to a model.</div>
+          <div className="field-hint">Reference images are saved with this workflow and included in the Kaggle graph submission.</div>
         </section>
       )}
 
@@ -507,7 +515,7 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
               ))}
             </div>
           )}
-          <div className="field-hint">These references belong to the environment node and stay in this browser preview.</div>
+          <div className="field-hint">Reference images are saved with this workflow and included in the Kaggle graph submission.</div>
         </section>
       )}
 
@@ -527,8 +535,8 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
       {data.kind === "output" && (
         <section className="panel-section">
           <label className="field-label">Output folder on this computer</label>
-          <div className="inspector-row"><span>Selected folder</span><strong>{outputFolderName || "Choose D: folder"}</strong></div>
-          <div className="field-hint">Choose the D: drive root once. DabCloud creates SCENES and then a task-code folder before saving.</div>
+          <div className="inspector-row"><span>Selected folder</span><strong>{outputFolderName || "Choose an output folder"}</strong></div>
+          <div className="field-hint">Choose your D: drive root. DabCloud creates SCENES and a task-code folder inside it before saving.</div>
           {outputFiles?.length ? <div className="output-file-list">
             {outputFiles.map((file) => <div className="output-file-row" key={file.fileName}>
               <FileText size={15} />
@@ -560,7 +568,7 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
   );
 }
 
-function NodeNavigator({ nodes, taskCode, onSelect, onAdd, addOpen, onToggleAdd }) {
+function NodeNavigator({ nodes, taskCode, onSelect, onAdd, addOpen, onToggleAdd, runHistory, workflowVersions, onRestoreVersion }) {
   const draggedNode = useRef(false);
   return (
     <aside className="node-inspector node-navigator" aria-label="Workflow nodes">
@@ -630,6 +638,24 @@ function NodeNavigator({ nodes, taskCode, onSelect, onAdd, addOpen, onToggleAdd 
           </div>
         )}
       </section>
+      <section className="run-history-section" aria-label="Recent runs">
+        <div className="section-title"><span>Recent runs</span><small>{runHistory.length}</small></div>
+        {runHistory.length === 0 ? <p className="field-hint">Runs for this task will appear here.</p> : runHistory.slice(0, 5).map((run) => (
+          <div className="run-history-row" key={run.runId}>
+            <span className={`history-status ${run.status}`} />
+            <span><strong>#{run.taskCode} · {run.provider}</strong><small>{run.status} · {new Date(run.startedAt).toLocaleString()}</small></span>
+          </div>
+        ))}
+      </section>
+      <section className="run-history-section" aria-label="Saved workflow versions">
+        <div className="section-title"><span>Saved versions</span><small>{workflowVersions.length}</small></div>
+        {workflowVersions.length === 0 ? <p className="field-hint">Click Save to create a restore point.</p> : workflowVersions.slice(0, 5).map((version) => (
+          <div className="version-row" key={version.id}>
+            <span><strong>{version.version_name || "Saved version"}</strong><small>{new Date(version.created_at).toLocaleString()}</small></span>
+            <button onClick={() => onRestoreVersion(version)}>Restore</button>
+          </div>
+        ))}
+      </section>
     </aside>
   );
 }
@@ -643,14 +669,14 @@ function OutputDialog({ open, onClose, taskCode, outputData, outputFiles = [], o
         <button className="icon-button dialog-close" onClick={onClose} aria-label="Close output"><X size={18} /></button>
         <div className="dialog-icon"><FolderOpen size={22} weight="duotone" /></div>
         <span className="inspector-eyebrow">TASK OUTPUT</span>
-        <h2 id="output-title">D:\SCENES\{taskCode}</h2>
+        <h2 id="output-title">SCENES\{taskCode}</h2>
         <p>{outputFiles.length ? "Read-only Kaggle results. Save a file to the local SCENES task folder." : outputData?.message || "No Kaggle output has been returned for this task yet."}</p>
         {files.map((file, index) => (
           <div className="file-row" key={file.id || file.path || file.url || index}>
             <FileText size={18} />
             <span>{file.fileName || file.name || file.path || "Output file"}</span>
             {file.url && <a href={file.url} target="_blank" rel="noreferrer">Open</a>}
-            {file.url && <button className="terminal-test-button" onClick={() => onSaveOutput(file)} disabled={Boolean(outputSaving)}>{outputSaving === file.fileName ? "Saving…" : "Save to D: folder"}</button>}
+            {file.url && <button className="terminal-test-button" onClick={() => onSaveOutput(file)} disabled={Boolean(outputSaving)}>{outputSaving === file.fileName ? "Saving…" : "Save to SCENES folder"}</button>}
           </div>
         ))}
         {outputData?.outputPath && <div className="file-row"><FolderOpen size={18} /><span>{outputData.outputPath}</span></div>}
@@ -693,8 +719,41 @@ function Workspace({ user, onSignOut }) {
   const [outputSaving, setOutputSaving] = useState("");
   const kaggleSocketRef = useRef(null);
   const kagglePingRef = useRef(null);
+  const activeKaggleRunRef = useRef(false);
   const [workflowLoaded, setWorkflowLoaded] = useState(false);
+  const [workflowLoadError, setWorkflowLoadError] = useState(false);
+  const [readyTaskCode, setReadyTaskCode] = useState(null);
+  const [loadingTaskCode, setLoadingTaskCode] = useState(false);
   const [saveState, setSaveState] = useState("loading");
+  const [runKind, setRunKind] = useState("info");
+  const [workflowVersions, setWorkflowVersions] = useState([]);
+  const [runHistory, setRunHistory] = useState(() => {
+    try { const stored = JSON.parse(localStorage.getItem(`studio-runs:${user.id}`) || "[]"); return Array.isArray(stored) ? stored : []; } catch { return []; }
+  });
+  const activeRunRef = useRef(null);
+
+  useEffect(() => {
+    if (!readyTaskCode || workflowLoadError) return undefined;
+    let active = true;
+    (async () => {
+      const [versionsResult, runsResult] = await Promise.all([
+        supabase.from("studio_workflow_versions").select("id, version_name, graph, created_at")
+          .eq("user_id", user.id).eq("task_code", readyTaskCode).order("created_at", { ascending: false }).limit(10),
+        supabase.from("studio_runs").select("run_id, task_code, provider, status, message, started_at")
+          .eq("user_id", user.id).eq("task_code", readyTaskCode).order("started_at", { ascending: false }).limit(10),
+      ]);
+      if (!active) return;
+      if (!versionsResult.error) setWorkflowVersions(versionsResult.data || []);
+      if (!runsResult.error) setRunHistory((current) => {
+        const otherTasks = (Array.isArray(current) ? current : []).filter((run) => run.taskCode !== readyTaskCode);
+        const loaded = (runsResult.data || []).map((run) => ({ runId: run.run_id, taskCode: run.task_code, provider: run.provider, status: run.status, message: run.message, startedAt: run.started_at }));
+        const next = [...loaded, ...otherTasks].slice(0, 30);
+        try { localStorage.setItem(`studio-runs:${user.id}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    })().catch(() => {});
+    return () => { active = false; };
+  }, [readyTaskCode, workflowLoadError, user.id]);
 
   useEffect(() => {
     try {
@@ -711,17 +770,23 @@ function Workspace({ user, onSignOut }) {
   useEffect(() => {
     let active = true;
     async function loadWorkflow() {
-      const { data, error } = await supabase
-        .from("studio_workflows")
-        .select("graph, task_code")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let data;
+      let error;
+      try {
+        ({ data, error } = await supabase
+          .from("studio_workflows")
+          .select("graph, task_code")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle());
+      } catch (loadError) { error = loadError; }
       if (!active) return;
       if (error) {
+        setWorkflowLoadError(true);
         setSaveState("error");
-        setRunMessage("Could not load your saved workflow. Apply the studio database migration and try again.");
+        setRunKind("error");
+        setRunMessage("Saved workflow could not be loaded. Autosave is paused to protect your existing work. Reload after checking your connection.");
       } else if (data?.graph) {
         if (Array.isArray(data.graph.nodes) && data.graph.nodes.length) setNodes(data.graph.nodes);
         if (Array.isArray(data.graph.edges)) setEdges(data.graph.edges);
@@ -733,19 +798,68 @@ function Workspace({ user, onSignOut }) {
           }));
         }
         setTaskCode(data.task_code || "565349");
+        setReadyTaskCode(data.task_code || "565349");
+      } else {
+        setReadyTaskCode("565349");
       }
-      setWorkflowLoaded(true);
+      setWorkflowLoaded(!error);
       setSaveState(error ? "error" : "saved");
     }
     loadWorkflow();
     return () => { active = false; };
   }, [user.id]);
 
+  useEffect(() => {
+    const code = validateTaskCode(taskCode);
+    if (!workflowLoaded || workflowLoadError || !code.valid || code.code === readyTaskCode) return undefined;
+    let active = true;
+    setLoadingTaskCode(true);
+    setSaveState("loading");
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("studio_workflows")
+          .select("graph, task_code")
+          .eq("user_id", user.id)
+          .eq("task_code", code.code)
+          .maybeSingle();
+        if (!active) return;
+        if (error) throw error;
+        setNodes(Array.isArray(data?.graph?.nodes) && data.graph.nodes.length ? data.graph.nodes : initialNodes);
+        setEdges(Array.isArray(data?.graph?.edges) ? data.graph.edges : initialEdges);
+        setConnections((current) => ({
+          ...current,
+          kaggle: { ...current.kaggle, endpoint: data?.graph?.connections?.kaggle?.endpoint || "" },
+          local: { ...current.local, endpoint: data?.graph?.connections?.local?.endpoint || "" },
+        }));
+        setSelectedNodeId(null);
+        setReadyTaskCode(code.code);
+        setSaveState(data ? "saved" : "saving");
+        setLoadingTaskCode(false);
+      } catch (error) {
+        if (!active) return;
+        setLoadingTaskCode(false); setWorkflowLoadError(true); setSaveState("error"); setRunKind("error");
+        setRunMessage(`Could not load task #${code.code}; autosave is paused to protect existing work. ${error.message || ""}`);
+      }
+    })();
+    return () => { active = false; };
+  }, [workflowLoaded, workflowLoadError, taskCode, readyTaskCode, user.id]);
+
   const persistWorkflow = useCallback(async ({ announce = false } = {}) => {
-    const code = taskCode.replace(/\D/g, "").slice(0, 6);
-    if (!/^\d{6}$/.test(code)) {
+    if (!workflowLoaded || workflowLoadError || loadingTaskCode) {
       setSaveState("error");
-      if (announce) setRunMessage("Enter a six-digit task code before saving.");
+      if (announce) setRunMessage("Workflow is not loaded, so saving is paused to protect existing work.");
+      return false;
+    }
+    const codeResult = validateTaskCode(taskCode);
+    if (!codeResult.valid) {
+      setSaveState("error");
+      if (announce) setRunMessage(codeResult.message);
+      return false;
+    }
+    const code = codeResult.code;
+    if (code !== readyTaskCode) {
+      setSaveState("loading");
+      if (announce) setRunMessage(`Loading task #${code} before saving…`);
       return false;
     }
     setSaveState("saving");
@@ -757,37 +871,73 @@ function Workspace({ user, onSignOut }) {
         local: { endpoint: connections.local?.endpoint || "" },
       },
     };
-    const { error } = await supabase.from("studio_workflows").upsert({
+    let error;
+    try { ({ error } = await supabase.from("studio_workflows").upsert({
       user_id: user.id,
       task_code: code,
       name: `Movie workflow #${code}`,
       graph,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id,task_code" });
+    }, { onConflict: "user_id,task_code" })); } catch (saveError) { error = saveError; }
     setSaveState(error ? "error" : "saved");
     if (error) {
+        setRunKind("error");
       setRunMessage("Workflow save failed: " + error.message);
       setTerminalLines((current) => [...current, { kind: "error", prompt: false, text: "Save failed: " + error.message }]);
       return false;
     }
     if (announce) {
-      setRunMessage(`Workflow #${code} saved.`);
-      setTerminalLines((current) => [...current, { kind: "success", prompt: false, text: `Workflow #${code} saved to your studio account.` }]);
+      let versionError;
+      try {
+        const result = await supabase.from("studio_workflow_versions").insert({
+          user_id: user.id, task_code: code, version_name: `Saved ${new Date().toLocaleString()}`, graph,
+        }).select("id, version_name, graph, created_at").single();
+        versionError = result.error;
+        if (!versionError) {
+          setWorkflowVersions((current) => [result.data, ...current].slice(0, 10));
+          const { data: oldVersions } = await supabase.from("studio_workflow_versions").select("id")
+            .eq("user_id", user.id).eq("task_code", code).order("created_at", { ascending: false }).range(10, 1000);
+          if (oldVersions?.length) await supabase.from("studio_workflow_versions").delete().in("id", oldVersions.map((item) => item.id));
+        }
+      } catch (error) { versionError = error; }
+      setRunKind(versionError ? "warning" : "success");
+      setRunMessage(versionError ? `Workflow #${code} saved, but its restore point failed: ${versionError.message}` : `Workflow #${code} saved with a restore point.`);
+      setTerminalLines((current) => [...current, { kind: versionError ? "error" : "success", prompt: false, text: versionError ? `Saved #${code}, but version history failed: ${versionError.message}` : `Workflow #${code} saved with a restore point.` }]);
     }
     return true;
-  }, [user.id, taskCode, nodes, edges, connections.kaggle?.endpoint, connections.local?.endpoint]);
+  }, [user.id, taskCode, nodes, edges, connections.kaggle?.endpoint, connections.local?.endpoint, workflowLoaded, workflowLoadError, loadingTaskCode, readyTaskCode]);
 
   useEffect(() => {
-    if (!workflowLoaded) return undefined;
+    if (!workflowLoaded || workflowLoadError || loadingTaskCode) return undefined;
+    const code = validateTaskCode(taskCode);
+    if (!code.valid || code.code !== readyTaskCode) return undefined;
     const timer = window.setTimeout(async () => {
       await persistWorkflow();
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [workflowLoaded, persistWorkflow]);
+  }, [workflowLoaded, workflowLoadError, loadingTaskCode, readyTaskCode, taskCode, persistWorkflow]);
 
   const pushTerminal = useCallback((kind, text, prompt = false) => {
     setTerminalLines((current) => [...current.slice(-79), { kind, text, prompt }]);
   }, []);
+
+  const saveRunRecord = useCallback(async (entry) => {
+    if (!entry) return;
+    const normalized = { ...entry, startedAt: entry.startedAt || new Date().toISOString() };
+    setRunHistory((current) => {
+      const next = [normalized, ...(Array.isArray(current) ? current.filter((item) => item.runId !== normalized.runId) : [])].slice(0, 30);
+      try { localStorage.setItem(`studio-runs:${user.id}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+    try {
+      const { error } = await supabase.from("studio_runs").upsert({
+        run_id: normalized.runId, user_id: user.id, task_code: normalized.taskCode,
+        provider: normalized.provider, status: normalized.status, message: normalized.message || "",
+        started_at: normalized.startedAt, updated_at: new Date().toISOString(),
+      });
+      if (error) pushTerminal("error", `Run history save failed: ${error.message}`);
+    } catch (error) { pushTerminal("error", `Run history save failed: ${error.message}`); }
+  }, [user.id, pushTerminal]);
 
   const changeConnection = useCallback((provider, field, value) => {
     if (provider === "kaggle" && field === "endpoint" && value !== connections.kaggle?.endpoint) {
@@ -837,6 +987,10 @@ function Workspace({ user, onSignOut }) {
       const files = normalizeKaggleOutputFiles(message);
       if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
       setKaggleRunStatus("Completed");
+      activeKaggleRunRef.current = false;
+      setRunKind("success");
+      if (activeRunRef.current) saveRunRecord({ ...activeRunRef.current, status: "completed", message: message.summary || "Kaggle run completed." });
+      activeRunRef.current = null;
       setRunning(false);
       setNodes((current) => current.map((node) => node.data.kind === "kaggle" || node.data.kind === "output"
         ? { ...node, data: { ...node.data, status: "done" } }
@@ -845,12 +999,16 @@ function Workspace({ user, onSignOut }) {
       pushTerminal("success", message.summary || `Kaggle finished task #${message.activeCode || taskCode}.`);
     } else if (message.type === "JOB_FAILED" || message.type === "ERROR") {
       setKaggleRunStatus("Failed");
+      activeKaggleRunRef.current = false;
+      setRunKind("error");
+      if (activeRunRef.current) saveRunRecord({ ...activeRunRef.current, status: "failed", message: message.message || message.error || "Kaggle run failed." });
+      activeRunRef.current = null;
       setRunning(false);
       setNodes((current) => current.map((node) => node.data.kind === "kaggle" ? { ...node, data: { ...node.data, status: "paused" } } : node));
       setRunMessage(message.message || message.error || "Kaggle reported a run error.");
       pushTerminal("error", message.message || message.error || "Kaggle reported a run error.");
     }
-  }, [pushTerminal, taskCode]);
+  }, [pushTerminal, taskCode, saveRunRecord]);
 
   const connectKaggleBridge = useCallback((endpointOverride) => {
     const endpoint = String(typeof endpointOverride === "string" ? endpointOverride : connections.kaggle?.endpoint || "").trim();
@@ -921,9 +1079,21 @@ function Workspace({ user, onSignOut }) {
       const state = event.code === 1000 ? "unconfigured" : "error";
       setKaggleStatus(state);
       setConnectionStates((current) => ({ ...current, kaggle: state }));
+      if (activeKaggleRunRef.current) {
+        activeKaggleRunRef.current = false;
+        if (activeRunRef.current) saveRunRecord({ ...activeRunRef.current, status: "failed", message: "Kaggle bridge disconnected during an active run." });
+        activeRunRef.current = null;
+        setRunning(false);
+        setKaggleRunStatus("Failed");
+        setNodes((current) => current.map((node) => ["kaggle", "output", "video"].includes(node.data.kind) && node.data.status === "running"
+          ? { ...node, data: { ...node.data, status: "paused" } } : node));
+        setRunKind("error");
+        setRunMessage("Kaggle bridge closed before the run finished. Reconnect and check the notebook before retrying.");
+        pushTerminal("error", "Kaggle bridge disconnected during an active run.");
+      }
     };
     return true;
-  }, [connections.kaggle?.endpoint, handleKaggleMessage, pushTerminal]);
+  }, [connections.kaggle?.endpoint, handleKaggleMessage, pushTerminal, saveRunRecord]);
 
   const testConnection = useCallback(async (provider, endpointOverride) => {
     if (provider === "kaggle") return connectKaggleBridge(endpointOverride);
@@ -986,13 +1156,31 @@ function Workspace({ user, onSignOut }) {
 
 
   const runWorkflow = useCallback(async () => {
-    const code = taskCode.replace(/\D/g, "").slice(0, 6);
-    if (!/^\d{6}$/.test(code)) {
-      setRunMessage("Enter a six-digit task code before starting Kaggle.");
+    if (running) return;
+    const codeResult = validateTaskCode(taskCode);
+    if (!codeResult.valid) {
+      setRunKind("error"); setRunMessage(codeResult.message);
+      return;
+    }
+    const code = codeResult.code;
+    if (code !== readyTaskCode || loadingTaskCode) {
+      setRunKind("info"); setRunMessage(`Loading the saved workflow for task #${code}…`); return;
+    }
+    const graphIssues = validateWorkflow(nodes, edges, taskCode);
+    if (graphIssues.length) {
+      setRunKind("error"); setRunMessage("Workflow needs attention: " + graphIssues.join(" "));
+      pushTerminal("error", `Run blocked: ${graphIssues.join(" ")}`);
+      return;
+    }
+    const videoProvider = nodes.find((node) => node.data.kind === "video")?.data.provider || "Kaggle";
+    if (videoProvider !== "Kaggle") {
+      setRunKind("error");
+      setRunMessage(`${videoProvider} generation is not wired to this workflow yet. Select Kaggle for the connected notebook bridge.`);
       return;
     }
     const socket = kaggleSocketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setRunKind("error");
       setRunMessage("Connect the running Kaggle notebook bridge first.");
       setTerminalOpen(true);
       setTerminalTab("connections");
@@ -1000,6 +1188,19 @@ function Workspace({ user, onSignOut }) {
       return;
     }
     const configuredNotebook = nodes.find((node) => node.data.kind === "kaggle")?.data.notebookSlug || "sara8877/dabcloudbp-dual-gpu-30s-video-engine";
+    let taskRecord;
+    try {
+      setRunMessage(`Loading approved task #${code} from the task API…`);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Your sign-in session expired. Sign in again.");
+      const taskResponse = await fetch(`/api/tasks/${code}`, { headers: { Accept: "application/json", Authorization: `Bearer ${session.access_token}` } });
+      taskRecord = await taskResponse.json().catch(() => ({}));
+      if (!taskResponse.ok || taskRecord.success === false) throw new Error(taskRecord.error || taskRecord.message || `Task API returned HTTP ${taskResponse.status}.`);
+    } catch (error) {
+      setRunKind("error"); setRunMessage(`Could not load task #${code}: ${error.message}`);
+      pushTerminal("error", `Run stopped: task #${code} could not be loaded.`);
+      return;
+    }
     const saved = await persistWorkflow();
     if (!saved) return;
     const nodeTypesByKind = { start: "entry_code", brief: "doc_note", cast: "photo_profile", environment: "environment", storyboard: "prompt_spec", video: "video_asset", kaggle: "kaggle_trigger", output: "model_output", check: "continuity_check" };
@@ -1028,8 +1229,15 @@ function Workspace({ user, onSignOut }) {
       label: edge.source === "start" ? `#${code}` : "WIRED",
     }));
     try {
-      socket.send(JSON.stringify({ type: "EXECUTE_GRAPH", activeCode: code, taskCode: code, notebookSlug: configuredNotebook, nodes: activeNodes, wires: activeWires, edges, timestamp: Date.now() }));
+      const runId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      activeRunRef.current = { runId, taskCode: code, provider: "Kaggle", startedAt: new Date().toISOString() };
+      await saveRunRecord({ ...activeRunRef.current, status: "running", message: "Sent to Kaggle notebook." });
+      const executionPayload = { type: "EXECUTE_GRAPH", runId, activeCode: code, taskCode: code, task: taskRecord, notebookSlug: configuredNotebook, nodes: activeNodes, wires: activeWires, edges, timestamp: Date.now() };
+      if (new Blob([JSON.stringify(executionPayload)]).size > 4_000_000) throw new Error("Task, graph, and reference images exceed the 4 MB submission limit. Reduce the number of attached images.");
+      socket.send(JSON.stringify(executionPayload));
+      activeKaggleRunRef.current = true;
       setRunning(true);
+      setRunKind("info");
       setOutputData(null);
       setKaggleOutputFiles([]);
       setKaggleRunStatus("Running");
@@ -1039,12 +1247,16 @@ function Workspace({ user, onSignOut }) {
         : node));
       pushTerminal("success", `Sent ${activeNodes.length} nodes and ${activeWires.length} connections for task #${code} to ${configuredNotebook}.`);
     } catch (error) {
+      activeKaggleRunRef.current = false;
+      if (activeRunRef.current) saveRunRecord({ ...activeRunRef.current, status: "failed", message: error.message });
+      activeRunRef.current = null;
       setRunning(false);
       setKaggleRunStatus("Failed");
+      setRunKind("error");
       setRunMessage(`Kaggle dispatch failed: ${error.message}`);
       pushTerminal("error", `Kaggle dispatch failed: ${error.message}`);
     }
-  }, [taskCode, nodes, edges, persistWorkflow, pushTerminal]);
+  }, [taskCode, nodes, edges, persistWorkflow, pushTerminal, running, readyTaskCode, loadingTaskCode, saveRunRecord]);
 
   const executeTerminalCommand = useCallback(async (event) => {
     event.preventDefault();
@@ -1116,11 +1328,14 @@ function Workspace({ user, onSignOut }) {
         await writable.write(await response.blob());
       }
       await writable.close();
-      setRunMessage(`Saved ${safeName} to D:\\SCENES\\${code}.`);
-      pushTerminal("success", `Saved ${safeName} under D:\\SCENES\\${code}.`);
+      const folder = outputRootHandle?.name || root.name || "selected folder";
+      setRunKind("success");
+      setRunMessage(`Saved ${safeName} under ${folder}\\SCENES\\${code}.`);
+      pushTerminal("success", `Saved ${safeName} under ${folder}\\SCENES\\${code}.`);
     } catch (error) {
       try { await writable?.abort(); } catch {}
       const message = error.name === "AbortError" ? "Folder selection was canceled." : error instanceof TypeError ? "The Kaggle download URL blocks browser access. The notebook bridge must return a browser-readable file URL." : error.message;
+      setRunKind("error");
       setRunMessage(`Could not save output: ${message}`);
       pushTerminal("error", `Could not save ${safeName}: ${message}`);
     } finally {
@@ -1146,12 +1361,10 @@ function Workspace({ user, onSignOut }) {
   );
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => fitView({ padding: 0.06, duration: 220 }));
-    return () => window.cancelAnimationFrame(frame);
-  }, [selectedNodeId, fitView]);
-
-  const onNodesChange = useCallback((changes) => setNodes((current) => applyNodeChanges(changes, current)), []);
+  const onNodesChange = useCallback((changes) => setNodes((current) => {
+    const protectedIds = new Set(current.filter((node) => ["start", "output"].includes(node.data.kind)).map((node) => node.id));
+    return applyNodeChanges(changes.filter((change) => !(change.type === "remove" && protectedIds.has(change.id))), current);
+  }), []);
   const onEdgesChange = useCallback((changes) => setEdges((current) => applyEdgeChanges(changes, current)), []);
   const onConnect = useCallback((connection) => setEdges((current) => addEdge({
     ...connection,
@@ -1160,6 +1373,11 @@ function Workspace({ user, onSignOut }) {
   }, current)), []);
 
   const addNode = useCallback((definition, dropPosition) => {
+    if (["start", "output"].includes(definition.kind) && nodes.some((node) => node.data.kind === definition.kind)) {
+      setRunKind("warning");
+      setRunMessage(`This workflow already has a ${definition.kind === "start" ? "Task Code" : "Final Output"} node.`);
+      return;
+    }
     const id = definition.kind + "-" + Math.random().toString(36).slice(2, 7);
     const viewport = document.querySelector(".flow-viewport")?.getBoundingClientRect();
     const position = dropPosition || screenToFlowPosition({
@@ -1184,7 +1402,7 @@ function Workspace({ user, onSignOut }) {
     }]);
     setShowAddMenu(false);
     setSelectedNodeId(id);
-  }, [screenToFlowPosition]);
+  }, [screenToFlowPosition, nodes]);
 
   const onDragOver = useCallback((event) => {
     event.preventDefault();
@@ -1291,6 +1509,19 @@ function Workspace({ user, onSignOut }) {
     }));
   };
 
+  const restoreWorkflowVersion = (version) => {
+    if (!Array.isArray(version.graph?.nodes) || !Array.isArray(version.graph?.edges)) {
+      setRunKind("error"); setRunMessage("This saved version is incomplete and cannot be restored."); return;
+    }
+    setNodes(version.graph.nodes); setEdges(version.graph.edges); setSelectedNodeId(null);
+    setConnections((current) => ({
+      ...current,
+      kaggle: { ...current.kaggle, endpoint: version.graph.connections?.kaggle?.endpoint || "" },
+      local: { ...current.local, endpoint: version.graph.connections?.local?.endpoint || "" },
+    }));
+    setRunKind("success"); setRunMessage(`Restored ${version.version_name || "saved workflow version"}.`);
+  };
+
   return (
     <main className="studio-shell">
       <header className="topbar" aria-label="Workflow controls">
@@ -1300,11 +1531,13 @@ function Workspace({ user, onSignOut }) {
             <input
               aria-label="Six-digit task code"
               value={taskCode}
-              onChange={(event) => setTaskCode(event.target.value.replace(/[^\d#\s]/g, "").slice(0, 20))}
+              maxLength={20}
+              inputMode="numeric"
+              onChange={(event) => setTaskCode(event.target.value.replace(/\D/g, ""))}
               onKeyDown={(event) => { if (event.key === "Enter") runWorkflow(); }}
             />
           </label>
-          <button className="primary-button top-run" onClick={runWorkflow}>
+          <button className="primary-button top-run" onClick={runWorkflow} disabled={running || loadingTaskCode || saveState === "loading"}>
             <Play size={15} weight="fill" /> {running ? "Sending" : "Run"}
           </button>
         </div>
@@ -1374,7 +1607,7 @@ function Workspace({ user, onSignOut }) {
             kaggleRunStatus={kaggleRunStatus}
             outputFiles={kaggleOutputFiles}
             onSaveOutput={saveKaggleOutput}
-            outputFolderName={outputRootHandle ? `SCENES\\${taskCode.replace(/\D/g, "").slice(0, 6)}` : "Choose D: root"}
+            outputFolderName={outputRootHandle ? `${outputRootHandle.name}\\SCENES\\${taskCode.replace(/\D/g, "").slice(0, 6)}` : "Choose an output folder"}
           />
         )}
         {!selectedNode && (
@@ -1385,6 +1618,9 @@ function Workspace({ user, onSignOut }) {
             onAdd={addNode}
             addOpen={showAddMenu}
             onToggleAdd={() => setShowAddMenu((open) => !open)}
+            runHistory={runHistory.filter((run) => run.taskCode === readyTaskCode)}
+            workflowVersions={workflowVersions}
+            onRestoreVersion={restoreWorkflowVersion}
           />
         )}
         <div className="flow-viewport is-shifted">
@@ -1424,8 +1660,8 @@ function Workspace({ user, onSignOut }) {
           </div>
         </div>
         {runMessage && (
-          <div className={"toast " + (runMessage.includes("not found") || runMessage.includes("Enter") ? "toast-error" : "toast-success")} role="status">
-            {runMessage.includes("complete") ? <CheckCircle size={17} weight="fill" /> : <Sparkle size={17} weight="fill" />}
+          <div className={"toast toast-" + runKind} role="status">
+            {runKind === "success" ? <CheckCircle size={17} weight="fill" /> : <Sparkle size={17} weight="fill" />}
             {runMessage}
             <button onClick={() => setRunMessage("")} aria-label="Dismiss message"><X size={14} /></button>
           </div>
@@ -1458,7 +1694,7 @@ export function App() {
         setUser(data.session?.user || null);
         setCheckingSession(false);
       }
-    });
+    }).catch(() => { if (active) setCheckingSession(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
       if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
@@ -1489,10 +1725,12 @@ function PasswordUpdateScreen({ onComplete }) {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (error) return setNotice(error.message);
-    onComplete();
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) return setNotice(error.message);
+      onComplete();
+    } catch (error) { setNotice(error.message || "Could not update your password. Try again."); }
+    finally { setBusy(false); }
   }
   return <main className="auth-page"><section className="auth-card auth-reset-card"><div className="auth-card-brand">DabCloud <b>Studio</b></div><div className="auth-heading-block"><div className="auth-eyebrow">ACCOUNT SECURITY</div><h1>Set a new<br />password</h1><p>Choose a new password for your account.</p></div><form className="auth-form" onSubmit={updatePassword}><label className="auth-field"><span>New password</span><input name="password" type="password" minLength={8} autoComplete="new-password" required /></label><label className="auth-field"><span>Confirm password</span><input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required /></label><button className="auth-submit" disabled={busy}>{busy ? "Saving…" : "Update password"}</button></form>{notice && <p className="auth-notice" role="status">{notice}</p>}</section></main>;
 }
@@ -1522,20 +1760,16 @@ function AuthScreen({ onAuthenticated }) {
       return;
     }
     setBusy(true);
-    const result = isCreate
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (result.error) {
-      setNotice(result.error.message);
-      return;
-    }
-    if (result.data.session?.user) {
-      onAuthenticated(result.data.session.user);
-      return;
-    }
-    setNotice("Check your email for the confirmation link, then sign in to open your studio.");
-    if (isCreate) setMode("login");
+    try {
+      const result = isCreate
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+      if (result.error) { setNotice(result.error.message); return; }
+      if (result.data.session?.user) { onAuthenticated(result.data.session.user); return; }
+      setNotice("Check your email for the confirmation link, then sign in to open your studio.");
+      if (isCreate) setMode("login");
+    } catch (error) { setNotice(error.message || "Account service could not be reached. Try again."); }
+    finally { setBusy(false); }
   }
 
   function switchMode(nextMode) {
@@ -1570,14 +1804,15 @@ function AuthScreen({ onAuthenticated }) {
               if (!configured) return setNotice("Account service setup is required before password reset can be used.");
               const email = String(new FormData(document.querySelector(".auth-form")).get("email") || "").trim();
               if (!email) return setNotice("Enter your email address first.");
-              const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-              setNotice(error ? error.message : "If an account exists for that email, a password reset link is on its way.");
+              try {
+                const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                setNotice(error ? error.message : "If an account exists for that email, a password reset link is on its way.");
+              } catch (error) { setNotice(error.message || "Could not send the password reset request. Try again."); }
             }}>Forgot password?</button>}
             <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Please wait…" : isCreate ? "Create account" : "Sign in"}<span aria-hidden="true">→</span></button>
           </form>
 
           {notice && <p className="auth-notice" role="status">{notice}</p>}
-          <p className="auth-terms">By continuing, you agree to our <a href="#terms" onClick={(event) => event.preventDefault()}>Terms</a> and <a href="#privacy" onClick={(event) => event.preventDefault()}>Privacy Policy</a>.</p>
           <p className="auth-switch">{isCreate ? "Already have an account?" : "New to DabCloud Studio?"} <button type="button" onClick={() => switchMode(isCreate ? "login" : "create")}>{isCreate ? "Sign in" : "Create account"}</button></p>
         </section>
       </div>
