@@ -1679,24 +1679,6 @@ button {
   letter-spacing: .01em;
 }
 
-.auth-art-pill {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 13px;
-  border: 1px solid rgba(255,255,255,.44);
-  border-radius: 999px;
-  color: white;
-  background: rgba(41, 58, 43, .25);
-  backdrop-filter: blur(12px);
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .auth-card {
   display: flex;
   flex-direction: column;
@@ -1712,16 +1694,6 @@ button {
   margin-bottom: 28px;
   color: #202820;
   font-size: 17px;
-}
-
-.auth-brand-glyph {
-  display: grid;
-  width: 25px;
-  height: 25px;
-  place-items: center;
-  border-radius: 9px;
-  color: #456d35;
-  background: #d7f3ad;
 }
 
 .auth-heading-block,
@@ -2034,7 +2006,6 @@ button {
   .auth-page { padding: 10px; }
   .auth-frame { border-width: 6px; padding: 6px; border-radius: 25px; }
   .auth-art { min-height: 185px; border-radius: 17px; }
-  .auth-art-pill { top: 13px; left: 13px; padding: 7px 10px; font-size: 10px; }
   .auth-art-caption { left: 18px; bottom: 18px; }
   .auth-card { padding: 24px 18px 20px; }
 }

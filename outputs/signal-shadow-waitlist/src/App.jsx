@@ -1544,17 +1544,15 @@ function AuthScreen({ onAuthenticated }) {
           <div className="auth-art-shade" />
           <div className="auth-art-caption">
             <div className="auth-wordmark"><span className="auth-mark"><FilmReel size={19} weight="fill" /></span><span>DabCloud <b>Studio</b></span></div>
-            <p>From first frame to final cut.</p>
+            <p>Movie production workspace.</p>
           </div>
-          <span className="auth-art-pill"><Sparkle size={13} weight="fill" /> Your next story starts here</span>
         </section>
 
         <section className="auth-card" aria-labelledby="auth-heading">
-          <div className="auth-card-brand"><span className="auth-brand-glyph"><Sparkle size={17} weight="fill" /></span>DabCloud <b>Studio</b></div>
           <div className="auth-heading-block">
-            <div className="auth-eyebrow">YOUR CREATIVE WORKSPACE</div>
+            <div className="auth-eyebrow">ACCOUNT ACCESS</div>
             <h1 id="auth-heading">{isCreate ? <>Create your<br />account</> : <>Welcome<br />back</>}</h1>
-            <p>{isCreate ? "Keep every scene, character, and idea in sync." : "Pick up where your next movie begins."}</p>
+            <p>{isCreate ? "Create an account to save your movie workflows." : "Sign in to continue to your movie workflows."}</p>
           </div>
 
           {!configured && <p className="auth-notice auth-config-notice" role="status">The sign-in service is not configured for this deployment yet.</p>}
