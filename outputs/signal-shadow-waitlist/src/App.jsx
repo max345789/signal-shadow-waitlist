@@ -59,6 +59,7 @@ const ICONS = {
   environment: Mountains,
   storyboard: ImageSquare,
   video: VideoCamera,
+  kaggle: HardDrives,
   output: FolderOpen,
   check: CheckCircle,
   script: FileText,
@@ -156,9 +157,25 @@ const initialNodes = [
     },
   },
   {
-    id: "output",
+    id: "kaggle",
     type: "workflow",
     position: { x: 1515, y: 0 },
+    data: {
+      kind: "kaggle",
+      title: "Kaggle Run",
+      tone: "orange",
+      description: "Trigger the saved Kaggle notebook for this task.",
+      instructions: "Run the configured saved Kaggle notebook with the approved task and workflow instructions. Return execution status and generated files to the final output node.",
+      notebookSlug: "sara8877/dabcloudbp-dual-gpu-30s-video-engine",
+      notebookLabel: "DabCloudBP Dual GPU 30s Video Engine",
+      notebookUrl: "https://www.kaggle.com/code/sara8877/dabcloudbp-dual-gpu-30s-video-engine",
+      status: "idle",
+    },
+  },
+  {
+    id: "output",
+    type: "workflow",
+    position: { x: 1760, y: 0 },
     data: {
       kind: "output",
       title: "Final Output",
@@ -177,7 +194,8 @@ const initialEdges = [
   ["cast", "environment"],
   ["environment", "storyboard"],
   ["storyboard", "video"],
-  ["video", "output"],
+  ["video", "kaggle"],
+  ["kaggle", "output"],
 ].map(([source, target]) => ({
   id: source + "-" + target,
   source,
@@ -193,6 +211,7 @@ const palette = [
   { kind: "environment", title: "Environment Design", tone: "blue", description: "Describe the setting and add visual references.", instructions: "Keep location, time of day, weather, lighting, colors, and set details consistent across every shot.", environmentDescription: "", referenceImages: [], details: ["Location", "Lighting + weather", "Color palette"] },
   { kind: "storyboard", title: "Storyboard", tone: "lavender", description: "Turn the script into visual shots." },
   { kind: "video", title: "Video Generation", tone: "blue", description: "Generate a clip with a selected model." },
+  { kind: "kaggle", title: "Kaggle Run", tone: "orange", description: "Trigger your saved Kaggle notebook." },
   { kind: "check", title: "Continuity Check", tone: "mint", description: "Check script, face, and scene continuity." },
   { kind: "output", title: "Final Output", tone: "orange", description: "Save movie files to the task folder." },
 ];
@@ -206,6 +225,23 @@ const CHARACTER_VIEWS = [
   { key: "face-three-quarter", label: "Face · ¾ angle", group: "Close-up" },
   { key: "head-back", label: "Back of head", group: "Close-up" },
 ];
+
+function normalizeKaggleOutputFiles(payload) {
+  const result = payload?.result || payload?.output || payload?.data || payload || {};
+  const candidates = result.files || result.outputFiles || result.outputs || result.artifacts || (result.outputFile ? [result.outputFile] : []);
+  const files = Array.isArray(candidates) ? candidates : [candidates];
+  return files.map((file, index) => {
+    if (typeof file === "string") return { fileName: file.split("/").pop() || `output-${index + 1}`, url: file };
+    const url = file.url || file.downloadUrl || file.download_url || file.outputUrl || file.videoUrl || file.fileUrl || file.artifactUrl;
+    const fileName = file.fileName || file.name || file.filename || file.path?.split("/").pop() || fileNameFromUrl(url) || `output-${index + 1}`;
+    const data = file.dataUrl || (file.base64 ? `data:${file.mimeType || file.contentType || "application/octet-stream"};base64,${file.base64}` : "");
+    return url || data ? { ...file, fileName, url: url || data } : null;
+  }).filter(Boolean);
+}
+
+function fileNameFromUrl(url) {
+  try { return new URL(url).pathname.split("/").pop(); } catch { return ""; }
+}
 
 
 function WorkflowNode({ id, data, selected }) {
@@ -247,6 +283,7 @@ function WorkflowNode({ id, data, selected }) {
             </div>
           )}
           {data.kind === "video" && <div className="video-preview"><FilmStrip size={36} weight="duotone" /></div>}
+          {data.kind === "kaggle" && <div className="check-preview"><HardDrives size={18} weight="duotone" /> Saved notebook</div>}
           {data.kind === "check" && <div className="check-preview"><LockSimple size={18} weight="duotone" /> Continuity lock</div>}
           <p>{data.kind === "environment" && data.environmentDescription ? data.environmentDescription : data.description}</p>
           {data.details?.length > 0 && (
@@ -255,10 +292,21 @@ function WorkflowNode({ id, data, selected }) {
             </ul>
           )}
           {data.kind === "output" && (
-            <button className="folder-link" onClick={(event) => { event.stopPropagation(); data.onOpenOutput?.(); }}>
-              <FolderOpen size={15} weight="duotone" />
-              /movies/{data.taskCode || "------"}
-            </button>
+            <div className="output-node-actions">
+              <div className="folder-link"><FolderOpen size={15} weight="duotone" /> D: / {data.taskCode || "------"}</div>
+              <button className="folder-link output-files-button" onClick={(event) => { event.stopPropagation(); data.onOpenOutput?.(); }}>
+                <FileText size={15} weight="duotone" /> {data.outputFiles?.length ? `${data.outputFiles.length} Kaggle output${data.outputFiles.length === 1 ? "" : "s"}` : "View outputs"}
+              </button>
+            </div>
+          )}
+          {data.kind === "kaggle" && (
+            <div className="kaggle-node-actions">
+              <div className="kaggle-node-name">{data.notebookLabel || "DabCloud 30s Video Engine"}</div>
+              <button className="node-run" onClick={(event) => { event.stopPropagation(); data.onKaggleRun?.(); }} disabled={data.running}>
+                <Play size={14} weight="fill" /> {data.running ? "Sending to Kaggle…" : `Run with #${data.taskCode || "------"}`}
+              </button>
+              <a className="folder-link kaggle-notebook-link" href={data.notebookUrl || "https://www.kaggle.com/code/sara8877/dabcloudbp-dual-gpu-30s-video-engine"} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open saved notebook ↗</a>
+            </div>
           )}
         </div>
       )}
@@ -268,7 +316,6 @@ function WorkflowNode({ id, data, selected }) {
 }
 
 const nodeTypes = { workflow: WorkflowNode };
-const TASK_API = "https://mcp.dabcloud.in/api/tasks";
 
 function StatusPill({ icon: Icon, name, tone, onClick, open, status }) {
   return (
@@ -280,7 +327,7 @@ function StatusPill({ icon: Icon, name, tone, onClick, open, status }) {
   );
 }
 
-function TerminalPanel({ open, tab, onTabChange, onClose, lines, command, onCommandChange, onCommand, connections, onConnectionChange, onTest, connectionStates, saving }) {
+function TerminalPanel({ open, tab, onTabChange, onClose, lines, command, onCommandChange, onCommand, connections, onConnectionChange, onTest, connectionStates, saving, kaggleStatus, kaggleTelemetry }) {
   if (!open) return null;
   return (
     <section className="pipeline-terminal" aria-label="Pipeline terminal">
@@ -306,16 +353,19 @@ function TerminalPanel({ open, tab, onTabChange, onClose, lines, command, onComm
         </>
       ) : (
         <div className="terminal-connections">
-          <p className="terminal-note">Connect an inference endpoint to this workflow. URLs are saved with the workflow; API tokens stay in this session and are never autosaved.</p>
+          <p className="terminal-note">Kaggle uses the running notebook’s two-way Cloudflare WebSocket bridge. The local model connector stays available separately.</p>
           {["kaggle", "local"].map((provider) => (
             <section className="terminal-connection-card" key={provider}>
-              <div className="terminal-connection-head"><strong>{provider === "kaggle" ? "Kaggle pipeline" : "Local model"}</strong><span className={"terminal-connection-status " + connectionStates[provider]}>{connectionStates[provider] === "connected" ? "Connected" : connectionStates[provider] === "checking" ? "Checking…" : connectionStates[provider] === "error" ? "Check failed" : "Not checked"}</span></div>
-              <label className="terminal-field-label" htmlFor={"endpoint-" + provider}>Endpoint URL</label>
-              <input id={"endpoint-" + provider} value={connections[provider]?.endpoint || ""} onChange={(event) => onConnectionChange(provider, "endpoint", event.target.value)} placeholder={provider === "kaggle" ? "https://your-kaggle-bridge.example/v1" : "http://127.0.0.1:11434"} spellCheck="false" />
-              <label className="terminal-field-label" htmlFor={"token-" + provider}>Bearer token <span>optional · session only</span></label>
-              <input id={"token-" + provider} type="password" value={connections[provider]?.token || ""} onChange={(event) => onConnectionChange(provider, "token", event.target.value)} placeholder="Paste token for this session" autoComplete="new-password" />
-              <button className="terminal-test-button" onClick={() => onTest(provider)} disabled={connectionStates[provider] === "checking"}><Play size={13} weight="fill" />Test endpoint</button>
-              <small>{provider === "kaggle" ? "Uses an OpenAI-compatible /models route. Your Kaggle notebook must expose an HTTPS inference bridge." : "Uses Ollama /api/tags. Allow this site in OLLAMA_ORIGINS when connecting from dabcloud.in."}</small>
+              <div className="terminal-connection-head"><strong>{provider === "kaggle" ? "Kaggle notebook bridge" : "Local model"}</strong><span className={"terminal-connection-status " + (provider === "kaggle" ? kaggleStatus : connectionStates[provider])}>{(provider === "kaggle" ? kaggleStatus : connectionStates[provider]) === "connected" ? "Connected" : (provider === "kaggle" ? kaggleStatus : connectionStates[provider]) === "checking" ? "Connecting…" : (provider === "kaggle" ? kaggleStatus : connectionStates[provider]) === "error" ? "Offline" : "Not connected"}</span></div>
+              <label className="terminal-field-label" htmlFor={"endpoint-" + provider}>{provider === "kaggle" ? "Cloudflare tunnel URL" : "Endpoint URL"}</label>
+              <input id={"endpoint-" + provider} value={connections[provider]?.endpoint || ""} onChange={(event) => onConnectionChange(provider, "endpoint", event.target.value)} placeholder={provider === "kaggle" ? "https://your-tunnel.trycloudflare.com" : "http://127.0.0.1:11434"} spellCheck="false" />
+              {provider === "local" && <>
+                <label className="terminal-field-label" htmlFor="token-local">Bearer token <span>optional · session only</span></label>
+                <input id="token-local" type="password" value={connections.local?.token || ""} onChange={(event) => onConnectionChange("local", "token", event.target.value)} placeholder="Paste token for this session" autoComplete="new-password" />
+              </>}
+              <button className="terminal-test-button" onClick={() => onTest(provider)} disabled={(provider === "kaggle" ? kaggleStatus : connectionStates[provider]) === "checking"}><Play size={13} weight="fill" />{provider === "kaggle" ? (kaggleStatus === "connected" ? "Disconnect bridge" : "Connect bridge") : "Test endpoint"}</button>
+              {provider === "kaggle" && kaggleTelemetry?.gpuName && <small>{kaggleTelemetry.gpuName} · {kaggleTelemetry.vramFree || "VRAM unknown"} free{Number.isFinite(kaggleTelemetry.ping) ? ` · ${kaggleTelemetry.ping} ms` : ""}</small>}
+              <small>{provider === "kaggle" ? "Open the saved notebook and start its bridge cell first. Connects over wss://…/ws." : "Uses Ollama /api/tags. Allow this site in OLLAMA_ORIGINS when connecting from dabcloud.in."}</small>
             </section>
           ))}
         </div>
@@ -324,10 +374,11 @@ function TerminalPanel({ open, tab, onTabChange, onClose, lines, command, onComm
   );
 }
 
-function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructionChange, onCharacterNameChange, onCharacterAdd, onCharacterPhotoUpload, onCharacterPhotoRemove, onEnvironmentDescriptionChange, onEnvironmentPhotoUpload, onEnvironmentPhotoRemove }) {
+function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructionChange, onCharacterNameChange, onCharacterAdd, onCharacterPhotoUpload, onCharacterPhotoRemove, onEnvironmentDescriptionChange, onEnvironmentPhotoUpload, onEnvironmentPhotoRemove, onKaggleRun, onKaggleConnect, kaggleStatus, kaggleRunStatus, outputFiles, onSaveOutput, outputFolderName }) {
   if (!node) return null;
   const data = node.data;
   const photoCount = (data.characters || []).reduce((total, character) => total + Object.values(character.photos || {}).filter(Boolean).length, 0);
+  const kaggleBusy = ["starting", "running"].includes(String(kaggleRunStatus || "").toLowerCase());
   return (
     <aside className="node-inspector" aria-label={data.title + " options"}>
       <div className="inspector-head">
@@ -347,16 +398,18 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
         </div>
       )}
 
-      <label className="field-label" htmlFor={"instructions-" + node.id}>Instructions for this node</label>
-      <textarea
-        id={"instructions-" + node.id}
-        className="node-instructions"
-        value={data.instructions || data.description || ""}
-        onChange={(event) => onInstructionChange(node.id, event.target.value)}
-        placeholder="Add instructions for this step…"
-        rows={data.kind === "brief" ? 5 : 6}
-      />
-      <div className="field-hint">This note is passed to this workflow step.</div>
+      {!(["kaggle", "output"].includes(data.kind)) && <>
+        <label className="field-label" htmlFor={"instructions-" + node.id}>Instructions for this node</label>
+        <textarea
+          id={"instructions-" + node.id}
+          className="node-instructions"
+          value={data.instructions || data.description || ""}
+          onChange={(event) => onInstructionChange(node.id, event.target.value)}
+          placeholder="Add instructions for this step…"
+          rows={data.kind === "brief" ? 5 : 6}
+        />
+        <div className="field-hint">This note is passed to this workflow step.</div>
+      </>}
 
       {data.kind === "cast" && (
         <section className="panel-section">
@@ -472,9 +525,32 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
 
       {data.kind === "output" && (
         <section className="panel-section">
-          <label className="field-label" htmlFor="output-folder">Output folder</label>
-          <input className="text-field" id="output-folder" value={`/movies/${taskCode}`} readOnly />
-          <div className="field-hint">Final video and supporting files are grouped by task code.</div>
+          <label className="field-label">Output folder on this computer</label>
+          <div className="inspector-row"><span>Selected folder</span><strong>{outputFolderName || "Choose D: folder"}</strong></div>
+          <div className="field-hint">Choose the D: drive root once. DabCloud creates SCENES and then a task-code folder before saving.</div>
+          {outputFiles?.length ? <div className="output-file-list">
+            {outputFiles.map((file) => <div className="output-file-row" key={file.fileName}>
+              <FileText size={15} />
+              <span>{file.fileName}</span>
+              <button className="terminal-test-button" onClick={() => onSaveOutput(file)}>{outputFolderName ? "Save to folder" : "Choose folder & save"}</button>
+            </div>)}
+          </div> : <p className="terminal-note">Completed Kaggle outputs will appear here with a Save button.</p>}
+        </section>
+      )}
+
+      {data.kind === "kaggle" && (
+        <section className="panel-section">
+          <label className="field-label">Saved Kaggle notebook</label>
+          <a className="kaggle-notebook-card" href={data.notebookUrl || "https://www.kaggle.com/code/sara8877/dabcloudbp-dual-gpu-30s-video-engine"} target="_blank" rel="noreferrer">
+            <HardDrives size={17} /><span><strong>{data.notebookSlug || "sara8877/dabcloudbp-dual-gpu-30s-video-engine"}</strong><small>Open notebook in Kaggle ↗</small></span>
+          </a>
+          <div className="inspector-row"><span>Bridge</span><strong>{kaggleStatus === "connected" ? "Connected" : "Offline"}</strong></div>
+          <div className="field-hint">Open the saved notebook and start its bridge cell. The app connects to that live GPU session and sends this workflow.</div>
+          <button className="primary-button dialog-action" onClick={() => onKaggleRun(node.id)} disabled={kaggleBusy}>
+            <Play size={14} weight="fill" /> {kaggleRunStatus === "starting" ? "Sending graph…" : kaggleRunStatus === "running" ? "Kaggle is running…" : `Run Kaggle with #${taskCode}`}
+          </button>
+          <div className="inspector-row"><span>Run status</span><strong>{kaggleRunStatus || "Idle"}</strong></div>
+          <button className="terminal-test-button" onClick={() => onKaggleConnect()}>{kaggleStatus === "connected" ? "Disconnect from bridge" : "Connect to bridge"}</button>
         </section>
       )}
 
@@ -557,22 +633,23 @@ function NodeNavigator({ nodes, taskCode, onSelect, onAdd, addOpen, onToggleAdd 
   );
 }
 
-function OutputDialog({ open, onClose, taskCode, outputData }) {
+function OutputDialog({ open, onClose, taskCode, outputData, outputFiles = [], onSaveOutput, outputSaving }) {
   if (!open) return null;
-  const files = Array.isArray(outputData?.files) ? outputData.files : [];
+  const files = outputFiles.length ? outputFiles : (Array.isArray(outputData?.files) ? outputData.files : []);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
       <section className="output-dialog" role="dialog" aria-modal="true" aria-labelledby="output-title" onClick={(event) => event.stopPropagation()}>
         <button className="icon-button dialog-close" onClick={onClose} aria-label="Close output"><X size={18} /></button>
         <div className="dialog-icon"><FolderOpen size={22} weight="duotone" /></div>
         <span className="inspector-eyebrow">TASK OUTPUT</span>
-        <h2 id="output-title">/movies/{taskCode}</h2>
-        <p>{outputData?.message || (outputData ? "The task endpoint returned successfully. Output files, if any, are listed below." : "No files have been returned by the task endpoint yet.")}</p>
+        <h2 id="output-title">D:\SCENES\{taskCode}</h2>
+        <p>{outputFiles.length ? "Read-only Kaggle results. Save a file to the local SCENES task folder." : outputData?.message || "No Kaggle output has been returned for this task yet."}</p>
         {files.map((file, index) => (
           <div className="file-row" key={file.id || file.path || file.url || index}>
             <FileText size={18} />
-            <span>{file.name || file.path || "Output file"}</span>
+            <span>{file.fileName || file.name || file.path || "Output file"}</span>
             {file.url && <a href={file.url} target="_blank" rel="noreferrer">Open</a>}
+            {file.url && <button className="terminal-test-button" onClick={() => onSaveOutput(file)} disabled={Boolean(outputSaving)}>{outputSaving === file.fileName ? "Saving…" : "Save to D: folder"}</button>}
           </div>
         ))}
         {outputData?.outputPath && <div className="file-row"><FolderOpen size={18} /><span>{outputData.outputPath}</span></div>}
@@ -607,8 +684,28 @@ function Workspace({ user, onSignOut }) {
     local: { endpoint: "", token: "" },
   });
   const [connectionStates, setConnectionStates] = useState({ kaggle: "unconfigured", local: "unconfigured" });
+  const [kaggleStatus, setKaggleStatus] = useState("unconfigured");
+  const [kaggleTelemetry, setKaggleTelemetry] = useState({});
+  const [kaggleRunStatus, setKaggleRunStatus] = useState("Idle");
+  const [kaggleOutputFiles, setKaggleOutputFiles] = useState([]);
+  const [outputRootHandle, setOutputRootHandle] = useState(null);
+  const [outputSaving, setOutputSaving] = useState("");
+  const kaggleSocketRef = useRef(null);
+  const kagglePingRef = useRef(null);
   const [workflowLoaded, setWorkflowLoaded] = useState(false);
   const [saveState, setSaveState] = useState("loading");
+
+  useEffect(() => {
+    try {
+      const savedBridgeUrl = localStorage.getItem("dabcloud_kaggle_tunnel_url");
+      if (savedBridgeUrl) setConnections((current) => ({ ...current, kaggle: { ...current.kaggle, endpoint: current.kaggle.endpoint || savedBridgeUrl } }));
+    } catch {}
+  }, []);
+
+  useEffect(() => () => {
+    if (kagglePingRef.current) window.clearInterval(kagglePingRef.current);
+    if (kaggleSocketRef.current) kaggleSocketRef.current.close(1000, "Studio closed");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -692,11 +789,143 @@ function Workspace({ user, onSignOut }) {
   }, []);
 
   const changeConnection = useCallback((provider, field, value) => {
+    if (provider === "kaggle" && field === "endpoint" && value !== connections.kaggle?.endpoint) {
+      if (kagglePingRef.current) window.clearInterval(kagglePingRef.current);
+      kagglePingRef.current = null;
+      if (kaggleSocketRef.current) kaggleSocketRef.current.close(1000, "Bridge URL changed");
+      kaggleSocketRef.current = null;
+      setKaggleStatus("unconfigured");
+    }
     setConnections((current) => ({ ...current, [provider]: { ...current[provider], [field]: value } }));
     if (field === "endpoint") setConnectionStates((current) => ({ ...current, [provider]: "unconfigured" }));
-  }, []);
+  }, [connections.kaggle?.endpoint]);
+
+  const handleKaggleMessage = useCallback((message) => {
+    if (message.type === "HANDSHAKE") {
+      const telemetry = message.telemetry || {};
+      setKaggleTelemetry((current) => ({ ...current, ...telemetry }));
+      setKaggleStatus("connected");
+      setConnectionStates((current) => ({ ...current, kaggle: "connected" }));
+      pushTerminal("success", `Kaggle bridge online${telemetry.gpuName ? ` · ${telemetry.gpuName}` : ""}${telemetry.vramFree ? ` · ${telemetry.vramFree} VRAM free` : ""}.`);
+    } else if (message.type === "PONG" && message.t) {
+      setKaggleTelemetry((current) => ({ ...current, ping: Date.now() - message.t }));
+    } else if (message.type === "LOG") {
+      pushTerminal(message.level === "ERROR" ? "error" : message.level === "SUCCESS" ? "success" : "system", message.text || "Kaggle log message.");
+    } else if (message.type === "UPDATE_NODE") {
+      const updates = message.updates || {};
+      const files = normalizeKaggleOutputFiles(updates);
+      if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      if (updates.outputUrl || updates.videoUrl || updates.fileUrl) {
+        const extra = normalizeKaggleOutputFiles({ files: [{ ...updates, fileName: updates.fileName || "final-video.mp4" }] });
+        if (extra.length) setKaggleOutputFiles((current) => [...current.filter((item) => !extra.some((file) => file.fileName === item.fileName)), ...extra]);
+      }
+      setNodes((current) => current.map((node) => {
+        if (node.id !== message.nodeId && node.data.kind !== "output") return node;
+        if (node.data.kind === "output") return { ...node, data: { ...node.data, status: updates.status === "error" ? "paused" : "done" } };
+        return { ...node, data: { ...node.data, status: updates.status || node.data.status } };
+      }));
+    } else if (message.type === "SPAWN_NODE") {
+      const files = normalizeKaggleOutputFiles(message.props || {});
+      if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      if (message.nodeType === "model_output" || files.length) pushTerminal("success", `Kaggle returned output${files.length ? ` · ${files.map((file) => file.fileName).join(", ")}` : " metadata"}.`);
+    } else if (["OUTPUT_FILE", "VIDEO_READY", "OUTPUT_READY"].includes(message.type)) {
+      const files = normalizeKaggleOutputFiles(message);
+      if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      pushTerminal("success", files.length ? `Kaggle returned ${files.length} output file${files.length === 1 ? "" : "s"}.` : message.text || "Kaggle returned an output.");
+    } else if (message.type === "JOB_FINISHED") {
+      const files = normalizeKaggleOutputFiles(message);
+      if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      setKaggleRunStatus("Completed");
+      setRunning(false);
+      setNodes((current) => current.map((node) => node.data.kind === "kaggle" || node.data.kind === "output"
+        ? { ...node, data: { ...node.data, status: "done" } }
+        : node));
+      setRunMessage(message.summary || `Kaggle finished task #${message.activeCode || taskCode}.`);
+      pushTerminal("success", message.summary || `Kaggle finished task #${message.activeCode || taskCode}.`);
+    } else if (message.type === "JOB_FAILED" || message.type === "ERROR") {
+      setKaggleRunStatus("Failed");
+      setRunning(false);
+      setNodes((current) => current.map((node) => node.data.kind === "kaggle" ? { ...node, data: { ...node.data, status: "paused" } } : node));
+      setRunMessage(message.message || message.error || "Kaggle reported a run error.");
+      pushTerminal("error", message.message || message.error || "Kaggle reported a run error.");
+    }
+  }, [pushTerminal, taskCode]);
+
+  const connectKaggleBridge = useCallback((endpointOverride) => {
+    const endpoint = String(typeof endpointOverride === "string" ? endpointOverride : connections.kaggle?.endpoint || "").trim();
+    if (kaggleSocketRef.current?.readyState === WebSocket.OPEN) {
+      kaggleSocketRef.current.close(1000, "User disconnected");
+      kaggleSocketRef.current = null;
+      if (kagglePingRef.current) window.clearInterval(kagglePingRef.current);
+      setKaggleStatus("unconfigured");
+      setConnectionStates((current) => ({ ...current, kaggle: "unconfigured" }));
+      pushTerminal("system", "Disconnected from Kaggle bridge.");
+      return false;
+    }
+    if (!endpoint) {
+      setKaggleStatus("error");
+      pushTerminal("error", "Add the notebook’s Cloudflare tunnel URL in Connections first.");
+      setTerminalOpen(true);
+      setTerminalTab("connections");
+      return false;
+    }
+    let socketUrl;
+    try {
+      const parsed = new URL(/^wss?:\/\//i.test(endpoint) ? endpoint : `https://${endpoint}`);
+      if (parsed.protocol === "http:") parsed.protocol = "ws:";
+      if (parsed.protocol === "https:") parsed.protocol = "wss:";
+      if (!["wss:", "ws:"].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error("Use a valid Cloudflare tunnel URL without embedded credentials.");
+      if (window.location.protocol === "https:" && parsed.protocol !== "wss:") throw new Error("Use the HTTPS Cloudflare tunnel URL so this studio can connect securely over WSS.");
+      if (!parsed.pathname.endsWith("/ws")) parsed.pathname = `${parsed.pathname.replace(/\/+$/, "")}/ws`;
+      socketUrl = parsed.toString();
+    } catch (error) {
+      setKaggleStatus("error");
+      pushTerminal("error", error.message || "Enter a valid Kaggle bridge URL.");
+      return false;
+    }
+    try { localStorage.setItem("dabcloud_kaggle_tunnel_url", endpoint); } catch {}
+    setKaggleStatus("checking");
+    setConnectionStates((current) => ({ ...current, kaggle: "checking" }));
+    pushTerminal("system", `Connecting to Kaggle bridge ${socketUrl}…`);
+    let socket;
+    try { socket = new WebSocket(socketUrl); }
+    catch (error) {
+      setKaggleStatus("error");
+      pushTerminal("error", `Could not open Kaggle bridge: ${error.message}`);
+      return false;
+    }
+    kaggleSocketRef.current = socket;
+    socket.onopen = () => {
+      setKaggleStatus("connected");
+      setConnectionStates((current) => ({ ...current, kaggle: "connected" }));
+      pushTerminal("success", "Kaggle bridge connected. Waiting for GPU handshake…");
+      if (kagglePingRef.current) window.clearInterval(kagglePingRef.current);
+      kagglePingRef.current = window.setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "PING", t: Date.now() }));
+      }, 15000);
+    };
+    socket.onmessage = (event) => {
+      try { handleKaggleMessage(JSON.parse(event.data)); }
+      catch { pushTerminal("system", String(event.data).slice(0, 1200)); }
+    };
+    socket.onerror = () => {
+      setKaggleStatus("error");
+      setConnectionStates((current) => ({ ...current, kaggle: "error" }));
+      pushTerminal("error", "Kaggle bridge connection failed. Check that the notebook session and Cloudflare tunnel are running.");
+    };
+    socket.onclose = (event) => {
+      if (kagglePingRef.current) window.clearInterval(kagglePingRef.current);
+      kagglePingRef.current = null;
+      if (kaggleSocketRef.current === socket) kaggleSocketRef.current = null;
+      const state = event.code === 1000 ? "unconfigured" : "error";
+      setKaggleStatus(state);
+      setConnectionStates((current) => ({ ...current, kaggle: state }));
+    };
+    return true;
+  }, [connections.kaggle?.endpoint, handleKaggleMessage, pushTerminal]);
 
   const testConnection = useCallback(async (provider, endpointOverride) => {
+    if (provider === "kaggle") return connectKaggleBridge(endpointOverride);
     const connection = connections[provider];
     const endpoint = String(endpointOverride || connection?.endpoint || "").trim().replace(/\/+$/, "");
     if (!endpoint) {
@@ -746,47 +975,75 @@ function Workspace({ user, onSignOut }) {
     } finally {
       window.clearTimeout(timeout);
     }
-  }, [connections, pushTerminal]);
+  }, [connections, connectKaggleBridge, pushTerminal]);
 
   const connectionState = {
     Cloud: "unconfigured",
-    Kaggle: connectionStates.kaggle,
+    Kaggle: kaggleStatus,
     Local: connectionStates.local,
   };
 
 
-  const runWorkflow = useCallback(() => {
-    const code = taskCode.replace(/\D/g, "");
+  const runWorkflow = useCallback(async () => {
+    const code = taskCode.replace(/\D/g, "").slice(0, 6);
     if (!/^\d{6}$/.test(code)) {
-      setRunMessage("Enter a 6-digit task code to load the production brief.");
-      window.setTimeout(() => setRunMessage(""), 3000);
+      setRunMessage("Enter a six-digit task code before starting Kaggle.");
       return;
     }
-    setRunning(true);
-    setOutputData(null);
-    setRunMessage("Sending task #" + code + " to the production task endpoint…");
-    fetch(`${TASK_API}/${code}/complete`, { method: "POST", headers: { Accept: "application/json" } })
-      .then(async (response) => {
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result.success === false) {
-          throw new Error(result.error || result.message || `Task endpoint returned HTTP ${response.status}.`);
-        }
-        setOutputData(result);
-        const resultStatus = String(result.status || "").toLowerCase();
-        if (["completed", "complete", "done"].includes(resultStatus) || result.completed === true) {
-          setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "done" } })));
-          setRunMessage(result.message || `Task #${code} completed by the production endpoint.`);
-        } else if (response.status === 202 || ["queued", "running", "processing"].includes(resultStatus)) {
-          setRunMessage(result.message || `Task #${code} was accepted by the production endpoint.`);
-        } else {
-          setRunMessage(result.message || `The production endpoint accepted task #${code}.`);
-        }
-      })
-      .catch((error) => {
-        setRunMessage(`Run failed: ${error.message}`);
-      })
-      .finally(() => setRunning(false));
-  }, [taskCode]);
+    const socket = kaggleSocketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setRunMessage("Connect the running Kaggle notebook bridge first.");
+      setTerminalOpen(true);
+      setTerminalTab("connections");
+      pushTerminal("error", "Run stopped: connect the Kaggle bridge before dispatching this graph.");
+      return;
+    }
+    const configuredNotebook = nodes.find((node) => node.data.kind === "kaggle")?.data.notebookSlug || "sara8877/dabcloudbp-dual-gpu-30s-video-engine";
+    const saved = await persistWorkflow();
+    if (!saved) return;
+    const nodeTypesByKind = { start: "entry_code", brief: "doc_note", cast: "photo_profile", environment: "environment", storyboard: "prompt_spec", video: "video_asset", kaggle: "kaggle_trigger", output: "model_output", check: "continuity_check" };
+    const activeNodes = nodes.map((node) => ({
+      ...node.data,
+      ...node,
+      id: node.id,
+      type: nodeTypesByKind[node.data.kind] || node.data.kind,
+      kind: node.data.kind,
+      title: node.data.title,
+      x: node.position.x,
+      y: node.position.y,
+      position: node.position,
+      code: node.data.kind === "start" ? code : node.data.code,
+      taskCode: code,
+      notebookSlug: node.data.kind === "kaggle" ? configuredNotebook : node.data.notebookSlug,
+      notes: node.data.instructions,
+      data: node.data,
+    }));
+    const activeWires = edges.map((edge) => ({
+      ...edge,
+      fromNode: edge.source,
+      fromPort: edge.sourceHandle || "out",
+      toNode: edge.target,
+      toPort: edge.targetHandle || "in",
+      label: edge.source === "start" ? `#${code}` : "WIRED",
+    }));
+    try {
+      socket.send(JSON.stringify({ type: "EXECUTE_GRAPH", activeCode: code, taskCode: code, notebookSlug: configuredNotebook, nodes: activeNodes, wires: activeWires, edges, timestamp: Date.now() }));
+      setRunning(true);
+      setOutputData(null);
+      setKaggleOutputFiles([]);
+      setKaggleRunStatus("Running");
+      setRunMessage(`Workflow #${code} sent to Kaggle · waiting for notebook output…`);
+      setNodes((current) => current.map((node) => node.data.kind === "video" || node.data.kind === "kaggle" || node.data.kind === "output"
+        ? { ...node, data: { ...node.data, status: "running" } }
+        : node));
+      pushTerminal("success", `Sent ${activeNodes.length} nodes and ${activeWires.length} connections for task #${code} to ${configuredNotebook}.`);
+    } catch (error) {
+      setRunning(false);
+      setKaggleRunStatus("Failed");
+      setRunMessage(`Kaggle dispatch failed: ${error.message}`);
+      pushTerminal("error", `Kaggle dispatch failed: ${error.message}`);
+    }
+  }, [taskCode, nodes, edges, persistWorkflow, pushTerminal]);
 
   const executeTerminalCommand = useCallback(async (event) => {
     event.preventDefault();
@@ -798,12 +1055,12 @@ function Workspace({ user, onSignOut }) {
     const verb = verbRaw.toLowerCase();
     const provider = args[0]?.toLowerCase();
     if (verb === "help") {
-      pushTerminal("system", "connect <kaggle|local> <url> · test <kaggle|local|all> · models <kaggle|local> · status · save · run · clear");
+      pushTerminal("system", "connect kaggle <cloudflare-url> · test kaggle · connect local <ollama-url> · test local · models local · status · save · run · clear");
     } else if (verb === "clear") {
       setTerminalLines([]);
     } else if (verb === "status") {
-      pushTerminal("system", `Task #${taskCode.replace(/\D/g, "").slice(0, 6)} · save ${saveState} · Kaggle ${connectionStates.kaggle} · Local ${connectionStates.local}`);
-      pushTerminal("system", "Model requests are dispatched by the configured task API. This console tests inference endpoints and saves their URLs with this workflow.");
+      pushTerminal("system", `Task #${taskCode.replace(/\D/g, "").slice(0, 6)} · save ${saveState} · Kaggle bridge ${kaggleStatus} · run ${kaggleRunStatus} · Local ${connectionStates.local}`);
+      pushTerminal("system", "Kaggle uses the saved notebook’s live WebSocket bridge for graph dispatch, GPU handshake, logs, node updates, and completion messages.");
     } else if (verb === "connect" && ["kaggle", "local"].includes(provider) && args[1]) {
       const endpoint = args.slice(1).join(" ");
       changeConnection(provider, "endpoint", endpoint);
@@ -814,16 +1071,61 @@ function Workspace({ user, onSignOut }) {
     } else if (verb === "test" && ["kaggle", "local"].includes(provider)) {
       await testConnection(provider);
     } else if (verb === "models" && ["kaggle", "local"].includes(provider)) {
-      await testConnection(provider);
+      if (provider === "local") await testConnection(provider);
+      else pushTerminal("system", "Kaggle runs the configured notebook through its live bridge; it does not expose an OpenAI model list here.");
     } else if (verb === "save") {
       await persistWorkflow({ announce: true });
     } else if (verb === "run") {
-      pushTerminal("system", "Submitting the current task code to the configured task API. Model execution depends on that API's provider adapter.");
+      pushTerminal("system", "Dispatching the connected workflow to the Kaggle notebook bridge.");
       runWorkflow();
     } else {
       pushTerminal("error", "Unknown command. Type help to see the available commands.");
     }
-  }, [terminalCommandText, taskCode, saveState, connectionStates, changeConnection, testConnection, persistWorkflow, runWorkflow, pushTerminal]);
+  }, [terminalCommandText, taskCode, saveState, connectionStates, kaggleStatus, kaggleRunStatus, changeConnection, testConnection, persistWorkflow, runWorkflow, pushTerminal]);
+
+  const saveKaggleOutput = useCallback(async (file) => {
+    const code = taskCode.replace(/\D/g, "").slice(0, 6);
+    if (!/^\d{6}$/.test(code)) {
+      setRunMessage("Enter a six-digit task code before saving output.");
+      return;
+    }
+    const safeName = String(file.fileName || "kaggle-output.bin").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+    setOutputSaving(safeName);
+    let writable;
+    try {
+      if (!window.showDirectoryPicker) throw new Error("Folder saving needs Microsoft Edge or Chrome on the secure DabCloud site.");
+      const root = outputRootHandle || await window.showDirectoryPicker({ mode: "readwrite" });
+      if (!outputRootHandle) setOutputRootHandle(root);
+      const scenes = await root.getDirectoryHandle("SCENES", { create: true });
+      const taskFolder = await scenes.getDirectoryHandle(code, { create: true });
+      let source = file.url || file.downloadUrl || file.outputUrl || file.videoUrl || file.fileUrl;
+      if (!source) throw new Error("Kaggle returned a file without a download URL.");
+      const response = source.startsWith("data:") ? await fetch(source) : await fetch(source, { credentials: "omit" });
+      if (!response.ok) throw new Error(`Output download returned HTTP ${response.status}.`);
+      const destination = await taskFolder.getFileHandle(safeName, { create: true });
+      writable = await destination.createWritable();
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writable.write(value);
+        }
+      } else {
+        await writable.write(await response.blob());
+      }
+      await writable.close();
+      setRunMessage(`Saved ${safeName} to D:\\SCENES\\${code}.`);
+      pushTerminal("success", `Saved ${safeName} under D:\\SCENES\\${code}.`);
+    } catch (error) {
+      try { await writable?.abort(); } catch {}
+      const message = error.name === "AbortError" ? "Folder selection was canceled." : error instanceof TypeError ? "The Kaggle download URL blocks browser access. The notebook bridge must return a browser-readable file URL." : error.message;
+      setRunMessage(`Could not save output: ${message}`);
+      pushTerminal("error", `Could not save ${safeName}: ${message}`);
+    } finally {
+      setOutputSaving("");
+    }
+  }, [outputRootHandle, taskCode, pushTerminal]);
 
   const displayNodes = useMemo(
     () => nodes.map((node) => ({
@@ -833,11 +1135,13 @@ function Workspace({ user, onSignOut }) {
         details: node.data.details?.map((detail) => detail.replace("565349", taskCode.replace(/\D/g, "").slice(0, 6))),
         taskCode: taskCode.replace(/\D/g, "").slice(0, 6),
         onRun: runWorkflow,
+        onKaggleRun: runWorkflow,
         onOpenOutput: () => setDialogOpen(true),
+        outputFiles: kaggleOutputFiles,
         running,
       },
     })),
-    [nodes, taskCode, runWorkflow, running],
+    [nodes, taskCode, runWorkflow, running, kaggleOutputFiles],
   );
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
@@ -864,6 +1168,7 @@ function Workspace({ user, onSignOut }) {
     const Icon = ICONS[definition.kind] || Sparkle;
     const nodeData = {
       ...definition,
+      ...(definition.kind === "kaggle" ? { notebookSlug: "sara8877/dabcloudbp-dual-gpu-30s-video-engine", notebookLabel: "DabCloudBP Dual GPU 30s Video Engine", notebookUrl: "https://www.kaggle.com/code/sara8877/dabcloudbp-dual-gpu-30s-video-engine" } : {}),
       instructions: definition.kind === "cast" ? CHARACTER_DESIGN_RULE : definition.instructions,
       details: definition.kind === "check" ? ["Script lock", "Character match", "Scene order"] : (definition.details || []),
       characters: definition.kind === "cast" ? [{ id: "character-" + Math.random().toString(36).slice(2, 7), name: "", photos: {} }] : definition.characters,
@@ -1008,7 +1313,7 @@ function Workspace({ user, onSignOut }) {
             {connectionMenu === "Cloud" && <div className="connection-popover"><strong>Cloud models</strong><span>Not connected · add a provider endpoint and credentials to enable generation.</span></div>}
           </div>
           <div className="connection-wrap">
-            <StatusPill icon={HardDrives} name="Kaggle" tone="kaggle" status={connectionState.Kaggle} open={terminalOpen && terminalTab === "connections"} onClick={() => { setTerminalOpen(true); setTerminalTab("connections"); setConnectionMenu(""); }} />
+            <StatusPill icon={HardDrives} name="Kaggle" tone="kaggle" status={kaggleStatus} open={terminalOpen && terminalTab === "connections"} onClick={() => { setTerminalOpen(true); setTerminalTab("connections"); setConnectionMenu(""); }} />
           </div>
           <div className="connection-wrap">
             <StatusPill icon={Monitor} name="Local" tone="local" status={connectionState.Local} open={terminalOpen && terminalTab === "connections"} onClick={() => { setTerminalOpen(true); setTerminalTab("connections"); setConnectionMenu(""); }} />
@@ -1043,6 +1348,8 @@ function Workspace({ user, onSignOut }) {
         onTest={testConnection}
         connectionStates={connectionStates}
         saving={saveState === "saving"}
+        kaggleStatus={kaggleStatus}
+        kaggleTelemetry={kaggleTelemetry}
       />
 
       <section className="canvas-shell has-inspector" aria-label="Workflow canvas">
@@ -1060,6 +1367,13 @@ function Workspace({ user, onSignOut }) {
             onEnvironmentDescriptionChange={changeEnvironmentDescription}
             onEnvironmentPhotoUpload={addEnvironmentPhotos}
             onEnvironmentPhotoRemove={removeEnvironmentPhoto}
+            onKaggleRun={runWorkflow}
+            onKaggleConnect={() => connectKaggleBridge()}
+            kaggleStatus={kaggleStatus}
+            kaggleRunStatus={kaggleRunStatus}
+            outputFiles={kaggleOutputFiles}
+            onSaveOutput={saveKaggleOutput}
+            outputFolderName={outputRootHandle ? `SCENES\\${taskCode.replace(/\D/g, "").slice(0, 6)}` : "Choose D: root"}
           />
         )}
         {!selectedNode && (
@@ -1075,7 +1389,7 @@ function Workspace({ user, onSignOut }) {
         <div className="flow-viewport is-shifted">
           <div className="canvas-run-status" role="status" aria-live="polite">
             <span className={"status-dot " + (running ? "active" : runMessage.toLowerCase().includes("completed") ? "done" : runMessage.toLowerCase().includes("failed") ? "paused" : "unconfigured")} />
-            <span>{runMessage || "Task API reachable · model connections not verified"}</span>
+          <span>{runMessage || "Connect the Kaggle notebook bridge to run this workflow."}</span>
           </div>
           <ReactFlow
             nodes={displayNodes}
@@ -1116,7 +1430,7 @@ function Workspace({ user, onSignOut }) {
           </div>
         )}
       </section>
-      <OutputDialog open={dialogOpen} onClose={() => setDialogOpen(false)} taskCode={taskCode.replace(/\D/g, "").slice(0, 6)} outputData={outputData} />
+      <OutputDialog open={dialogOpen} onClose={() => setDialogOpen(false)} taskCode={taskCode.replace(/\D/g, "").slice(0, 6)} outputData={outputData} outputFiles={kaggleOutputFiles} onSaveOutput={saveKaggleOutput} outputSaving={outputSaving} />
     </main>
   );
 }
