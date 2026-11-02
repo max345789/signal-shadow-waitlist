@@ -1539,18 +1539,8 @@ function AuthScreen({ onAuthenticated }) {
   return (
     <main className="auth-page">
       <div className="auth-frame">
-        <section className="auth-art" aria-label="Film creator working in a bright production studio">
-          <img src="/assets/studio-auth-illustration.png" alt="A filmmaker planning a movie at a desk in a sunny studio" />
-          <div className="auth-art-shade" />
-          <div className="auth-art-caption">
-            <div className="auth-wordmark"><span className="auth-mark"><FilmReel size={19} weight="fill" /></span><span>DabCloud <b>Studio</b></span></div>
-            <p>Movie production workspace.</p>
-          </div>
-        </section>
-
         <section className="auth-card" aria-labelledby="auth-heading">
           <div className="auth-heading-block">
-            <div className="auth-eyebrow">ACCOUNT ACCESS</div>
             <h1 id="auth-heading">{isCreate ? <>Create your<br />account</> : <>Welcome<br />back</>}</h1>
             <p>{isCreate ? "Create an account to save your movie workflows." : "Sign in to continue to your movie workflows."}</p>
           </div>

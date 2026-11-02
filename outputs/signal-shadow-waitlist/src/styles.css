@@ -1601,11 +1601,10 @@ button {
 }
 
 .auth-frame {
-  width: min(1420px, 100%);
-  min-height: min(820px, calc(100dvh - 100px));
+  width: min(540px, 100%);
+  min-height: min(700px, calc(100dvh - 80px));
   display: grid;
-  grid-template-columns: 1.04fr 0.96fr;
-  gap: 12px;
+  grid-template-columns: 1fr;
   padding: 12px;
   border: 12px solid #26312a;
   border-radius: 48px;
@@ -1613,41 +1612,6 @@ button {
   box-shadow: 0 30px 75px rgba(39, 65, 41, 0.25), 0 8px 20px rgba(39, 65, 41, 0.12);
 }
 
-.auth-art {
-  position: relative;
-  min-height: 650px;
-  overflow: hidden;
-  border-radius: 28px;
-  isolation: isolate;
-  background: #b8dc8b;
-}
-
-.auth-art > img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 38% center;
-}
-
-.auth-art-shade {
-  position: absolute;
-  inset: 42% 0 0;
-  z-index: 1;
-  background: linear-gradient(180deg, transparent 0%, rgba(25, 43, 30, 0.7) 100%);
-}
-
-.auth-art-caption {
-  position: absolute;
-  z-index: 2;
-  left: clamp(26px, 4vw, 54px);
-  bottom: clamp(28px, 4vw, 52px);
-  color: white;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.2);
-}
-
-.auth-wordmark,
 .auth-card-brand {
   display: flex;
   align-items: center;
@@ -1656,27 +1620,8 @@ button {
   letter-spacing: -0.035em;
 }
 
-.auth-wordmark b,
 .auth-card-brand b {
   font-weight: 700;
-}
-
-.auth-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid rgba(255,255,255,.42);
-  border-radius: 12px;
-  background: rgba(255,255,255,.18);
-  backdrop-filter: blur(12px);
-}
-
-.auth-art-caption p {
-  margin: 9px 0 0 44px;
-  color: rgba(255,255,255,.86);
-  font-size: 13px;
-  letter-spacing: .01em;
 }
 
 .auth-card {
@@ -1985,9 +1930,6 @@ button {
   .pipeline-terminal { right: 12px; bottom: 12px; }
   .auth-page { align-items: start; padding: 16px; }
   .auth-frame { min-height: auto; grid-template-columns: 1fr; gap: 9px; padding: 9px; border-width: 8px; border-radius: 32px; }
-  .auth-art { min-height: clamp(210px, 34vh, 320px); border-radius: 21px; }
-  .auth-art > img { object-position: 35% 44%; }
-  .auth-art-shade { inset: 25% 0 0; }
   .auth-card { padding: 28px clamp(22px, 7vw, 54px) 24px; border-radius: 22px; }
   .auth-card-brand { margin-bottom: 24px; }
   .auth-heading-block h1 { font-size: 39px; }
@@ -2005,7 +1947,5 @@ button {
   .terminal-tab { padding: 0 6px; font-size: 9px; }
   .auth-page { padding: 10px; }
   .auth-frame { border-width: 6px; padding: 6px; border-radius: 25px; }
-  .auth-art { min-height: 185px; border-radius: 17px; }
-  .auth-art-caption { left: 18px; bottom: 18px; }
   .auth-card { padding: 24px 18px 20px; }
 }
