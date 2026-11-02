@@ -17,6 +17,7 @@ import {
   FileText,
   FilmReel,
   FilmStrip,
+  FloppyDisk,
   FolderOpen,
   Hand,
   HardDrives,
@@ -26,6 +27,7 @@ import {
   Mountains,
   Play,
   Plus,
+  TerminalWindow,
   Sparkle,
   UsersThree,
   VideoCamera,
@@ -275,6 +277,50 @@ function StatusPill({ icon: Icon, name, tone, onClick, open, status }) {
       <Icon size={16} weight="duotone" />
       <span>{name}</span>
     </button>
+  );
+}
+
+function TerminalPanel({ open, tab, onTabChange, onClose, lines, command, onCommandChange, onCommand, connections, onConnectionChange, onTest, connectionStates, saving }) {
+  if (!open) return null;
+  return (
+    <section className="pipeline-terminal" aria-label="Pipeline terminal">
+      <header className="terminal-header">
+        <div className="terminal-title"><TerminalWindow size={17} /><strong>Pipeline terminal</strong><span className="terminal-live-dot" />{saving ? "saving" : "ready"}</div>
+        <div className="terminal-header-actions">
+          <button className={tab === "terminal" ? "terminal-tab active" : "terminal-tab"} onClick={() => onTabChange("terminal")}>Terminal</button>
+          <button className={tab === "connections" ? "terminal-tab active" : "terminal-tab"} onClick={() => onTabChange("connections")}>Connections</button>
+          <button className="icon-button terminal-close" onClick={onClose} aria-label="Close pipeline terminal"><X size={17} /></button>
+        </div>
+      </header>
+      {tab === "terminal" ? (
+        <>
+          <div className="terminal-output" role="log" aria-live="polite">
+            {lines.map((line, index) => <div className={"terminal-line " + line.kind} key={index}><span>{line.prompt ? "$" : "·"}</span><pre>{line.text}</pre></div>)}
+          </div>
+          <form className="terminal-command" onSubmit={onCommand}>
+            <span aria-hidden="true">$</span>
+            <input value={command} onChange={(event) => onCommandChange(event.target.value)} aria-label="Pipeline terminal command" placeholder="help · status · test local" autoComplete="off" spellCheck="false" />
+            <button type="submit" aria-label="Run terminal command"><Play size={14} weight="fill" /></button>
+          </form>
+          <div className="terminal-hint">Commands: <code>help</code> <code>status</code> <code>test kaggle</code> <code>test local</code> <code>models local</code> <code>save</code> <code>run</code></div>
+        </>
+      ) : (
+        <div className="terminal-connections">
+          <p className="terminal-note">Connect an inference endpoint to this workflow. URLs are saved with the workflow; API tokens stay in this session and are never autosaved.</p>
+          {["kaggle", "local"].map((provider) => (
+            <section className="terminal-connection-card" key={provider}>
+              <div className="terminal-connection-head"><strong>{provider === "kaggle" ? "Kaggle pipeline" : "Local model"}</strong><span className={"terminal-connection-status " + connectionStates[provider]}>{connectionStates[provider] === "connected" ? "Connected" : connectionStates[provider] === "checking" ? "Checking…" : connectionStates[provider] === "error" ? "Check failed" : "Not checked"}</span></div>
+              <label className="terminal-field-label" htmlFor={"endpoint-" + provider}>Endpoint URL</label>
+              <input id={"endpoint-" + provider} value={connections[provider]?.endpoint || ""} onChange={(event) => onConnectionChange(provider, "endpoint", event.target.value)} placeholder={provider === "kaggle" ? "https://your-kaggle-bridge.example/v1" : "http://127.0.0.1:11434"} spellCheck="false" />
+              <label className="terminal-field-label" htmlFor={"token-" + provider}>Bearer token <span>optional · session only</span></label>
+              <input id={"token-" + provider} type="password" value={connections[provider]?.token || ""} onChange={(event) => onConnectionChange(provider, "token", event.target.value)} placeholder="Paste token for this session" autoComplete="new-password" />
+              <button className="terminal-test-button" onClick={() => onTest(provider)} disabled={connectionStates[provider] === "checking"}><Play size={13} weight="fill" />Test endpoint</button>
+              <small>{provider === "kaggle" ? "Uses an OpenAI-compatible /models route. Your Kaggle notebook must expose an HTTPS inference bridge." : "Uses Ollama /api/tags. Allow this site in OLLAMA_ORIGINS when connecting from dabcloud.in."}</small>
+            </section>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -549,6 +595,18 @@ function Workspace({ user, onSignOut }) {
   const [outputData, setOutputData] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [connectionMenu, setConnectionMenu] = useState("");
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalTab, setTerminalTab] = useState("terminal");
+  const [terminalCommandText, setTerminalCommandText] = useState("");
+  const [terminalLines, setTerminalLines] = useState([
+    { kind: "system", prompt: false, text: "DabCloud pipeline console · type help for commands." },
+    { kind: "system", prompt: false, text: "Configure Kaggle or local inference endpoints in the Connections tab." },
+  ]);
+  const [connections, setConnections] = useState({
+    kaggle: { endpoint: "", token: "" },
+    local: { endpoint: "", token: "" },
+  });
+  const [connectionStates, setConnectionStates] = useState({ kaggle: "unconfigured", local: "unconfigured" });
   const [workflowLoaded, setWorkflowLoaded] = useState(false);
   const [saveState, setSaveState] = useState("loading");
 
@@ -569,6 +627,13 @@ function Workspace({ user, onSignOut }) {
       } else if (data?.graph) {
         if (Array.isArray(data.graph.nodes) && data.graph.nodes.length) setNodes(data.graph.nodes);
         if (Array.isArray(data.graph.edges)) setEdges(data.graph.edges);
+        if (data.graph.connections) {
+          setConnections((current) => ({
+            ...current,
+            kaggle: { ...current.kaggle, endpoint: data.graph.connections.kaggle?.endpoint || "" },
+            local: { ...current.local, endpoint: data.graph.connections.local?.endpoint || "" },
+          }));
+        }
         setTaskCode(data.task_code || "565349");
       }
       setWorkflowLoaded(true);
@@ -578,25 +643,117 @@ function Workspace({ user, onSignOut }) {
     return () => { active = false; };
   }, [user.id]);
 
+  const persistWorkflow = useCallback(async ({ announce = false } = {}) => {
+    const code = taskCode.replace(/\D/g, "").slice(0, 6);
+    if (!/^\d{6}$/.test(code)) {
+      setSaveState("error");
+      if (announce) setRunMessage("Enter a six-digit task code before saving.");
+      return false;
+    }
+    setSaveState("saving");
+    const graph = {
+      nodes,
+      edges,
+      connections: {
+        kaggle: { endpoint: connections.kaggle?.endpoint || "" },
+        local: { endpoint: connections.local?.endpoint || "" },
+      },
+    };
+    const { error } = await supabase.from("studio_workflows").upsert({
+      user_id: user.id,
+      task_code: code,
+      name: `Movie workflow #${code}`,
+      graph,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,task_code" });
+    setSaveState(error ? "error" : "saved");
+    if (error) {
+      setRunMessage("Workflow save failed: " + error.message);
+      setTerminalLines((current) => [...current, { kind: "error", prompt: false, text: "Save failed: " + error.message }]);
+      return false;
+    }
+    if (announce) {
+      setRunMessage(`Workflow #${code} saved.`);
+      setTerminalLines((current) => [...current, { kind: "success", prompt: false, text: `Workflow #${code} saved to your studio account.` }]);
+    }
+    return true;
+  }, [user.id, taskCode, nodes, edges, connections.kaggle?.endpoint, connections.local?.endpoint]);
+
   useEffect(() => {
     if (!workflowLoaded) return undefined;
-    setSaveState("saving");
     const timer = window.setTimeout(async () => {
-      const code = taskCode.replace(/\D/g, "").slice(0, 6);
-      if (code.length !== 6) return;
-      const { error } = await supabase.from("studio_workflows").upsert({
-        user_id: user.id,
-        task_code: code,
-        name: `Movie workflow #${code}`,
-        graph: { nodes, edges },
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,task_code" });
-      setSaveState(error ? "error" : "saved");
-      if (error) setRunMessage("Workflow save failed: " + error.message);
+      await persistWorkflow();
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [workflowLoaded, user.id, taskCode, nodes, edges]);
-  const connectionState = { Cloud: "unconfigured", Kaggle: "unconfigured", Local: "unconfigured" };
+  }, [workflowLoaded, persistWorkflow]);
+
+  const pushTerminal = useCallback((kind, text, prompt = false) => {
+    setTerminalLines((current) => [...current.slice(-79), { kind, text, prompt }]);
+  }, []);
+
+  const changeConnection = useCallback((provider, field, value) => {
+    setConnections((current) => ({ ...current, [provider]: { ...current[provider], [field]: value } }));
+    if (field === "endpoint") setConnectionStates((current) => ({ ...current, [provider]: "unconfigured" }));
+  }, []);
+
+  const testConnection = useCallback(async (provider, endpointOverride) => {
+    const connection = connections[provider];
+    const endpoint = String(endpointOverride || connection?.endpoint || "").trim().replace(/\/+$/, "");
+    if (!endpoint) {
+      setConnectionStates((current) => ({ ...current, [provider]: "error" }));
+      pushTerminal("error", `No ${provider} endpoint is configured. Add one in Connections first.`);
+      return;
+    }
+    let url;
+    try {
+      url = new URL(endpoint);
+      if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw new Error("Use a valid HTTP(S) endpoint. Keep credentials out of the URL.");
+    } catch (error) {
+      setConnectionStates((current) => ({ ...current, [provider]: "error" }));
+      pushTerminal("error", error.message || "Enter a valid HTTP(S) endpoint.");
+      return;
+    }
+    const route = provider === "kaggle"
+      ? `${endpoint.replace(/\/v1$/i, "")}/v1/models`
+      : `${endpoint.replace(/\/api$/i, "")}/api/tags`;
+    setConnectionStates((current) => ({ ...current, [provider]: "checking" }));
+    pushTerminal("system", `Checking ${provider} endpoint ${route}…`);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(route, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(connection?.token ? { Authorization: `Bearer ${connection.token}` } : {}),
+        },
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error?.message || payload.message || `Endpoint responded with HTTP ${response.status}.`);
+      const models = provider === "kaggle"
+        ? (payload.data || payload.models || []).map((item) => item.id || item.name).filter(Boolean)
+        : (payload.models || []).map((item) => item.name).filter(Boolean);
+      setConnectionStates((current) => ({ ...current, [provider]: "connected" }));
+      pushTerminal("success", `${provider} endpoint connected${models.length ? ` · ${models.length} model${models.length === 1 ? "" : "s"} found` : ""}.`);
+      if (models.length) pushTerminal("system", models.slice(0, 12).join("  ·  "));
+      return true;
+    } catch (error) {
+      setConnectionStates((current) => ({ ...current, [provider]: "error" }));
+      const message = error.name === "AbortError" ? "Endpoint check timed out after 12 seconds." : error instanceof TypeError ? "Could not reach endpoint. Check its URL and CORS settings." : error.message;
+      pushTerminal("error", `${provider} check failed: ${message}`);
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }, [connections, pushTerminal]);
+
+  const connectionState = {
+    Cloud: "unconfigured",
+    Kaggle: connectionStates.kaggle,
+    Local: connectionStates.local,
+  };
+
 
   const runWorkflow = useCallback(() => {
     const code = taskCode.replace(/\D/g, "");
@@ -630,6 +787,43 @@ function Workspace({ user, onSignOut }) {
       })
       .finally(() => setRunning(false));
   }, [taskCode]);
+
+  const executeTerminalCommand = useCallback(async (event) => {
+    event.preventDefault();
+    const raw = terminalCommandText.trim();
+    if (!raw) return;
+    pushTerminal("command", raw, true);
+    setTerminalCommandText("");
+    const [verbRaw, ...args] = raw.split(/\s+/);
+    const verb = verbRaw.toLowerCase();
+    const provider = args[0]?.toLowerCase();
+    if (verb === "help") {
+      pushTerminal("system", "connect <kaggle|local> <url> · test <kaggle|local|all> · models <kaggle|local> · status · save · run · clear");
+    } else if (verb === "clear") {
+      setTerminalLines([]);
+    } else if (verb === "status") {
+      pushTerminal("system", `Task #${taskCode.replace(/\D/g, "").slice(0, 6)} · save ${saveState} · Kaggle ${connectionStates.kaggle} · Local ${connectionStates.local}`);
+      pushTerminal("system", "Model requests are dispatched by the configured task API. This console tests inference endpoints and saves their URLs with this workflow.");
+    } else if (verb === "connect" && ["kaggle", "local"].includes(provider) && args[1]) {
+      const endpoint = args.slice(1).join(" ");
+      changeConnection(provider, "endpoint", endpoint);
+      pushTerminal("system", `${provider} endpoint saved to this workflow. Testing connection…`);
+      window.setTimeout(() => testConnection(provider, endpoint), 0);
+    } else if (verb === "test" && provider === "all") {
+      await Promise.all([testConnection("kaggle"), testConnection("local")]);
+    } else if (verb === "test" && ["kaggle", "local"].includes(provider)) {
+      await testConnection(provider);
+    } else if (verb === "models" && ["kaggle", "local"].includes(provider)) {
+      await testConnection(provider);
+    } else if (verb === "save") {
+      await persistWorkflow({ announce: true });
+    } else if (verb === "run") {
+      pushTerminal("system", "Submitting the current task code to the configured task API. Model execution depends on that API's provider adapter.");
+      runWorkflow();
+    } else {
+      pushTerminal("error", "Unknown command. Type help to see the available commands.");
+    }
+  }, [terminalCommandText, taskCode, saveState, connectionStates, changeConnection, testConnection, persistWorkflow, runWorkflow, pushTerminal]);
 
   const displayNodes = useMemo(
     () => nodes.map((node) => ({
@@ -814,22 +1008,42 @@ function Workspace({ user, onSignOut }) {
             {connectionMenu === "Cloud" && <div className="connection-popover"><strong>Cloud models</strong><span>Not connected · add a provider endpoint and credentials to enable generation.</span></div>}
           </div>
           <div className="connection-wrap">
-            <StatusPill icon={HardDrives} name="Kaggle" tone="kaggle" status={connectionState.Kaggle} open={connectionMenu === "Kaggle"} onClick={() => setConnectionMenu(connectionMenu === "Kaggle" ? "" : "Kaggle")} />
-            {connectionMenu === "Kaggle" && <div className="connection-popover"><strong>Kaggle model</strong><span>Not connected · add the hosted MCP URL and the Kaggle model adapter.</span></div>}
+            <StatusPill icon={HardDrives} name="Kaggle" tone="kaggle" status={connectionState.Kaggle} open={terminalOpen && terminalTab === "connections"} onClick={() => { setTerminalOpen(true); setTerminalTab("connections"); setConnectionMenu(""); }} />
           </div>
           <div className="connection-wrap">
-            <StatusPill icon={Monitor} name="Local" tone="local" status={connectionState.Local} open={connectionMenu === "Local"} onClick={() => setConnectionMenu(connectionMenu === "Local" ? "" : "Local")} />
-            {connectionMenu === "Local" && <div className="connection-popover"><strong>Local model bridge</strong><span>Not connected · add a reachable local bridge URL before running.</span></div>}
+            <StatusPill icon={Monitor} name="Local" tone="local" status={connectionState.Local} open={terminalOpen && terminalTab === "connections"} onClick={() => { setTerminalOpen(true); setTerminalTab("connections"); setConnectionMenu(""); }} />
           </div>
         </div>
         <div className="account-actions">
-            <span className="account-save-state" title={saveState === "error" ? "Workflow save failed" : "Workflow autosave status"}>
+          <span className={"account-save-state " + saveState} title={saveState === "error" ? "Workflow save failed" : "Workflow autosave status"}>
             <span className={"account-save-dot " + saveState} />{saveState === "saving" ? "Saving" : saveState === "loading" ? "Loading" : saveState === "error" ? "Save issue" : "Saved"}
           </span>
+          <button className="account-save-button" onClick={() => persistWorkflow({ announce: true })} disabled={saveState === "saving" || saveState === "loading"}>
+            <FloppyDisk size={15} />Save
+          </button>
+          <button className={"account-terminal-button " + (terminalOpen ? "active" : "")} onClick={() => { setTerminalOpen((open) => !open); setConnectionMenu(""); }} aria-expanded={terminalOpen}>
+            <TerminalWindow size={15} />Terminal
+          </button>
           <span className="account-email" title={user.email}>{user.email}</span>
           <button className="account-signout" onClick={onSignOut}>Sign out</button>
         </div>
       </header>
+
+      <TerminalPanel
+        open={terminalOpen}
+        tab={terminalTab}
+        onTabChange={setTerminalTab}
+        onClose={() => setTerminalOpen(false)}
+        lines={terminalLines}
+        command={terminalCommandText}
+        onCommandChange={setTerminalCommandText}
+        onCommand={executeTerminalCommand}
+        connections={connections}
+        onConnectionChange={changeConnection}
+        onTest={testConnection}
+        connectionStates={connectionStates}
+        saving={saveState === "saving"}
+      />
 
       <section className="canvas-shell has-inspector" aria-label="Workflow canvas">
         {selectedNode && (
