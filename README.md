@@ -17,6 +17,19 @@ npm --prefix outputs/signal-shadow-waitlist run build
 
 Vercel uses the root `vercel.json` to build the nested frontend. The existing `/api/waitlist` endpoint remains in the repository for compatibility, but the movie studio UI does not use it.
 
+## Accounts and saved workflows
+
+The studio uses Supabase Auth for email/password accounts, Google OAuth, email confirmation, and password reset. Passwords are sent directly to Supabase Auth and are never stored by this application. The signed-in user's workflow graph, node instructions, task code, and optimized image references are autosaved to `public.studio_workflows`; Supabase row-level security limits access to the owner.
+
+To enable accounts in production:
+
+1. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel for Production, Preview, and Development as needed. These are the Supabase project URL and publishable/anon key; never use a service-role key in a `VITE_` variable.
+2. Apply `outputs/signal-shadow-waitlist/supabase/migrations/20261102000000_create_studio_accounts_and_workflows.sql` to that same Supabase project (for example, with the Supabase SQL Editor or `supabase db push`).
+3. In Supabase Auth, add the deployed site URL and its redirect URLs. Configure custom SMTP for reliable signup and reset email delivery. If enabling Google sign-in, configure the Google provider credentials and callback URL there.
+4. Redeploy the Vercel site after setting environment variables.
+
+The frontend build can complete without Supabase credentials, but sign-in and persistent storage stay disabled until those project values and the migration are configured. See `outputs/signal-shadow-waitlist/.env.example`.
+
 ## MCP server
 
 The Vercel function at `api/mcp.js` is exposed at `/mcp` through a rewrite. It provides `get_workflow`, `get_task`, and `run_task`. Configure the server-side environment variables in Vercel before connecting a model client. See [MCP_SETUP.md](MCP_SETUP.md).

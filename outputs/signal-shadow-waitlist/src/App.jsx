@@ -35,6 +35,20 @@ import "@fontsource/nunito-sans/400.css";
 import "@fontsource/nunito-sans/600.css";
 import "@fontsource/nunito-sans/700.css";
 import "@xyflow/react/dist/style.css";
+import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+
+async function makePersistentImage(file) {
+  if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+  if (file.size > 15 * 1024 * 1024) throw new Error("Choose an image smaller than 15 MB.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/webp", 0.8);
+}
 
 const ICONS = {
   start: FilmReel,
@@ -522,7 +536,7 @@ function OutputDialog({ open, onClose, taskCode, outputData }) {
   );
 }
 
-function Workspace() {
+function Workspace({ user, onSignOut }) {
   const { fitView, screenToFlowPosition } = useReactFlow();
   const [taskCode, setTaskCode] = useState("565349");
   const [nodes, setNodes] = useState(initialNodes);
@@ -535,6 +549,53 @@ function Workspace() {
   const [outputData, setOutputData] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [connectionMenu, setConnectionMenu] = useState("");
+  const [workflowLoaded, setWorkflowLoaded] = useState(false);
+  const [saveState, setSaveState] = useState("loading");
+
+  useEffect(() => {
+    let active = true;
+    async function loadWorkflow() {
+      const { data, error } = await supabase
+        .from("studio_workflows")
+        .select("graph, task_code")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        setSaveState("error");
+        setRunMessage("Could not load your saved workflow. Apply the studio database migration and try again.");
+      } else if (data?.graph) {
+        if (Array.isArray(data.graph.nodes) && data.graph.nodes.length) setNodes(data.graph.nodes);
+        if (Array.isArray(data.graph.edges)) setEdges(data.graph.edges);
+        setTaskCode(data.task_code || "565349");
+      }
+      setWorkflowLoaded(true);
+      setSaveState(error ? "error" : "saved");
+    }
+    loadWorkflow();
+    return () => { active = false; };
+  }, [user.id]);
+
+  useEffect(() => {
+    if (!workflowLoaded) return undefined;
+    setSaveState("saving");
+    const timer = window.setTimeout(async () => {
+      const code = taskCode.replace(/\D/g, "").slice(0, 6);
+      if (code.length !== 6) return;
+      const { error } = await supabase.from("studio_workflows").upsert({
+        user_id: user.id,
+        task_code: code,
+        name: `Movie workflow #${code}`,
+        graph: { nodes, edges },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,task_code" });
+      setSaveState(error ? "error" : "saved");
+      if (error) setRunMessage("Workflow save failed: " + error.message);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [workflowLoaded, user.id, taskCode, nodes, edges]);
   const connectionState = { Cloud: "unconfigured", Kaggle: "unconfigured", Local: "unconfigured" };
 
   const runWorkflow = useCallback(() => {
@@ -660,23 +721,17 @@ function Workspace() {
   };
 
   const addEnvironmentPhotos = (nodeId, files) => {
-    const photos = files
-      .filter((file) => file.type.startsWith("image/"))
-      .map((file) => ({
-        id: (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)),
-        name: file.name,
-        url: URL.createObjectURL(file),
-      }));
-    if (!photos.length) return;
-    setNodes((current) => current.map((node) => node.id === nodeId ? {
+    Promise.all(files.map(async (file) => ({
+      id: (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)),
+      name: file.name,
+      url: await makePersistentImage(file),
+    }))).then((photos) => setNodes((current) => current.map((node) => node.id === nodeId ? {
       ...node,
       data: { ...node.data, referenceImages: [...(node.data.referenceImages || []), ...photos] },
-    } : node));
+    } : node))).catch((error) => setRunMessage(error.message));
   };
 
   const removeEnvironmentPhoto = (nodeId, photoId) => {
-    const photo = nodes.find((node) => node.id === nodeId)?.data.referenceImages?.find((item) => item.id === photoId);
-    if (photo?.url?.startsWith("blob:")) URL.revokeObjectURL(photo.url);
     setNodes((current) => current.map((node) => node.id !== nodeId ? node : {
       ...node,
       data: { ...node.data, referenceImages: node.data.referenceImages.filter((item) => item.id !== photoId) },
@@ -702,29 +757,26 @@ function Workspace() {
   };
 
   const addCharacterPhoto = (nodeId, characterId, slotKey, file) => {
-    if (!file.type.startsWith("image/")) return;
-    const currentPhoto = nodes.find((node) => node.id === nodeId)?.data.characters?.find((character) => character.id === characterId)?.photos?.[slotKey];
-    if (currentPhoto?.url?.startsWith("blob:")) URL.revokeObjectURL(currentPhoto.url);
-    const photo = {
-      id: (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)),
-      name: file.name,
-      url: URL.createObjectURL(file),
-    };
-    setNodes((current) => current.map((node) => node.id !== nodeId ? node : {
-      ...node,
-      data: {
-        ...node.data,
-        characters: node.data.characters.map((character) => character.id !== characterId ? character : {
-          ...character,
-          photos: { ...character.photos, [slotKey]: photo },
-        }),
-      },
-    }));
+    makePersistentImage(file).then((url) => {
+      const photo = {
+        id: (globalThis.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2)),
+        name: file.name,
+        url,
+      };
+      setNodes((current) => current.map((node) => node.id !== nodeId ? node : {
+        ...node,
+        data: {
+          ...node.data,
+          characters: node.data.characters.map((character) => character.id !== characterId ? character : {
+            ...character,
+            photos: { ...character.photos, [slotKey]: photo },
+          }),
+        },
+      }));
+    }).catch((error) => setRunMessage(error.message));
   };
 
   const removeCharacterPhoto = (nodeId, characterId, slotKey) => {
-    const currentPhoto = nodes.find((node) => node.id === nodeId)?.data.characters?.find((character) => character.id === characterId)?.photos?.[slotKey];
-    if (currentPhoto?.url?.startsWith("blob:")) URL.revokeObjectURL(currentPhoto.url);
     setNodes((current) => current.map((node) => node.id !== nodeId ? node : {
       ...node,
       data: {
@@ -769,6 +821,13 @@ function Workspace() {
             <StatusPill icon={Monitor} name="Local" tone="local" status={connectionState.Local} open={connectionMenu === "Local"} onClick={() => setConnectionMenu(connectionMenu === "Local" ? "" : "Local")} />
             {connectionMenu === "Local" && <div className="connection-popover"><strong>Local model bridge</strong><span>Not connected · add a reachable local bridge URL before running.</span></div>}
           </div>
+        </div>
+        <div className="account-actions">
+            <span className="account-save-state" title={saveState === "error" ? "Workflow save failed" : "Workflow autosave status"}>
+            <span className={"account-save-dot " + saveState} />{saveState === "saving" ? "Saving" : saveState === "loading" ? "Loading" : saveState === "error" ? "Save issue" : "Saved"}
+          </span>
+          <span className="account-email" title={user.email}>{user.email}</span>
+          <button className="account-signout" onClick={onSignOut}>Sign out</button>
         </div>
       </header>
 
@@ -849,37 +908,99 @@ function Workspace() {
 }
 
 export function App() {
-  const [entered, setEntered] = useState(false);
+  const [user, setUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
-  return (
-    entered ? (
-      <ReactFlowProvider>
-        <Workspace />
-      </ReactFlowProvider>
-    ) : (
-      <AuthScreen onPreview={() => setEntered(true)} />
-    )
-  );
+  useEffect(() => {
+    if (!supabase) {
+      setCheckingSession(false);
+      return undefined;
+    }
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setUser(data.session?.user || null);
+        setCheckingSession(false);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
+      setCheckingSession(false);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
+
+  async function signOut() {
+    await supabase?.auth.signOut();
+  }
+
+  if (checkingSession) return <main className="auth-loading"><span className="auth-loading-dot" />Restoring your studio…</main>;
+  if (passwordRecovery && user) return <PasswordUpdateScreen onComplete={() => setPasswordRecovery(false)} />;
+  if (user) return <ReactFlowProvider><Workspace user={user} onSignOut={signOut} /></ReactFlowProvider>;
+  return <AuthScreen onAuthenticated={setUser} />;
 }
 
-function AuthScreen({ onPreview }) {
+function PasswordUpdateScreen({ onComplete }) {
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function updatePassword(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") || "");
+    if (password !== String(form.get("confirmPassword") || "")) {
+      setNotice("Those passwords don’t match yet.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) return setNotice(error.message);
+    onComplete();
+  }
+  return <main className="auth-page"><section className="auth-card auth-reset-card"><div className="auth-card-brand">DabCloud <b>Studio</b></div><div className="auth-heading-block"><div className="auth-eyebrow">ACCOUNT SECURITY</div><h1>Set a new<br />password</h1><p>Choose a new password for your account.</p></div><form className="auth-form" onSubmit={updatePassword}><label className="auth-field"><span>New password</span><input name="password" type="password" minLength={8} autoComplete="new-password" required /></label><label className="auth-field"><span>Confirm password</span><input name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required /></label><button className="auth-submit" disabled={busy}>{busy ? "Saving…" : "Update password"}</button></form>{notice && <p className="auth-notice" role="status">{notice}</p>}</section></main>;
+}
+
+function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("create");
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const configured = isSupabaseConfigured;
   const isCreate = mode === "create";
 
-  function submitAuth(event) {
+  async function submitAuth(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const email = String(data.get("email") || "").trim();
     const password = String(data.get("password") || "");
     const confirm = String(data.get("confirmPassword") || "");
+    setNotice("");
     if (isCreate && password !== confirm) {
       setNotice("Those passwords don’t match yet.");
       return;
     }
-    setNotice("Account sign-in isn’t connected yet. Open preview to explore the studio.");
-    form.reset();
+    if (!configured) {
+      setNotice("Account service setup is required. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the deployment environment.");
+      return;
+    }
+    setBusy(true);
+    const result = isCreate
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (result.error) {
+      setNotice(result.error.message);
+      return;
+    }
+    if (result.data.session?.user) {
+      onAuthenticated(result.data.session.user);
+      return;
+    }
+    setNotice("Check your email for the confirmation link, then sign in to open your studio.");
+    if (isCreate) setMode("login");
   }
 
   function switchMode(nextMode) {
@@ -908,6 +1029,7 @@ function AuthScreen({ onPreview }) {
             <p>{isCreate ? "Keep every scene, character, and idea in sync." : "Pick up where your next movie begins."}</p>
           </div>
 
+          {!configured && <p className="auth-notice auth-config-notice" role="status">The sign-in service is not configured for this deployment yet.</p>}
           <form className="auth-form" onSubmit={submitAuth}>
             <label className="auth-field">
               <span>Email address</span>
@@ -921,16 +1043,24 @@ function AuthScreen({ onPreview }) {
               </div>
             </label>
             {isCreate && <label className="auth-field"><span>Confirm password</span><input type={showPassword ? "text" : "password"} name="confirmPassword" autoComplete="new-password" placeholder="Enter your password again" minLength={8} required /></label>}
-            {!isCreate && <button className="auth-forgot" type="button" onClick={() => setNotice("Password reset isn’t connected yet.")}>Forgot password?</button>}
-            <button className="auth-submit" type="submit">{isCreate ? "Create account" : "Sign in"}<span aria-hidden="true">→</span></button>
+            {!isCreate && <button className="auth-forgot" type="button" onClick={async () => {
+              if (!configured) return setNotice("Account service setup is required before password reset can be used.");
+              const email = String(new FormData(document.querySelector(".auth-form")).get("email") || "").trim();
+              if (!email) return setNotice("Enter your email address first.");
+              const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+              setNotice(error ? error.message : "If an account exists for that email, a password reset link is on its way.");
+            }}>Forgot password?</button>}
+            <button className="auth-submit" type="submit" disabled={busy || !configured}>{busy ? "Please wait…" : isCreate ? "Create account" : "Sign in"}<span aria-hidden="true">→</span></button>
           </form>
 
           <div className="auth-divider"><span />or continue with<span /></div>
-          <button className="auth-google" type="button" onClick={() => setNotice("Google sign-in isn’t connected yet.")}><span className="google-g">G</span>Continue with Google</button>
+          <button className="auth-google" type="button" disabled={busy || !configured} onClick={async () => {
+            const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+            if (error) setNotice(error.message);
+          }}><span className="google-g">G</span>Continue with Google</button>
           {notice && <p className="auth-notice" role="status">{notice}</p>}
           <p className="auth-terms">By continuing, you agree to our <a href="#terms" onClick={(event) => event.preventDefault()}>Terms</a> and <a href="#privacy" onClick={(event) => event.preventDefault()}>Privacy Policy</a>.</p>
           <p className="auth-switch">{isCreate ? "Already have an account?" : "New to DabCloud Studio?"} <button type="button" onClick={() => switchMode(isCreate ? "login" : "create")}>{isCreate ? "Sign in" : "Create account"}</button></p>
-          <button className="auth-preview" type="button" onClick={onPreview}>Explore the studio preview <span aria-hidden="true">↗</span></button>
         </section>
       </div>
     </main>
