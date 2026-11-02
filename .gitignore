@@ -4,3 +4,7 @@ outputs/signal-shadow-waitlist/.env
 outputs/signal-shadow-waitlist/.env.local
 outputs/signal-shadow-waitlist/dist/
 .vercel/
+
+__pycache__/
+*.pyc
+

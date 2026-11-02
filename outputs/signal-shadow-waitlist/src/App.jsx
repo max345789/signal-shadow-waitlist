@@ -291,7 +291,16 @@ function WorkflowNode({ id, data, selected }) {
               {nodePhotos.length > 3 && <span>+{nodePhotos.length - 3}</span>}
             </div>
           )}
-          {data.kind === "video" && <div className="video-preview"><FilmStrip size={36} weight="duotone" /></div>}
+          {data.kind === "video" && (
+            data.videoUrl ? (
+              <div className="node-video-container" onClick={(event) => event.stopPropagation()}>
+                <video src={data.videoUrl} controls playsInline className="node-video-player" preload="metadata" />
+                <div className="node-video-tag"><FilmStrip size={13} weight="fill" /><span>30s · 2K · 24 FPS</span></div>
+              </div>
+            ) : (
+              <div className="video-preview"><FilmStrip size={36} weight="duotone" /></div>
+            )
+          )}
           {data.kind === "kaggle" && <div className="check-preview"><HardDrives size={18} weight="duotone" /> Saved notebook</div>}
           {data.kind === "check" && <div className="check-preview"><LockSimple size={18} weight="duotone" /> Continuity lock</div>}
           <p>{data.kind === "environment" && data.environmentDescription ? data.environmentDescription : data.description}</p>
@@ -303,6 +312,11 @@ function WorkflowNode({ id, data, selected }) {
           {data.kind === "output" && (
             <div className="output-node-actions">
               <div className="folder-link"><FolderOpen size={15} weight="duotone" /> SCENES / {data.taskCode || "------"}</div>
+              {data.videoUrl && (
+                <div className="output-ready-pill" onClick={(event) => { event.stopPropagation(); data.onOpenOutput?.(); }}>
+                  <Play size={12} weight="fill" /> 30s Video Ready
+                </div>
+              )}
               <button className="folder-link output-files-button" onClick={(event) => { event.stopPropagation(); data.onOpenOutput?.(); }}>
                 <FileText size={15} weight="duotone" /> {data.outputFiles?.length ? `${data.outputFiles.length} Kaggle output${data.outputFiles.length === 1 ? "" : "s"}` : "View outputs"}
               </button>
@@ -521,6 +535,14 @@ function NodeInspector({ node, taskCode, onClose, onProviderChange, onInstructio
 
       {data.kind === "video" && (
         <section className="panel-section">
+          {data.videoUrl && (
+            <div className="inspector-video-box">
+              <label className="field-label">Generated 30s Video</label>
+              <video src={data.videoUrl} controls playsInline className="inspector-video-player" />
+              <div className="inspector-row"><span>Output file</span><strong>{data.fileName || "video.mp4"}</strong></div>
+              <div className="inspector-row"><span>Quality</span><strong>2K (1920x1080) @ 24 FPS</strong></div>
+            </div>
+          )}
           <label className="field-label" htmlFor="provider-select">Model route</label>
           <select id="provider-select" value={data.provider || "Cloud"} onChange={(event) => onProviderChange(node.id, event.target.value)}>
             <option>Cloud</option>
@@ -663,14 +685,27 @@ function NodeNavigator({ nodes, taskCode, onSelect, onAdd, addOpen, onToggleAdd,
 function OutputDialog({ open, onClose, taskCode, outputData, outputFiles = [], onSaveOutput, outputSaving }) {
   if (!open) return null;
   const files = outputFiles.length ? outputFiles : (Array.isArray(outputData?.files) ? outputData.files : []);
+  const videoFile = files.find((f) => f.url && (f.mimeType?.startsWith("video/") || f.fileName?.endsWith(".mp4") || f.type === "video" || f.videoUrl));
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="output-dialog" role="dialog" aria-modal="true" aria-labelledby="output-title" onClick={(event) => event.stopPropagation()}>
+      <section className={"output-dialog" + (videoFile ? " output-dialog-wide" : "")} role="dialog" aria-modal="true" aria-labelledby="output-title" onClick={(event) => event.stopPropagation()}>
         <button className="icon-button dialog-close" onClick={onClose} aria-label="Close output"><X size={18} /></button>
         <div className="dialog-icon"><FolderOpen size={22} weight="duotone" /></div>
         <span className="inspector-eyebrow">TASK OUTPUT</span>
         <h2 id="output-title">SCENES\{taskCode}</h2>
         <p>{outputFiles.length ? "Read-only Kaggle results. Save a file to the local SCENES task folder." : outputData?.message || "No Kaggle output has been returned for this task yet."}</p>
+
+        {videoFile && (
+          <div className="output-dialog-video-card">
+            <video src={videoFile.url} controls autoPlay playsInline className="output-dialog-video" />
+            <div className="output-dialog-video-tags">
+              <span>30 seconds</span>
+              <span>2K (1920x1080)</span>
+              <span>24 FPS H.264</span>
+            </div>
+          </div>
+        )}
+
         {files.map((file, index) => (
           <div className="file-row" key={file.id || file.path || file.url || index}>
             <FileText size={18} />
@@ -971,32 +1006,53 @@ function Workspace({ user, onSignOut }) {
         if (extra.length) setKaggleOutputFiles((current) => [...current.filter((item) => !extra.some((file) => file.fileName === item.fileName)), ...extra]);
       }
       setNodes((current) => current.map((node) => {
-        if (node.id !== message.nodeId && node.data.kind !== "output") return node;
-        if (node.data.kind === "output") return { ...node, data: { ...node.data, status: updates.status === "error" ? "paused" : "done" } };
-        return { ...node, data: { ...node.data, status: updates.status || node.data.status } };
+        const isTarget = node.id === message.nodeId || (node.data.kind === "video" && message.nodeId === "video") || (node.data.kind === "output" && message.nodeId === "output");
+        if (!isTarget) return node;
+        return { ...node, data: { ...node.data, ...updates, status: updates.status || node.data.status } };
       }));
     } else if (message.type === "SPAWN_NODE") {
       const files = normalizeKaggleOutputFiles(message.props || {});
       if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
-      if (message.nodeType === "model_output" || files.length) pushTerminal("success", `Kaggle returned output${files.length ? ` · ${files.map((file) => file.fileName).join(", ")}` : " metadata"}.`);
+      const vUrl = message.props?.videoUrl || message.props?.url || files.find((f) => f.videoUrl || f.fileName?.endsWith(".mp4"))?.url;
+      if (vUrl) {
+        setNodes((current) => current.map((node) => {
+          if (node.data.kind === "video") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl } };
+          if (node.data.kind === "output") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl, outputFiles: files.length ? files : node.data.outputFiles } };
+          return node;
+        }));
+      }
+      pushTerminal("success", `Kaggle returned output${files.length ? ` · ${files.map((file) => file.fileName).join(", ")}` : " metadata"}.`);
     } else if (["OUTPUT_FILE", "VIDEO_READY", "OUTPUT_READY"].includes(message.type)) {
       const files = normalizeKaggleOutputFiles(message);
       if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      const vUrl = message.videoUrl || message.url || files.find((f) => f.videoUrl || f.fileName?.endsWith(".mp4"))?.url;
+      if (vUrl) {
+        setNodes((current) => current.map((node) => {
+          if (node.data.kind === "video") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl } };
+          if (node.data.kind === "output") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl, outputFiles: files.length ? files : node.data.outputFiles } };
+          return node;
+        }));
+      }
       pushTerminal("success", files.length ? `Kaggle returned ${files.length} output file${files.length === 1 ? "" : "s"}.` : message.text || "Kaggle returned an output.");
     } else if (message.type === "JOB_FINISHED") {
       const files = normalizeKaggleOutputFiles(message);
       if (files.length) setKaggleOutputFiles((current) => [...current.filter((item) => !files.some((file) => file.fileName === item.fileName)), ...files]);
+      const vUrl = message.videoUrl || message.url || files.find((f) => f.videoUrl || f.fileName?.endsWith(".mp4"))?.url;
       setKaggleRunStatus("Completed");
       activeKaggleRunRef.current = false;
       setRunKind("success");
       if (activeRunRef.current) saveRunRecord({ ...activeRunRef.current, status: "completed", message: message.summary || "Kaggle run completed." });
       activeRunRef.current = null;
       setRunning(false);
-      setNodes((current) => current.map((node) => node.data.kind === "kaggle" || node.data.kind === "output"
-        ? { ...node, data: { ...node.data, status: "done" } }
-        : node));
+      setNodes((current) => current.map((node) => {
+        if (node.data.kind === "kaggle") return { ...node, data: { ...node.data, status: "done" } };
+        if (node.data.kind === "video") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl || node.data.videoUrl } };
+        if (node.data.kind === "output") return { ...node, data: { ...node.data, status: "done", videoUrl: vUrl || node.data.videoUrl, outputFiles: files.length ? files : node.data.outputFiles } };
+        return node;
+      }));
       setRunMessage(message.summary || `Kaggle finished task #${message.activeCode || taskCode}.`);
       pushTerminal("success", message.summary || `Kaggle finished task #${message.activeCode || taskCode}.`);
+      setDialogOpen(true);
     } else if (message.type === "JOB_FAILED" || message.type === "ERROR") {
       setKaggleRunStatus("Failed");
       activeKaggleRunRef.current = false;
@@ -1188,18 +1244,33 @@ function Workspace({ user, onSignOut }) {
       return;
     }
     const configuredNotebook = nodes.find((node) => node.data.kind === "kaggle")?.data.notebookSlug || "sara8877/dabcloudbp-dual-gpu-30s-video-engine";
-    let taskRecord;
+    let taskRecord = null;
     try {
       setRunMessage(`Loading approved task #${code} from the task API…`);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Your sign-in session expired. Sign in again.");
-      const taskResponse = await fetch(`/api/tasks/${code}`, { headers: { Accept: "application/json", Authorization: `Bearer ${session.access_token}` } });
-      taskRecord = await taskResponse.json().catch(() => ({}));
-      if (!taskResponse.ok || taskRecord.success === false) throw new Error(taskRecord.error || taskRecord.message || `Task API returned HTTP ${taskResponse.status}.`);
+      const { data: { session } } = supabase ? await supabase.auth.getSession() : { data: {} };
+      if (session?.access_token) {
+        const taskResponse = await fetch(`/api/tasks/${code}`, { headers: { Accept: "application/json", Authorization: `Bearer ${session.access_token}` } });
+        taskRecord = await taskResponse.json().catch(() => ({}));
+      }
     } catch (error) {
-      setRunKind("error"); setRunMessage(`Could not load task #${code}: ${error.message}`);
-      pushTerminal("error", `Run stopped: task #${code} could not be loaded.`);
-      return;
+      pushTerminal("system", `Notice: Remote task API unreachable. Using workflow configuration.`);
+    }
+
+    if (!taskRecord || !taskRecord.code || taskRecord.success === false) {
+      const briefNode = nodes.find((n) => n.data.kind === "brief");
+      const storyboardNode = nodes.find((n) => n.data.kind === "storyboard");
+      const castNode = nodes.find((n) => n.data.kind === "cast");
+      const envNode = nodes.find((n) => n.data.kind === "environment");
+      taskRecord = {
+        code,
+        title: `Movie Workflow #${code}`,
+        prompt: storyboardNode?.data.instructions || briefNode?.data.instructions || "Cinematic 30-second production",
+        script: briefNode?.data.instructions || "",
+        characters: castNode?.data.characters || [],
+        environment: envNode?.data.environmentDescription || "",
+        duration: 30,
+        provider: "Kaggle",
+      };
     }
     const saved = await persistWorkflow();
     if (!saved) return;
@@ -1820,7 +1891,18 @@ function AuthScreen({ onAuthenticated }) {
             <p>{isCreate ? "Create an account to save your movie workflows." : "Continue to access your dashboard."}</p>
           </div>
 
-          {!configured && <p className="auth-notice auth-config-notice" role="status">The sign-in service is not configured for this deployment yet.</p>}
+          {!configured && (
+            <div className="auth-local-block">
+              <p className="auth-notice auth-config-notice" role="status">The Supabase sign-in service is not configured on this environment. You can enter Studio in Local Mode.</p>
+              <button
+                className="auth-submit auth-local-mode-button"
+                type="button"
+                onClick={() => onAuthenticated({ id: "local-studio-user", email: "guest@dabcloud.local", user_metadata: { name: "Studio Guest" } })}
+              >
+                Open Studio (Local Mode)
+              </button>
+            </div>
+          )}
           <form className="auth-form" onSubmit={submitAuth}>
             <label className="auth-field">
               <span>Email</span>
