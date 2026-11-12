@@ -82,6 +82,16 @@ const TONE_CONFIG: Record<
   },
 };
 
+const DEFAULT_TONE_LABELS: Record<StatusChipTone, string> = {
+  verified: "Verified",
+  completed: "Completed",
+  pending: "Pending",
+  caution: "Caution",
+  risk: "Risk",
+  "seller-reported": "Seller-reported",
+  neutral: "Status",
+};
+
 /**
  * Status is NEVER colour alone: StatusChip always renders an icon AND a visible text label.
  */
@@ -91,7 +101,7 @@ export function StatusChip({
   emphasis = "outline",
   className,
 }: StatusChipProps) {
-  const safeLabel = label.trim();
+  const safeLabel = label.trim() || DEFAULT_TONE_LABELS[tone];
   const config = TONE_CONFIG[tone];
   const Icon = config.Icon;
 

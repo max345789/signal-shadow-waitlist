@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   APPROVED_TEXT_PAIRS,
   APPROVED_UI_INDICATOR_PAIRS,
@@ -95,11 +96,20 @@ const SAMPLE_STAGES: StageTrackerItem[] = [
 
 const REFERENCE_NOW = "2026-11-12T10:00:00.000Z";
 
-export function StyleGuideClient() {
+export function StyleGuideClient({ thesisPrompt }: { thesisPrompt?: string }) {
   const [componentState, setComponentState] = React.useState<ViewState>("ready");
   const [samplePriceInput, setSamplePriceInput] = React.useState("12500000");
   const [inputErrorPreview, setInputErrorPreview] = React.useState(false);
   const [buttonLoading, setButtonLoading] = React.useState(false);
+  const loadingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+      }
+    };
+  }, []);
 
   const colorEntries = Object.entries(COLOR_METADATA) as Array<
     [Section4ColorName, (typeof COLOR_METADATA)[Section4ColorName]]
@@ -107,6 +117,22 @@ export function StyleGuideClient() {
 
   return (
     <div className="flex flex-col gap-8">
+      {thesisPrompt ? (
+        <Card highlighted>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2">
+              <span className="text-14 font-semibold text-deep-navy">
+                Previewing submitted Home thesis prompt (Phase 0 shell)
+              </span>
+              <p className="text-16 text-ink">&ldquo;{thesisPrompt}&rdquo;</p>
+            </div>
+            <Button asChild variant="secondary">
+              <Link href="/">Back to Home</Link>
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
       {/* Page intro + interactive state toggle */}
       <Card>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -179,7 +205,12 @@ export function StyleGuideClient() {
                   loadingLabel="Saving..."
                   onClick={() => {
                     setButtonLoading(true);
-                    setTimeout(() => setButtonLoading(false), 800);
+                    if (loadingTimerRef.current) {
+                      clearTimeout(loadingTimerRef.current);
+                    }
+                    loadingTimerRef.current = setTimeout(() => {
+                      setButtonLoading(false);
+                    }, 800);
                   }}
                 >
                   Test Loading State
@@ -534,11 +565,11 @@ export function StyleGuideClient() {
                           <span
                             className="inline-block rounded px-2 py-2 text-14 font-medium"
                             style={{
-                              color: SECTION_4_COLORS.ink,
-                              backgroundColor:
+                              color:
                                 pair.bg === SECTION_4_COLORS.deepNavy
                                   ? SECTION_4_COLORS.white
-                                  : pair.bg,
+                                  : SECTION_4_COLORS.ink,
+                              backgroundColor: pair.bg,
                               border: `2px solid ${pair.fg}`,
                             }}
                           >

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Lock, ShieldCheck } from "lucide-react";
+import { Lock, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,11 +9,12 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
+  CardStateEmpty,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { StatusChip } from "@/components/ui/status-chip";
 import { MetricTile } from "@/components/domain/metric-tile";
+import { HomeThesisForm } from "@/components/home/home-thesis-form";
 import { getServerSession } from "@/lib/auth/session-server";
 import { canEnterDealRoom } from "@/lib/auth/permissions";
 
@@ -67,25 +68,12 @@ export default async function HomePage() {
                 </p>
               </div>
 
-              <form action="/style-guide" method="get" className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Input
-                    name="thesisPrompt"
-                    label="Acquisition thesis"
-                    placeholder="e.g., B2B SaaS in India, ₹50L+ net profit, under 10 owner hours/week"
-                    helperText="Thesis matching launches in Phase 2. Submitting previews the Phase 0 component system."
-                  />
-                </div>
-                <Button type="submit" variant="primary" size="md">
-                  <span>Preview system</span>
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </form>
+              <HomeThesisForm />
             </div>
           </Card>
         </section>
 
-        {/* Saved-thesis feed preview (Phase 0 shell with explicit Sample data labels) */}
+        {/* Saved-thesis feed preview (Phase 0 empty state + Sample data vitals contrast) */}
         <section aria-labelledby="saved-thesis-heading" className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -102,6 +90,11 @@ export default async function HomePage() {
             </div>
             <StatusChip tone="neutral" label="Sample data" />
           </div>
+
+          <CardStateEmpty
+            title="No saved acquisition theses yet"
+            description="Saved theses and ranked matches launch in Phase 2. Below is a Sample data preview demonstrating verified versus seller-reported vitals."
+          />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <MetricTile

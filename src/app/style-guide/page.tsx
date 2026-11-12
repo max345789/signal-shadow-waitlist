@@ -2,7 +2,17 @@ import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { StyleGuideClient } from "@/components/style-guide/style-guide-client";
 
-export default function StyleGuidePage() {
+export default async function StyleGuidePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ thesisPrompt?: string }>;
+}) {
+  const params = await searchParams;
+  const thesisPrompt =
+    typeof params.thesisPrompt === "string" && params.thesisPrompt.trim().length > 0
+      ? params.thesisPrompt.trim()
+      : undefined;
+
   return (
     <AppShell
       activeNav="style-guide"
@@ -13,7 +23,7 @@ export default function StyleGuidePage() {
           "Use the state preview toggles (Ready / Loading / Empty / Error) and keyboard Tab navigation to audit each component.",
       }}
     >
-      <StyleGuideClient />
+      <StyleGuideClient thesisPrompt={thesisPrompt} />
     </AppShell>
   );
 }

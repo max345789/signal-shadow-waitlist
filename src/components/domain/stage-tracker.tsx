@@ -94,16 +94,21 @@ export function StageTracker({
   errorMessage,
   onRetry,
 }: StageTrackerProps) {
-  const defaultFocusedStage =
+  const [internalSelected, setInternalSelected] = React.useState<
+    DealStageType | undefined
+  >(undefined);
+
+  const validInternal =
+    internalSelected && stages.some((s) => s.stage === internalSelected)
+      ? internalSelected
+      : undefined;
+
+  const activeSelection =
     selectedStage ??
+    validInternal ??
     stages.find((s) => s.status === "ACTIVE")?.stage ??
     stages[0]?.stage;
 
-  const [internalSelected, setInternalSelected] = React.useState<
-    DealStageType | undefined
-  >(defaultFocusedStage);
-
-  const activeSelection = selectedStage ?? internalSelected;
   const buttonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   if (state === "loading") {
@@ -185,8 +190,8 @@ export function StageTracker({
         </span>
       </div>
 
-      {/* Responsive 7-stage list: vertical stack on 360px mobile, grid on desktop */}
-      <ol className="grid grid-cols-1 gap-2 xl:grid-cols-7">
+      {/* Responsive 7-stage list: vertical stack on 360px mobile, grid on tablet/desktop */}
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {stages.map((item, idx) => {
           const def = DEAL_STAGE_DEFINITIONS[item.stage];
           const meta = STATUS_META[item.status];
@@ -214,12 +219,19 @@ export function StageTracker({
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <span className="text-14 font-semibold text-slate tabular-figures">
-                    0{idx + 1}
+                    {String(idx + 1).padStart(2, "0")}
                   </span>
-                  <Icon
-                    className={cn("h-4 w-4 shrink-0", meta.iconClass)}
-                    aria-hidden={true}
-                  />
+                  <span
+                    className={cn(
+                      "inline-flex items-center justify-center rounded",
+                      item.status === "COMPLETED" && isSelected ? "bg-white" : ""
+                    )}
+                  >
+                    <Icon
+                      className={cn("h-4 w-4 shrink-0", meta.iconClass)}
+                      aria-hidden={true}
+                    />
+                  </span>
                 </div>
                 <span className="text-16 font-semibold text-deep-navy">
                   {def.label}

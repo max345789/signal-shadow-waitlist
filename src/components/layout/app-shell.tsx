@@ -42,7 +42,7 @@ export function AppShell({
               className={cn(
                 "inline-flex min-h-12 items-center rounded border px-4 py-2 text-16 font-medium no-underline state-transition",
                 activeNav === "home"
-                  ? "border-trust-blue bg-pale-blue text-deep-navy"
+                  ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                   : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
               )}
             >
@@ -53,7 +53,7 @@ export function AppShell({
               className={cn(
                 "inline-flex min-h-12 items-center rounded border px-4 py-2 text-16 font-medium no-underline state-transition",
                 activeNav === "style-guide"
-                  ? "border-trust-blue bg-pale-blue text-deep-navy"
+                  ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                   : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
               )}
             >
@@ -64,8 +64,8 @@ export function AppShell({
               className={cn(
                 "inline-flex min-h-12 items-center rounded border px-4 py-2 text-16 font-medium no-underline state-transition",
                 activeNav === "signin"
-                  ? "border-deep-navy bg-deep-navy text-white"
-                  : "border-mist bg-white text-deep-navy hover:bg-pale-blue"
+                  ? "border-deep-navy bg-deep-navy text-white font-semibold"
+                  : "border-mist bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
               )}
             >
               Sign in &amp; 2FA
@@ -77,16 +77,16 @@ export function AppShell({
       {trustBanner ? (
         <section
           aria-label="Verification and next step summary"
-          className="border-b border-mist bg-pale-blue"
+          className="border-b border-mist bg-white"
         >
           <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 sm:px-8">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
               <span className="text-14 font-semibold text-deep-navy">
                 Can I trust this?
               </span>
               <p className="text-16 text-ink">{trustBanner.canTrustAnswer}</p>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
               <span className="text-14 font-semibold text-deep-navy">
                 What happens next?
               </span>

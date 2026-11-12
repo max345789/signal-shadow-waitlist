@@ -21,7 +21,7 @@ export function DialogContent({
 }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-deep-navy opacity-90" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-deep-navy" />
       <DialogPrimitive.Content
         className={cn(
           "fixed left-1/2 top-1/2 z-50 w-[calc(100%-32px)] max-w-[540px] -translate-x-1/2 -translate-y-1/2",

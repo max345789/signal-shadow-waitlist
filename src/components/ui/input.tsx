@@ -44,19 +44,20 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         >
           {label}
           {required ? (
-            <span className="ml-2 text-14 font-normal text-brick-red" aria-hidden="true">
-              *
+            <span className="ml-2 text-14 font-normal text-slate" aria-hidden="true">
+              (required)
             </span>
           ) : null}
         </LabelPrimitive.Root>
 
         <div
           className={cn(
-            "flex min-h-12 w-full items-center rounded border bg-white state-transition",
+            "flex min-h-12 w-full items-center rounded border state-transition",
+            "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-trust-blue",
             error
               ? "border-brick-red"
               : "border-mist focus-within:border-trust-blue",
-            props.disabled ? "bg-cloud opacity-75" : "bg-white"
+            props.disabled ? "bg-cloud text-slate" : "bg-white text-ink"
           )}
         >
           {prefixText ? (
@@ -72,8 +73,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={describedBy}
             className={cn(
-              "w-full min-w-0 bg-transparent px-4 py-2 text-16 text-ink placeholder:text-slate",
-              "focus:outline-none disabled:cursor-not-allowed",
+              "w-full min-w-0 bg-transparent px-4 py-2 text-16 placeholder:text-slate",
+              "focus:outline-none disabled:cursor-not-allowed disabled:text-slate",
+              props.disabled ? "text-slate" : "text-ink",
               className
             )}
             {...props}
@@ -135,8 +137,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         >
           {label}
           {required ? (
-            <span className="ml-2 text-14 font-normal text-brick-red" aria-hidden="true">
-              *
+            <span className="ml-2 text-14 font-normal text-slate" aria-hidden="true">
+              (required)
             </span>
           ) : null}
         </LabelPrimitive.Root>
@@ -149,10 +151,12 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-invalid={Boolean(error) || undefined}
           aria-describedby={describedBy}
           className={cn(
-            "w-full rounded border bg-white px-4 py-2 text-16 text-ink placeholder:text-slate state-transition",
-            "focus:outline-none focus-visible:border-trust-blue",
-            error ? "border-brick-red" : "border-mist",
-            props.disabled ? "cursor-not-allowed bg-cloud opacity-75" : "",
+            "w-full rounded border px-4 py-2 text-16 placeholder:text-slate state-transition",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue",
+            error ? "border-brick-red" : "border-mist focus-visible:border-trust-blue",
+            props.disabled
+              ? "cursor-not-allowed bg-cloud text-slate"
+              : "bg-white text-ink",
             className
           )}
           {...props}

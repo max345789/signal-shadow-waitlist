@@ -16,14 +16,14 @@ export interface ButtonProps
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "bg-deep-navy text-white border border-deep-navy hover:bg-trust-blue hover:border-trust-blue",
+    "bg-deep-navy text-white border border-deep-navy hover:bg-trust-blue hover:border-trust-blue disabled:bg-cloud disabled:text-slate disabled:border-mist",
   action:
-    "bg-trust-blue text-white border border-trust-blue hover:bg-deep-navy hover:border-deep-navy",
+    "bg-trust-blue text-white border border-trust-blue hover:bg-deep-navy hover:border-deep-navy disabled:bg-cloud disabled:text-slate disabled:border-mist",
   secondary:
-    "bg-white text-deep-navy border border-mist hover:bg-pale-blue hover:border-trust-blue",
-  link: "bg-transparent text-trust-blue border border-transparent underline underline-offset-4 hover:text-deep-navy",
+    "bg-white text-deep-navy border border-mist hover:bg-pale-blue hover:border-trust-blue disabled:bg-cloud disabled:text-slate disabled:border-mist",
+  link: "bg-transparent text-trust-blue border border-transparent underline underline-offset-4 hover:text-deep-navy disabled:text-slate disabled:no-underline",
   danger:
-    "bg-brick-red text-white border border-brick-red hover:bg-white hover:text-brick-red",
+    "bg-brick-red text-white border border-brick-red hover:bg-white hover:text-brick-red disabled:bg-cloud disabled:text-slate disabled:border-mist",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -47,20 +47,21 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button";
+    const useSlot = asChild && !loading;
+    const Comp = useSlot ? Slot : "button";
     const isDisabled = Boolean(disabled || loading);
 
     return (
       <Comp
         ref={ref}
-        type={asChild ? undefined : type}
-        disabled={asChild ? undefined : isDisabled}
+        type={useSlot ? undefined : type}
+        disabled={useSlot ? undefined : isDisabled}
         aria-disabled={isDisabled || undefined}
         aria-busy={loading || undefined}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded font-medium state-transition",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue",
-          "disabled:cursor-not-allowed disabled:opacity-60",
+          "disabled:cursor-not-allowed",
           VARIANT_CLASSES[variant],
           SIZE_CLASSES[size],
           className

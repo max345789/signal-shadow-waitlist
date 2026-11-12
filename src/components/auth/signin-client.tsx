@@ -108,13 +108,24 @@ export function SignInClient({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>
-              {session ? "Session & Mandatory 2FA" : "Sign in to Trust Marketplace"}
-            </CardTitle>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
+          Sign in &amp; two-factor authentication
+        </h1>
+        <p className="text-16 text-slate">
+          Every account entering a deal room requires verified sign-in and a current
+          6-digit TOTP authenticator check.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle as="h2">
+                {session ? "Session & Mandatory 2FA" : "Sign in to Trust Marketplace"}
+              </CardTitle>
             <StatusChip
               tone={
                 session?.twoFactorVerifiedAt
@@ -247,7 +258,7 @@ export function SignInClient({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Development &amp; Security Policy</CardTitle>
+            <CardTitle as="h2">Development &amp; Security Policy</CardTitle>
             {sampleAccounts.length > 0 ? (
               <StatusChip tone="neutral" label="Sample data" />
             ) : null}
@@ -301,6 +312,7 @@ export function SignInClient({
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

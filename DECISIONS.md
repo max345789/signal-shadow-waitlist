@@ -35,7 +35,9 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 ### 5. Shape, Spacing, Motion & Focus States
 - **Spacing**: Strict `8px` grid (`8px`, `16px`, `24px`, `32px`, `40px`, `48px`, `64px`).
 - **Corner Radius**: `8px` across cards, inputs, buttons, and chips.
-- **Borders & Elevation**: `1px solid #CBD2D9` (Mist) borders instead of heavy shadows (`box-shadow: none`).
+- **Elevation, Opacity & Borders**: `1px solid #CBD2D9` (Mist) borders instead of heavy shadows (`box-shadow: none`). Disabled controls (`bg-cloud text-slate border-mist`, `6.02:1` AA) and modal backdrops (solid `bg-deep-navy`) use 100% solid Section 4 colors rather than CSS `opacity` so colors never blend outside Section 4 or drop below WCAG AA contrast.
+- **Required Form Indicators**: Required field markers use neutral `Slate (#52606D)` `(required)` text instead of `Brick Red`, reserving `Brick Red` strictly for errors and risk.
+- **Tooltips / Disclosures on Touch & Desktop**: `InfoTooltip` supports click/tap toggle (for 360px touch devices), hover/focus, `Escape` dismissal, and `16px` readable copy clamped within mobile viewports.
 - **Focus Ring**: `2px solid #1E56A0` (Trust Blue) outline with `2px` offset (`outline-offset: 2px`) on every interactive element, never glow/blur shadows.
 - **Motion**: State-change transitions only (`150ms–250ms ease-out`, defaulting to `200ms`), disabled automatically under `@media (prefers-reduced-motion: reduce)`.
 
