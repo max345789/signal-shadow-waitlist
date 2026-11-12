@@ -5,6 +5,12 @@ import type {
   StageOwnerRole,
   StageStatusValue,
 } from "@/lib/domain/deal-stages";
+import type {
+  EscrowProviderName,
+  EscrowStatusValue,
+} from "@/lib/escrow/provider";
+
+export type { EscrowProviderName, EscrowStatusValue };
 
 export type DealRoomStatusValue = "ACTIVE" | "DISPUTED" | "COMPLETED" | "CANCELLED";
 export type OfferStatusValue =
@@ -144,6 +150,49 @@ export interface PurchaseAgreementStatusView {
   templateBody: string;
 }
 
+export interface DealEscrowTransactionView {
+  id: string;
+  dealRoomId: string;
+  provider: string;
+  externalRef: string;
+  amount: number;
+  currency: CurrencyCode;
+  status: EscrowStatusValue;
+  fundedAt: string | null;
+  releasedAt: string | null;
+  disputeReason: string | null;
+  platformHoldsFunds: false;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminDisputeDecision =
+  | "RESUME_TO_IN_REVIEW"
+  | "RELEASE_TO_SELLER"
+  | "REFUND_TO_BUYER";
+
+export interface AdminDisputeView {
+  dealRoomId: string;
+  businessId: string;
+  businessSlug: string;
+  teaserTitle: string;
+  sector: string;
+  geography: string;
+  isSampleData: boolean;
+  buyerUserId: string;
+  buyerName: string;
+  sellerUserId: string;
+  sellerName: string;
+  currentStage: DealStageType;
+  roomStatus: DealRoomStatusValue;
+  transferConfirmedCount: number;
+  transferTotalCount: number;
+  escrow: DealEscrowTransactionView;
+  resolutionNote: string | null;
+  resolvedAt: string | null;
+  updatedAt: string;
+}
+
 export interface DealRoomSummary {
   id: string;
   businessId: string;
@@ -160,6 +209,7 @@ export interface DealRoomSummary {
   sellerName: string;
   currentStage: DealStageType;
   status: DealRoomStatusValue;
+  latestEscrowStatus?: EscrowStatusValue | null;
   ndaCompleted: boolean;
   ndaSignedAt: string | null;
   updatedAt: string;
@@ -187,6 +237,7 @@ export interface DealRoomView extends DealRoomSummary {
   documents: DealDocumentView[];
   offers: DealOfferView[];
   checklistItems: DealChecklistItemView[];
+  escrowTransactions: DealEscrowTransactionView[];
   auditLogs: DealAuditLogView[];
 }
 
@@ -223,6 +274,7 @@ export interface RawDealRoomRecord {
   >;
   offers: DealOfferView[];
   checklistItems: DealChecklistItemView[];
+  escrowTransactions: DealEscrowTransactionView[];
   auditLogs: DealAuditLogView[];
   createdAt: string;
   updatedAt: string;
@@ -364,6 +416,272 @@ export function generateDueDiligenceChecklistForSector(
       title: "Inspect codebase, hosting accounts, and domain registrar control",
     },
   ];
+}
+
+export const TRANSFER_CHECKLIST_CATEGORIES = [
+  "Domain",
+  "Code repository",
+  "Cloud & hosting",
+  "Payment accounts",
+  "Social handles",
+  "Customer data",
+  "Vendor contracts",
+] as const;
+
+export function generateTransferChecklistItems(): Array<{
+  category: string;
+  title: string;
+}> {
+  return [
+    {
+      category: "Domain",
+      title: "Transfer primary domain registrar control, DNS records, and SSL certificates",
+    },
+    {
+      category: "Code repository",
+      title: "Transfer Git repositories, organization ownership, CI/CD pipelines, and IP assignment",
+    },
+    {
+      category: "Cloud & hosting",
+      title: "Hand over cloud infrastructure, hosting accounts, databases, and environment secrets",
+    },
+    {
+      category: "Payment accounts",
+      title: "Migrate payment gateway merchant accounts, payout bank links, and webhook keys",
+    },
+    {
+      category: "Social handles",
+      title: "Transfer official social media handles, brand accounts, and community channels",
+    },
+    {
+      category: "Customer data",
+      title: "Transfer customer CRM, billing records, and privacy-compliant data export",
+    },
+    {
+      category: "Vendor contracts",
+      title: "Assign or novate SaaS tools, supplier agreements, and third-party vendor contracts",
+    },
+  ];
+}
+
+export function areAllTransferChecklistItemsConfirmed(
+  items: DealChecklistItemView[]
+): boolean {
+  const transferItems = items.filter((item) => item.phase === "TRANSFER");
+  if (transferItems.length < TRANSFER_CHECKLIST_CATEGORIES.length) {
+    return false;
+  }
+  return transferItems.every(
+    (item) =>
+      item.status === "CONFIRMED" &&
+      Boolean(item.buyerConfirmedAt) &&
+      Boolean(item.sellerConfirmedAt)
+  );
+}
+
+export type EscrowActionInput =
+  | {
+      action: "INITIATE";
+      provider: EscrowProviderName;
+      amount?: number;
+      currency?: CurrencyCode;
+    }
+  | {
+      action: "FUND";
+      escrowId: string;
+      fundingReference?: string;
+    }
+  | {
+      action: "START_REVIEW";
+      escrowId: string;
+    }
+  | {
+      action: "RELEASE";
+      escrowId: string;
+    }
+  | {
+      action: "DISPUTE";
+      escrowId: string;
+      disputeReason: string;
+    };
+
+export function validateEscrowAction(params: {
+  input: EscrowActionInput;
+  actorRole: "BUYER" | "SELLER" | "ADMIN" | "REVIEWER";
+  roomStatus: DealRoomStatusValue;
+  currentStage: DealStageType;
+  acceptedOffer: DealOfferView | null;
+  existingEscrows: DealEscrowTransactionView[];
+  checklistItems: DealChecklistItemView[];
+}):
+  | { ok: true; targetEscrow: DealEscrowTransactionView | null }
+  | {
+      ok: false;
+      code:
+        | "FORBIDDEN"
+        | "NOT_FOUND"
+        | "INVALID_STAGE"
+        | "INVALID_STATE"
+        | "PREREQUISITE_FAILED";
+      reason: string;
+    } {
+  if (params.actorRole !== "BUYER" && params.actorRole !== "SELLER") {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      reason:
+        "Only Buyer or Seller participants can initiate or act on deal room escrow. Reviewers resolve disputes in the Admin Dispute Queue.",
+    };
+  }
+
+  if (params.roomStatus !== "ACTIVE") {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: `Escrow actions are locked while the deal room status is ${params.roomStatus.toLowerCase()}.`,
+    };
+  }
+
+  if (params.input.action === "INITIATE") {
+    if (params.currentStage !== "ESCROW") {
+      return {
+        ok: false,
+        code: "INVALID_STAGE",
+        reason: "Advance the deal room to the Escrow stage before initiating third-party escrow.",
+      };
+    }
+    if (!params.acceptedOffer) {
+      return {
+        ok: false,
+        code: "PREREQUISITE_FAILED",
+        reason: "An accepted offer is required before initiating third-party escrow.",
+      };
+    }
+    const activeEscrow = params.existingEscrows.find(
+      (e) => e.status !== "REFUNDED"
+    );
+    if (activeEscrow) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: `An active third-party escrow transaction (${activeEscrow.externalRef}) already exists in this deal room.`,
+      };
+    }
+    if (
+      params.input.amount !== undefined &&
+      Math.abs(params.input.amount - params.acceptedOffer.amount) > 0.01
+    ) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: "Escrow amount must match the accepted offer amount.",
+      };
+    }
+    if (
+      params.input.currency !== undefined &&
+      params.input.currency !== params.acceptedOffer.currency
+    ) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: "Escrow currency must match the accepted offer currency.",
+      };
+    }
+    return { ok: true, targetEscrow: null };
+  }
+
+  const escrowId = params.input.escrowId;
+  const target = params.existingEscrows.find((e) => e.id === escrowId);
+  if (!target) {
+    return {
+      ok: false,
+      code: "NOT_FOUND",
+      reason: "Escrow transaction not found in this deal room.",
+    };
+  }
+
+  if (params.input.action === "FUND") {
+    if (params.actorRole !== "BUYER") {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        reason: "Only the Buyer can confirm third-party escrow funding.",
+      };
+    }
+    if (target.status !== "INITIATED") {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: `Cannot confirm funding when escrow status is ${target.status}.`,
+      };
+    }
+    return { ok: true, targetEscrow: target };
+  }
+
+  if (params.input.action === "START_REVIEW") {
+    if (params.currentStage !== "TRANSFER") {
+      return {
+        ok: false,
+        code: "INVALID_STAGE",
+        reason: "Move the deal room to the Transfer stage before marking escrow in review.",
+      };
+    }
+    if (target.status !== "FUNDED") {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: `Escrow must be funded before entering review (current: ${target.status}).`,
+      };
+    }
+    return { ok: true, targetEscrow: target };
+  }
+
+  if (params.input.action === "RELEASE") {
+    if (params.actorRole !== "BUYER") {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        reason: "Only the Buyer can authorize escrow release after confirming asset handover.",
+      };
+    }
+    if (params.currentStage !== "TRANSFER") {
+      return {
+        ok: false,
+        code: "INVALID_STAGE",
+        reason: "Deal room must be in the Transfer stage to release escrow funds.",
+      };
+    }
+    if (target.status !== "FUNDED" && target.status !== "IN_REVIEW") {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: `Escrow funds cannot be released while status is ${target.status}.`,
+      };
+    }
+    if (!areAllTransferChecklistItemsConfirmed(params.checklistItems)) {
+      return {
+        ok: false,
+        code: "PREREQUISITE_FAILED",
+        reason:
+          "All 7 asset transfer categories must be confirmed by both Buyer and Seller before releasing escrow.",
+      };
+    }
+    return { ok: true, targetEscrow: target };
+  }
+
+  // DISPUTE
+  if (
+    target.status !== "INITIATED" &&
+    target.status !== "FUNDED" &&
+    target.status !== "IN_REVIEW"
+  ) {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: `Cannot flag a dispute on an escrow transaction in ${target.status} state.`,
+    };
+  }
+  return { ok: true, targetEscrow: target };
 }
 
 const EICAR_SIGNATURE =
@@ -757,6 +1075,9 @@ export function sanitizeDealRoomForViewer(
     acceptedOfferLabel,
   });
 
+  const escrowTransactions = raw.escrowTransactions ?? [];
+  const latestEscrowStatus = escrowTransactions[0]?.status ?? null;
+
   return {
     id: raw.id,
     businessId: raw.businessId,
@@ -773,6 +1094,7 @@ export function sanitizeDealRoomForViewer(
     sellerName: raw.sellerName,
     currentStage: raw.currentStage,
     status: raw.status,
+    latestEscrowStatus,
     ndaCompleted,
     ndaSignedAt: raw.ndaSignedAt,
     createdAt: raw.createdAt,
@@ -792,6 +1114,7 @@ export function sanitizeDealRoomForViewer(
     documents: visibleDocuments,
     offers: raw.offers,
     checklistItems: raw.checklistItems,
+    escrowTransactions,
     auditLogs: visibleAuditLogs,
   };
 }

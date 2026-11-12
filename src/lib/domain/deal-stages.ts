@@ -80,6 +80,7 @@ export interface StageTransitionContext {
   actorRole: "BUYER" | "SELLER" | "ADMIN" | "REVIEWER";
   fromStage: DealStageType;
   toStage: DealStageType;
+  roomStatus?: "ACTIVE" | "DISPUTED" | "COMPLETED" | "CANCELLED";
   ndaSigned: boolean;
   buyerIdentityVerified: boolean;
   buyerProofOfFundsVerified: boolean;
@@ -100,11 +101,27 @@ export interface AuditLogDraft {
 
 export type StageTransitionResult =
   | { ok: true; nextStage: DealStageType; auditEntry: AuditLogDraft }
-  | { ok: false; code: "INVALID_TRANSITION" | "PREREQUISITE_FAILED" | "FORBIDDEN"; reason: string };
+  | {
+      ok: false;
+      code:
+        | "INVALID_TRANSITION"
+        | "PREREQUISITE_FAILED"
+        | "FORBIDDEN"
+        | "INVALID_STATE";
+      reason: string;
+    };
 
 export function validateStageTransition(
   ctx: StageTransitionContext
 ): StageTransitionResult {
+  if (ctx.roomStatus && ctx.roomStatus !== "ACTIVE") {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: `Stage transitions are paused while this deal room is ${ctx.roomStatus.toLowerCase()}.`,
+    };
+  }
+
   const allowedTargets = ALLOWED_STAGE_TRANSITIONS[ctx.fromStage];
   if (!allowedTargets.includes(ctx.toStage)) {
     return {
@@ -137,6 +154,14 @@ export function validateStageTransition(
       ok: false,
       code: "PREREQUISITE_FAILED",
       reason: "An offer must be accepted before moving to Due diligence.",
+    };
+  }
+
+  if (ctx.toStage === "ESCROW" && !ctx.offerAccepted) {
+    return {
+      ok: false,
+      code: "PREREQUISITE_FAILED",
+      reason: "An accepted offer is required before opening third-party Escrow.",
     };
   }
 

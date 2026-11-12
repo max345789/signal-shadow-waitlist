@@ -9,7 +9,11 @@ export type DealRoomRealtimeEventType =
   | "DOCUMENT_CREATED"
   | "DOCUMENT_VIEWED"
   | "OFFER_UPDATED"
-  | "CHECKLIST_UPDATED";
+  | "CHECKLIST_UPDATED"
+  | "ESCROW_UPDATED"
+  | "ESCROW_RELEASED"
+  | "ESCROW_DISPUTED"
+  | "DISPUTE_RESOLVED";
 
 export interface DealRoomRealtimeEvent {
   type: DealRoomRealtimeEventType;

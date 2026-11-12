@@ -163,3 +163,51 @@ export const updateChecklistSchema = z.object({
   itemId: z.string().min(1, "Checklist item ID is required."),
   action: z.enum(["CONFIRM", "SET_IN_PROGRESS", "REOPEN"]),
 });
+
+export const escrowActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("INITIATE"),
+    provider: z.enum(["Escrow.com", "Castler Escrow"]),
+    amount: z.coerce
+      .number()
+      .finite()
+      .positive("Escrow amount must be greater than zero.")
+      .optional(),
+    currency: z.enum(["INR", "USD", "EUR", "GBP"]).optional(),
+  }),
+  z.object({
+    action: z.literal("FUND"),
+    escrowId: z.string().min(1, "Escrow transaction ID is required."),
+    fundingReference: z.string().trim().max(120).optional(),
+  }),
+  z.object({
+    action: z.literal("START_REVIEW"),
+    escrowId: z.string().min(1, "Escrow transaction ID is required."),
+  }),
+  z.object({
+    action: z.literal("RELEASE"),
+    escrowId: z.string().min(1, "Escrow transaction ID is required."),
+  }),
+  z.object({
+    action: z.literal("DISPUTE"),
+    escrowId: z.string().min(1, "Escrow transaction ID is required."),
+    disputeReason: z
+      .string()
+      .trim()
+      .min(10, "Enter a clear dispute reason (at least 10 characters).")
+      .max(1500, "Dispute reason cannot exceed 1500 characters."),
+  }),
+]);
+
+export const adminResolveDisputeSchema = z.object({
+  decision: z.enum([
+    "RESUME_TO_IN_REVIEW",
+    "RELEASE_TO_SELLER",
+    "REFUND_TO_BUYER",
+  ]),
+  resolutionNote: z
+    .string()
+    .trim()
+    .min(10, "Enter a reviewer resolution note (at least 10 characters).")
+    .max(1500, "Resolution note cannot exceed 1500 characters."),
+});

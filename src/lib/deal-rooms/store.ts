@@ -1,5 +1,5 @@
 import { getPrismaClient, isDatabaseConfigured } from "@/lib/db/prisma";
-import { canEnterDealRoom } from "@/lib/auth/permissions";
+import { canEnterDealRoom, canReviewAdminQueue } from "@/lib/auth/permissions";
 import type { AuthSession } from "@/lib/auth/types";
 import {
   DEAL_STAGES_ORDER,
@@ -13,16 +13,31 @@ import {
   buildPurchaseAgreementTemplateText,
   extractSignatureStateFromAuditLogs,
   generateDueDiligenceChecklistForSector,
+  generateTransferChecklistItems,
   resolveDealRoomViewerRole,
   sanitizeDealRoomForViewer,
   scanDocumentContent,
+  validateEscrowAction,
   validateOfferAction,
+  type AdminDisputeDecision,
+  type AdminDisputeView,
   type DealRoomSummary,
   type DealRoomView,
   type DocumentCategoryValue,
+  type EscrowActionInput,
+  type EscrowProviderName,
+  type EscrowStatusValue,
   type OfferActionInput,
   type RawDealRoomRecord,
 } from "@/lib/domain/deal-room";
+import {
+  confirmThirdPartyEscrowFunding,
+  flagThirdPartyEscrowDispute,
+  initiateThirdPartyEscrow,
+  releaseThirdPartyEscrowFunds,
+  resolveThirdPartyEscrowDispute,
+  transitionThirdPartyEscrowReview,
+} from "@/lib/escrow/provider";
 import { hasActiveBuyerDataAccessVerification } from "@/lib/domain/verification";
 import type { CurrencyCode } from "@/lib/format/currency";
 import { getLocalListingsStoreForVerification } from "@/lib/listings/store";
@@ -45,6 +60,7 @@ import {
   CurrencyCode as PrismaCurrencyCode,
   DealRoomStatus as PrismaDealRoomStatus,
   DealStageType as PrismaDealStageType,
+  EscrowStatus as PrismaEscrowStatus,
   OfferStatus as PrismaOfferStatus,
   Prisma,
   StageOwner as PrismaStageOwner,
@@ -164,6 +180,9 @@ const PRISMA_DEAL_ROOM_INCLUDE = {
   },
   checklistItems: {
     orderBy: { createdAt: "asc" as const },
+  },
+  escrowTransactions: {
+    orderBy: { createdAt: "desc" as const },
   },
   auditLogs: {
     include: {
@@ -292,6 +311,21 @@ function mapPrismaDealRoomToRaw(row: PrismaDealRoomFull): RawDealRoomRecord {
       status: c.status,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
+    })),
+    escrowTransactions: (row.escrowTransactions ?? []).map((e) => ({
+      id: e.id,
+      dealRoomId: e.dealRoomId,
+      provider: e.provider,
+      externalRef: e.externalRef,
+      amount: Number(e.amount),
+      currency: e.currency as CurrencyCode,
+      status: e.status as EscrowStatusValue,
+      fundedAt: e.fundedAt ? e.fundedAt.toISOString() : null,
+      releasedAt: e.releasedAt ? e.releasedAt.toISOString() : null,
+      disputeReason: e.disputeReason,
+      platformHoldsFunds: false,
+      createdAt: e.createdAt.toISOString(),
+      updatedAt: e.updatedAt.toISOString(),
     })),
     auditLogs: row.auditLogs.map((a) => ({
       id: a.id,
@@ -517,6 +551,11 @@ export async function listDealRoomsForUser(
         sellerProfile: {
           include: { user: { select: { id: true, name: true } } },
         },
+        escrowTransactions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { status: true },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -539,6 +578,9 @@ export async function listDealRoomsForUser(
         sellerName: r.sellerProfile.user.name,
         currentStage: r.currentStage as DealStageType,
         status: r.status,
+        latestEscrowStatus:
+          (r.escrowTransactions?.[0]?.status as EscrowStatusValue | undefined) ??
+          null,
         ndaCompleted: Boolean(r.ndaSignedAt),
         ndaSignedAt: r.ndaSignedAt ? r.ndaSignedAt.toISOString() : null,
         createdAt: r.createdAt.toISOString(),
@@ -571,6 +613,7 @@ export async function listDealRoomsForUser(
       sellerName: r.sellerName,
       currentStage: r.currentStage,
       status: r.status,
+      latestEscrowStatus: r.escrowTransactions?.[0]?.status ?? null,
       ndaCompleted: Boolean(r.ndaSignedAt),
       ndaSignedAt: r.ndaSignedAt,
       createdAt: r.createdAt,
@@ -837,6 +880,7 @@ export async function createOrOpenDealRoom(
       createdAt: nowIso,
       updatedAt: nowIso,
     })),
+    escrowTransactions: [],
     auditLogs: [
       {
         id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -948,6 +992,10 @@ export async function transitionDealRoomStage(
       select: { id: true },
     });
     escrowFunded = Boolean(funded);
+  } else {
+    escrowFunded = raw.escrowTransactions.some((e) =>
+      ["FUNDED", "IN_REVIEW", "RELEASED"].includes(e.status)
+    );
   }
 
   const validation = validateStageTransition({
@@ -956,6 +1004,7 @@ export async function transitionDealRoomStage(
     actorRole: access.viewerRole,
     fromStage: raw.currentStage,
     toStage,
+    roomStatus: raw.status,
     ndaSigned: Boolean(raw.ndaSignedAt),
     buyerIdentityVerified: buyerVer.identityVerified,
     buyerProofOfFundsVerified: buyerVer.proofOfFundsVerified,
@@ -972,6 +1021,12 @@ export async function transitionDealRoomStage(
   }
 
   const toIdx = DEAL_STAGES_ORDER.indexOf(toStage);
+  const needsTransferChecklist =
+    toStage === "TRANSFER" &&
+    !raw.checklistItems.some((c) => c.phase === "TRANSFER");
+  const transferTemplates = needsTransferChecklist
+    ? generateTransferChecklistItems()
+    : [];
 
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
@@ -998,6 +1053,18 @@ export async function transitionDealRoomStage(
         });
       }
 
+      if (transferTemplates.length > 0) {
+        await tx.checklistItem.createMany({
+          data: transferTemplates.map((item) => ({
+            dealRoomId: raw.id,
+            phase: PrismaChecklistPhase.TRANSFER,
+            category: item.category,
+            title: item.title,
+            status: PrismaChecklistStatus.OPEN,
+          })),
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           actorId: session!.userId,
@@ -1007,7 +1074,12 @@ export async function transitionDealRoomStage(
           action: validation.auditEntry.action,
           previousState: validation.auditEntry.previousState as Prisma.InputJsonValue,
           newState: validation.auditEntry.newState as Prisma.InputJsonValue,
-          metadataJson: validation.auditEntry.metadataJson as Prisma.InputJsonValue,
+          metadataJson: {
+            ...validation.auditEntry.metadataJson,
+            ...(transferTemplates.length > 0
+              ? { transferChecklistGeneratedCount: transferTemplates.length }
+              : {}),
+          } as Prisma.InputJsonValue,
         },
       });
 
@@ -1053,6 +1125,23 @@ export async function transitionDealRoomStage(
     };
   });
 
+  if (transferTemplates.length > 0) {
+    transferTemplates.forEach((item, idx) => {
+      raw.checklistItems.push({
+        id: `${raw.id}-xfer-${idx + 1}`,
+        dealRoomId: raw.id,
+        phase: "TRANSFER",
+        category: item.category,
+        title: item.title,
+        buyerConfirmedAt: null,
+        sellerConfirmedAt: null,
+        status: "OPEN",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+    });
+  }
+
   raw.auditLogs.unshift({
     id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     actorId: session!.userId,
@@ -1062,7 +1151,12 @@ export async function transitionDealRoomStage(
     action: validation.auditEntry.action,
     previousState: validation.auditEntry.previousState,
     newState: validation.auditEntry.newState,
-    metadataJson: validation.auditEntry.metadataJson,
+    metadataJson: {
+      ...validation.auditEntry.metadataJson,
+      ...(transferTemplates.length > 0
+        ? { transferChecklistGeneratedCount: transferTemplates.length }
+        : {}),
+    },
     createdAt: nowIso,
   });
 
@@ -2371,12 +2465,28 @@ export async function updateDealRoomChecklistItem(
   const access = enforceDealRoomAccess(session, raw, now);
   if (!access.ok) return access;
 
+  if (raw.status !== "ACTIVE") {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: `Checklist confirmations are paused while the deal room status is ${raw.status.toLowerCase()}.`,
+    };
+  }
+
   const item = raw.checklistItems.find((c) => c.id === input.itemId);
   if (!item) {
     return {
       ok: false,
       code: "NOT_FOUND",
       reason: "Checklist item not found in this deal room.",
+    };
+  }
+
+  if (item.phase === "TRANSFER" && raw.currentStage !== "TRANSFER") {
+    return {
+      ok: false,
+      code: "INVALID_STAGE",
+      reason: "Transfer checklist items can only be confirmed once the deal room reaches the Transfer stage.",
     };
   }
 
@@ -2482,5 +2592,939 @@ export async function updateDealRoomChecklistItem(
   return {
     ok: true,
     data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+  };
+}
+
+function buildAdminDisputeViewFromRaw(raw: RawDealRoomRecord): AdminDisputeView | null {
+  const disputeEscrow =
+    raw.escrowTransactions.find((e) => e.status === "DISPUTED") ??
+    raw.escrowTransactions.find(
+      (e) =>
+        e.disputeReason !== null ||
+        e.status === "REFUNDED" ||
+        raw.auditLogs.some((a) => a.action === "DISPUTE_RESOLVED")
+    ) ??
+    null;
+
+  if (!disputeEscrow) {
+    return null;
+  }
+
+  const transferItems = raw.checklistItems.filter((c) => c.phase === "TRANSFER");
+  const transferConfirmedCount = transferItems.filter(
+    (c) => c.status === "CONFIRMED" && c.buyerConfirmedAt && c.sellerConfirmedAt
+  ).length;
+
+  const resolvedAudit = raw.auditLogs.find((a) => a.action === "DISPUTE_RESOLVED");
+  const resolutionNote =
+    resolvedAudit?.metadataJson &&
+    typeof resolvedAudit.metadataJson.resolutionNote === "string"
+      ? resolvedAudit.metadataJson.resolutionNote
+      : null;
+
+  return {
+    dealRoomId: raw.id,
+    businessId: raw.businessId,
+    businessSlug: raw.businessSlug,
+    teaserTitle: raw.teaserTitle,
+    sector: raw.sector,
+    geography: raw.geography,
+    isSampleData: raw.isSampleData,
+    buyerUserId: raw.buyerUserId,
+    buyerName: raw.buyerName,
+    sellerUserId: raw.sellerUserId,
+    sellerName: raw.sellerName,
+    currentStage: raw.currentStage,
+    roomStatus: raw.status,
+    transferConfirmedCount,
+    transferTotalCount: transferItems.length,
+    escrow: disputeEscrow,
+    resolutionNote,
+    resolvedAt: resolvedAudit ? resolvedAudit.createdAt : null,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+export async function handleDealRoomEscrowAction(
+  dealRoomId: string,
+  input: EscrowActionInput,
+  session: AuthSession | null
+): Promise<DealRoomOperationResult<DealRoomView>> {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const raw = await fetchRawDealRoomById(dealRoomId);
+  if (!raw) {
+    return { ok: false, code: "NOT_FOUND", reason: "Deal room not found." };
+  }
+
+  const access = enforceDealRoomAccess(session, raw, now);
+  if (!access.ok) return access;
+
+  const acceptedOffer = raw.offers.find((o) => o.status === "ACCEPTED") ?? null;
+
+  const validation = validateEscrowAction({
+    input,
+    actorRole: access.viewerRole,
+    roomStatus: raw.status,
+    currentStage: raw.currentStage,
+    acceptedOffer,
+    existingEscrows: raw.escrowTransactions,
+    checklistItems: raw.checklistItems,
+  });
+
+  if (!validation.ok) {
+    return {
+      ok: false,
+      code: validation.code,
+      reason: validation.reason,
+    };
+  }
+
+  const buyerVer = await getBuyerVerificationReadiness(raw.buyerUserId, now);
+  const counterpartyId =
+    access.viewerRole === "BUYER" ? raw.sellerUserId : raw.buyerUserId;
+
+  if (input.action === "INITIATE") {
+    const amount = input.amount ?? acceptedOffer!.amount;
+    const currency = input.currency ?? acceptedOffer!.currency;
+
+    let buyerEmail = `${raw.buyerUserId}@trustmarketplace.local`;
+    let sellerEmail = `${raw.sellerUserId}@trustmarketplace.local`;
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const users = await prisma.user.findMany({
+        where: { id: { in: [raw.buyerUserId, raw.sellerUserId] } },
+        select: { id: true, email: true },
+      });
+      buyerEmail = users.find((u) => u.id === raw.buyerUserId)?.email ?? buyerEmail;
+      sellerEmail = users.find((u) => u.id === raw.sellerUserId)?.email ?? sellerEmail;
+    }
+
+    const adapterRes = await initiateThirdPartyEscrow({
+      provider: input.provider,
+      dealRoomId: raw.id,
+      amount,
+      currency,
+      buyerEmail,
+      sellerEmail,
+      businessTitle: raw.teaserTitle,
+    });
+    if (!adapterRes.ok) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: adapterRes.reason,
+      };
+    }
+
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const updated = await prisma.$transaction(async (tx) => {
+        const created = await tx.escrowTransaction.create({
+          data: {
+            dealRoomId: raw.id,
+            provider: adapterRes.provider,
+            externalRef: adapterRes.externalRef,
+            amount,
+            currency: currency as PrismaCurrencyCode,
+            status: PrismaEscrowStatus.INITIATED,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: session!.userId,
+            dealRoomId: raw.id,
+            entityType: "EscrowTransaction",
+            entityId: created.id,
+            action: "ESCROW_INITIATED",
+            previousState: Prisma.JsonNull,
+            newState: {
+              provider: adapterRes.provider,
+              externalRef: adapterRes.externalRef,
+              amount,
+              currency,
+              status: "INITIATED",
+            },
+            metadataJson: {
+              adapterMode: adapterRes.adapterMode,
+              platformHoldsFunds: false,
+            },
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId: counterpartyId,
+            type: "ESCROW_INITIATED",
+            title: `Third-party escrow initiated (${adapterRes.provider})`,
+            body: `Escrow reference ${adapterRes.externalRef} created for ${currency} ${amount.toLocaleString("en-IN")}.`,
+            actionUrl: `/deals/${raw.id}`,
+          },
+        });
+
+        return tx.dealRoom.findUniqueOrThrow({
+          where: { id: raw.id },
+          include: PRISMA_DEAL_ROOM_INCLUDE,
+        });
+      });
+
+      publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+      return {
+        ok: true,
+        data: sanitizeDealRoomForViewer(
+          mapPrismaDealRoomToRaw(updated),
+          access.viewerRole,
+          buyerVer
+        ),
+      };
+    }
+
+    const escrowId = `esc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    raw.escrowTransactions.unshift({
+      id: escrowId,
+      dealRoomId: raw.id,
+      provider: adapterRes.provider,
+      externalRef: adapterRes.externalRef,
+      amount,
+      currency,
+      status: "INITIATED",
+      fundedAt: null,
+      releasedAt: null,
+      disputeReason: null,
+      platformHoldsFunds: false,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+    raw.updatedAt = nowIso;
+    raw.auditLogs.unshift({
+      id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      actorId: session!.userId,
+      actorName: session!.name,
+      entityType: "EscrowTransaction",
+      entityId: escrowId,
+      action: "ESCROW_INITIATED",
+      previousState: null,
+      newState: {
+        provider: adapterRes.provider,
+        externalRef: adapterRes.externalRef,
+        amount,
+        currency,
+        status: "INITIATED",
+      },
+      metadataJson: {
+        adapterMode: adapterRes.adapterMode,
+        platformHoldsFunds: false,
+      },
+      createdAt: nowIso,
+    });
+
+    publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+    return {
+      ok: true,
+      data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+    };
+  }
+
+  const target = validation.targetEscrow!;
+  const providerName: EscrowProviderName =
+    target.provider === "Castler Escrow" ? "Castler Escrow" : "Escrow.com";
+
+  if (input.action === "FUND") {
+    const adapterRes = await confirmThirdPartyEscrowFunding({
+      provider: providerName,
+      externalRef: target.externalRef,
+      fundingReference: input.fundingReference,
+    });
+    if (!adapterRes.ok) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason: adapterRes.reason,
+      };
+    }
+
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.escrowTransaction.update({
+          where: { id: target.id },
+          data: {
+            status: PrismaEscrowStatus.FUNDED,
+            fundedAt: now,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: session!.userId,
+            dealRoomId: raw.id,
+            entityType: "EscrowTransaction",
+            entityId: target.id,
+            action: "ESCROW_FUNDED",
+            previousState: { status: target.status },
+            newState: { status: "FUNDED", fundedAt: nowIso },
+            metadataJson: {
+              provider: target.provider,
+              externalRef: target.externalRef,
+              providerConfirmationId: adapterRes.providerConfirmationId,
+              platformHoldsFunds: false,
+            },
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId: raw.sellerUserId,
+            type: "ESCROW_FUNDED",
+            title: `Third-party escrow funded (${target.externalRef})`,
+            body: `${target.provider} confirmed funding. You can now advance to the Transfer stage.`,
+            actionUrl: `/deals/${raw.id}`,
+          },
+        });
+
+        return tx.dealRoom.findUniqueOrThrow({
+          where: { id: raw.id },
+          include: PRISMA_DEAL_ROOM_INCLUDE,
+        });
+      });
+
+      publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+      return {
+        ok: true,
+        data: sanitizeDealRoomForViewer(
+          mapPrismaDealRoomToRaw(updated),
+          access.viewerRole,
+          buyerVer
+        ),
+      };
+    }
+
+    const prevStatus = target.status;
+    target.status = "FUNDED";
+    target.fundedAt = nowIso;
+    target.updatedAt = nowIso;
+    raw.updatedAt = nowIso;
+    raw.auditLogs.unshift({
+      id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      actorId: session!.userId,
+      actorName: session!.name,
+      entityType: "EscrowTransaction",
+      entityId: target.id,
+      action: "ESCROW_FUNDED",
+      previousState: { status: prevStatus },
+      newState: { status: "FUNDED", fundedAt: nowIso },
+      metadataJson: {
+        provider: target.provider,
+        externalRef: target.externalRef,
+        providerConfirmationId: adapterRes.providerConfirmationId,
+        platformHoldsFunds: false,
+      },
+      createdAt: nowIso,
+    });
+
+    publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+    return {
+      ok: true,
+      data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+    };
+  }
+
+  if (input.action === "START_REVIEW") {
+    await transitionThirdPartyEscrowReview({
+      provider: providerName,
+      externalRef: target.externalRef,
+    });
+
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.escrowTransaction.update({
+          where: { id: target.id },
+          data: { status: PrismaEscrowStatus.IN_REVIEW },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: session!.userId,
+            dealRoomId: raw.id,
+            entityType: "EscrowTransaction",
+            entityId: target.id,
+            action: "ESCROW_IN_REVIEW",
+            previousState: { status: target.status },
+            newState: { status: "IN_REVIEW" },
+            metadataJson: {
+              provider: target.provider,
+              externalRef: target.externalRef,
+            },
+          },
+        });
+
+        return tx.dealRoom.findUniqueOrThrow({
+          where: { id: raw.id },
+          include: PRISMA_DEAL_ROOM_INCLUDE,
+        });
+      });
+
+      publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+      return {
+        ok: true,
+        data: sanitizeDealRoomForViewer(
+          mapPrismaDealRoomToRaw(updated),
+          access.viewerRole,
+          buyerVer
+        ),
+      };
+    }
+
+    const prevStatus = target.status;
+    target.status = "IN_REVIEW";
+    target.updatedAt = nowIso;
+    raw.updatedAt = nowIso;
+    raw.auditLogs.unshift({
+      id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      actorId: session!.userId,
+      actorName: session!.name,
+      entityType: "EscrowTransaction",
+      entityId: target.id,
+      action: "ESCROW_IN_REVIEW",
+      previousState: { status: prevStatus },
+      newState: { status: "IN_REVIEW" },
+      metadataJson: {
+        provider: target.provider,
+        externalRef: target.externalRef,
+      },
+      createdAt: nowIso,
+    });
+
+    publishDealRoomEvent(raw.id, "ESCROW_UPDATED");
+    return {
+      ok: true,
+      data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+    };
+  }
+
+  if (input.action === "RELEASE") {
+    const adapterRes = await releaseThirdPartyEscrowFunds({
+      provider: providerName,
+      externalRef: target.externalRef,
+    });
+
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.escrowTransaction.update({
+          where: { id: target.id },
+          data: {
+            status: PrismaEscrowStatus.RELEASED,
+            releasedAt: now,
+          },
+        });
+
+        await tx.dealStage.updateMany({
+          where: { dealRoomId: raw.id, stage: PrismaDealStageType.TRANSFER },
+          data: {
+            status: PrismaStageStatus.COMPLETED,
+            completedAt: now,
+          },
+        });
+
+        await tx.dealRoom.update({
+          where: { id: raw.id },
+          data: { status: PrismaDealRoomStatus.COMPLETED },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: session!.userId,
+            dealRoomId: raw.id,
+            entityType: "EscrowTransaction",
+            entityId: target.id,
+            action: "ESCROW_RELEASED",
+            previousState: { status: target.status, roomStatus: raw.status },
+            newState: {
+              status: "RELEASED",
+              releasedAt: nowIso,
+              roomStatus: "COMPLETED",
+            },
+            metadataJson: {
+              provider: target.provider,
+              externalRef: target.externalRef,
+              settlementRef: adapterRes.settlementRef,
+              platformHoldsFunds: false,
+            },
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId: raw.sellerUserId,
+            type: "ESCROW_RELEASED",
+            title: `Escrow released (${target.externalRef})`,
+            body: `${target.provider} released funds after two-sided Transfer checklist completion.`,
+            actionUrl: `/deals/${raw.id}`,
+          },
+        });
+
+        return tx.dealRoom.findUniqueOrThrow({
+          where: { id: raw.id },
+          include: PRISMA_DEAL_ROOM_INCLUDE,
+        });
+      });
+
+      publishDealRoomEvent(raw.id, "ESCROW_RELEASED");
+      return {
+        ok: true,
+        data: sanitizeDealRoomForViewer(
+          mapPrismaDealRoomToRaw(updated),
+          access.viewerRole,
+          buyerVer
+        ),
+      };
+    }
+
+    const prevStatus = target.status;
+    target.status = "RELEASED";
+    target.releasedAt = nowIso;
+    target.updatedAt = nowIso;
+    raw.status = "COMPLETED";
+    raw.updatedAt = nowIso;
+    raw.stages = raw.stages.map((s) =>
+      s.stage === "TRANSFER"
+        ? {
+            ...s,
+            status: "COMPLETED",
+            completedAt: nowIso,
+            updatedAt: nowIso,
+          }
+        : s
+    );
+    raw.auditLogs.unshift({
+      id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      actorId: session!.userId,
+      actorName: session!.name,
+      entityType: "EscrowTransaction",
+      entityId: target.id,
+      action: "ESCROW_RELEASED",
+      previousState: { status: prevStatus, roomStatus: "ACTIVE" },
+      newState: {
+        status: "RELEASED",
+        releasedAt: nowIso,
+        roomStatus: "COMPLETED",
+      },
+      metadataJson: {
+        provider: target.provider,
+        externalRef: target.externalRef,
+        settlementRef: adapterRes.settlementRef,
+        platformHoldsFunds: false,
+      },
+      createdAt: nowIso,
+    });
+
+    publishDealRoomEvent(raw.id, "ESCROW_RELEASED");
+    return {
+      ok: true,
+      data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+    };
+  }
+
+  // DISPUTE
+  const trimmedReason = input.disputeReason.trim();
+  const adapterRes = await flagThirdPartyEscrowDispute({
+    provider: providerName,
+    externalRef: target.externalRef,
+    disputeReason: trimmedReason,
+  });
+
+  if (isDatabaseConfigured()) {
+    const prisma = getPrismaClient();
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.escrowTransaction.update({
+        where: { id: target.id },
+        data: {
+          status: PrismaEscrowStatus.DISPUTED,
+          disputeReason: trimmedReason,
+        },
+      });
+
+      await tx.dealRoom.update({
+        where: { id: raw.id },
+        data: { status: PrismaDealRoomStatus.DISPUTED },
+      });
+
+      await tx.dealStage.updateMany({
+        where: {
+          dealRoomId: raw.id,
+          stage: raw.currentStage as PrismaDealStageType,
+        },
+        data: { status: PrismaStageStatus.BLOCKED },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: session!.userId,
+          dealRoomId: raw.id,
+          entityType: "EscrowTransaction",
+          entityId: target.id,
+          action: "ESCROW_DISPUTED",
+          previousState: { status: target.status, roomStatus: raw.status },
+          newState: { status: "DISPUTED", roomStatus: "DISPUTED" },
+          metadataJson: {
+            disputeReason: trimmedReason,
+            holdRef: adapterRes.holdRef,
+            raisedByRole: access.viewerRole,
+          },
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: counterpartyId,
+          type: "ESCROW_DISPUTED",
+          title: `Escrow dispute flagged on ${raw.teaserTitle}`,
+          body: `${session!.name} raised a dispute (${target.externalRef}): ${trimmedReason}`,
+          actionUrl: `/deals/${raw.id}`,
+        },
+      });
+
+      return tx.dealRoom.findUniqueOrThrow({
+        where: { id: raw.id },
+        include: PRISMA_DEAL_ROOM_INCLUDE,
+      });
+    });
+
+    publishDealRoomEvent(raw.id, "ESCROW_DISPUTED");
+    return {
+      ok: true,
+      data: sanitizeDealRoomForViewer(
+        mapPrismaDealRoomToRaw(updated),
+        access.viewerRole,
+        buyerVer
+      ),
+    };
+  }
+
+  const prevStatus = target.status;
+  target.status = "DISPUTED";
+  target.disputeReason = trimmedReason;
+  target.updatedAt = nowIso;
+  raw.status = "DISPUTED";
+  raw.updatedAt = nowIso;
+  raw.stages = raw.stages.map((s) =>
+    s.stage === raw.currentStage
+      ? { ...s, status: "BLOCKED", updatedAt: nowIso }
+      : s
+  );
+  raw.auditLogs.unshift({
+    id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    actorId: session!.userId,
+    actorName: session!.name,
+    entityType: "EscrowTransaction",
+    entityId: target.id,
+    action: "ESCROW_DISPUTED",
+    previousState: { status: prevStatus, roomStatus: "ACTIVE" },
+    newState: { status: "DISPUTED", roomStatus: "DISPUTED" },
+    metadataJson: {
+      disputeReason: trimmedReason,
+      holdRef: adapterRes.holdRef,
+      raisedByRole: access.viewerRole,
+    },
+    createdAt: nowIso,
+  });
+
+  publishDealRoomEvent(raw.id, "ESCROW_DISPUTED");
+  return {
+    ok: true,
+    data: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+  };
+}
+
+export async function listDisputedDealRoomsForAdmin(
+  session: AuthSession | null
+): Promise<DealRoomOperationResult<AdminDisputeView[]>> {
+  const perm = canReviewAdminQueue(session);
+  if (!perm.allowed) {
+    return {
+      ok: false,
+      code: perm.code,
+      reason: perm.reason,
+    };
+  }
+
+  if (isDatabaseConfigured()) {
+    const prisma = getPrismaClient();
+    const rows = await prisma.dealRoom.findMany({
+      where: {
+        OR: [
+          { status: PrismaDealRoomStatus.DISPUTED },
+          {
+            escrowTransactions: {
+              some: {
+                OR: [
+                  { status: PrismaEscrowStatus.DISPUTED },
+                  { status: PrismaEscrowStatus.REFUNDED },
+                  { disputeReason: { not: null } },
+                ],
+              },
+            },
+          },
+          {
+            auditLogs: {
+              some: { action: "DISPUTE_RESOLVED" },
+            },
+          },
+        ],
+      },
+      include: PRISMA_DEAL_ROOM_INCLUDE,
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const disputes = rows
+      .map((r) => buildAdminDisputeViewFromRaw(mapPrismaDealRoomToRaw(r)))
+      .filter((d): d is AdminDisputeView => d !== null);
+
+    return { ok: true, data: disputes };
+  }
+
+  const disputes = getLocalDealRoomsStore()
+    .map((r) => buildAdminDisputeViewFromRaw(r))
+    .filter((d): d is AdminDisputeView => d !== null)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  return { ok: true, data: disputes };
+}
+
+export async function resolveDealRoomDisputeAsAdmin(
+  dealRoomId: string,
+  input: { decision: AdminDisputeDecision; resolutionNote: string },
+  session: AuthSession | null
+): Promise<
+  DealRoomOperationResult<{ dispute: AdminDisputeView; dealRoom: DealRoomView }>
+> {
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  const perm = canReviewAdminQueue(session);
+  if (!perm.allowed) {
+    return { ok: false, code: perm.code, reason: perm.reason };
+  }
+
+  const raw = await fetchRawDealRoomById(dealRoomId);
+  if (!raw) {
+    return { ok: false, code: "NOT_FOUND", reason: "Deal room not found." };
+  }
+
+  // Mandatory 2FA check on deal room writes even for Reviewers/Admins
+  const access = enforceDealRoomAccess(session, raw, now);
+  if (!access.ok) return access;
+
+  if (raw.status !== "DISPUTED") {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: "This deal room does not currently have an open dispute.",
+    };
+  }
+
+  const disputedEscrow = raw.escrowTransactions.find(
+    (e) => e.status === "DISPUTED"
+  );
+  if (!disputedEscrow) {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason: "No disputed escrow transaction found in this deal room.",
+    };
+  }
+
+  const wasFunded = Boolean(disputedEscrow.fundedAt);
+  if (
+    (input.decision === "RELEASE_TO_SELLER" ||
+      input.decision === "REFUND_TO_BUYER") &&
+    !wasFunded
+  ) {
+    return {
+      ok: false,
+      code: "PREREQUISITE_FAILED",
+      reason:
+        "Cannot release or refund funds because this escrow transaction was never funded.",
+    };
+  }
+
+  const providerName: EscrowProviderName =
+    disputedEscrow.provider === "Castler Escrow" ? "Castler Escrow" : "Escrow.com";
+  const adapterRes = await resolveThirdPartyEscrowDispute({
+    provider: providerName,
+    externalRef: disputedEscrow.externalRef,
+    decision: input.decision,
+    wasFunded,
+  });
+
+  const nextRoomStatus =
+    input.decision === "RELEASE_TO_SELLER"
+      ? "COMPLETED"
+      : input.decision === "REFUND_TO_BUYER"
+        ? "CANCELLED"
+        : "ACTIVE";
+
+  const buyerVer = await getBuyerVerificationReadiness(raw.buyerUserId, now);
+  const trimmedNote = input.resolutionNote.trim();
+
+  if (isDatabaseConfigured()) {
+    const prisma = getPrismaClient();
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.escrowTransaction.update({
+        where: { id: disputedEscrow.id },
+        data: {
+          status: adapterRes.nextStatus as PrismaEscrowStatus,
+          ...(adapterRes.nextStatus === "RELEASED" ? { releasedAt: now } : {}),
+        },
+      });
+
+      await tx.dealRoom.update({
+        where: { id: raw.id },
+        data: {
+          status: nextRoomStatus as PrismaDealRoomStatus,
+          ...(input.decision === "RELEASE_TO_SELLER"
+            ? { currentStage: PrismaDealStageType.TRANSFER }
+            : {}),
+        },
+      });
+
+      if (input.decision === "RELEASE_TO_SELLER") {
+        await tx.dealStage.updateMany({
+          where: { dealRoomId: raw.id },
+          data: { status: PrismaStageStatus.COMPLETED, completedAt: now },
+        });
+      } else if (input.decision === "RESUME_TO_IN_REVIEW") {
+        await tx.dealStage.updateMany({
+          where: {
+            dealRoomId: raw.id,
+            stage: raw.currentStage as PrismaDealStageType,
+          },
+          data: { status: PrismaStageStatus.ACTIVE },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: session!.userId,
+          dealRoomId: raw.id,
+          entityType: "DealRoom",
+          entityId: raw.id,
+          action: "DISPUTE_RESOLVED",
+          previousState: {
+            roomStatus: raw.status,
+            escrowStatus: disputedEscrow.status,
+          },
+          newState: {
+            roomStatus: nextRoomStatus,
+            escrowStatus: adapterRes.nextStatus,
+            decision: input.decision,
+          },
+          metadataJson: {
+            resolutionNote: trimmedNote,
+            resolutionRef: adapterRes.resolutionRef,
+            externalRef: disputedEscrow.externalRef,
+          },
+        },
+      });
+
+      await tx.notification.createMany({
+        data: [
+          {
+            userId: raw.buyerUserId,
+            type: "DISPUTE_RESOLVED",
+            title: `Dispute resolved for ${raw.teaserTitle}`,
+            body: `Reviewer decision: ${input.decision.replaceAll("_", " ")}. ${trimmedNote}`,
+            actionUrl: `/deals/${raw.id}`,
+          },
+          {
+            userId: raw.sellerUserId,
+            type: "DISPUTE_RESOLVED",
+            title: `Dispute resolved for ${raw.teaserTitle}`,
+            body: `Reviewer decision: ${input.decision.replaceAll("_", " ")}. ${trimmedNote}`,
+            actionUrl: `/deals/${raw.id}`,
+          },
+        ],
+      });
+
+      return tx.dealRoom.findUniqueOrThrow({
+        where: { id: raw.id },
+        include: PRISMA_DEAL_ROOM_INCLUDE,
+      });
+    });
+
+    publishDealRoomEvent(raw.id, "DISPUTE_RESOLVED");
+    const nextRaw = mapPrismaDealRoomToRaw(updated);
+    const disputeView = buildAdminDisputeViewFromRaw(nextRaw)!;
+    return {
+      ok: true,
+      data: {
+        dispute: disputeView,
+        dealRoom: sanitizeDealRoomForViewer(nextRaw, access.viewerRole, buyerVer),
+      },
+    };
+  }
+
+  const prevEscrowStatus = disputedEscrow.status;
+  disputedEscrow.status = adapterRes.nextStatus;
+  if (adapterRes.nextStatus === "RELEASED") {
+    disputedEscrow.releasedAt = nowIso;
+  }
+  disputedEscrow.updatedAt = nowIso;
+
+  const prevRoomStatus = raw.status;
+  raw.status = nextRoomStatus;
+  raw.updatedAt = nowIso;
+
+  if (input.decision === "RELEASE_TO_SELLER") {
+    raw.currentStage = "TRANSFER";
+    raw.stages = raw.stages.map((s) => ({
+      ...s,
+      status: "COMPLETED",
+      completedAt: s.completedAt ?? nowIso,
+      updatedAt: nowIso,
+    }));
+  } else if (input.decision === "RESUME_TO_IN_REVIEW") {
+    raw.stages = raw.stages.map((s) =>
+      s.stage === raw.currentStage
+        ? { ...s, status: "ACTIVE", updatedAt: nowIso }
+        : s
+    );
+  }
+
+  raw.auditLogs.unshift({
+    id: `audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    actorId: session!.userId,
+    actorName: session!.name,
+    entityType: "DealRoom",
+    entityId: raw.id,
+    action: "DISPUTE_RESOLVED",
+    previousState: {
+      roomStatus: prevRoomStatus,
+      escrowStatus: prevEscrowStatus,
+    },
+    newState: {
+      roomStatus: nextRoomStatus,
+      escrowStatus: adapterRes.nextStatus,
+      decision: input.decision,
+    },
+    metadataJson: {
+      resolutionNote: trimmedNote,
+      resolutionRef: adapterRes.resolutionRef,
+      externalRef: disputedEscrow.externalRef,
+    },
+    createdAt: nowIso,
+  });
+
+  publishDealRoomEvent(raw.id, "DISPUTE_RESOLVED");
+  const disputeView = buildAdminDisputeViewFromRaw(raw)!;
+  return {
+    ok: true,
+    data: {
+      dispute: disputeView,
+      dealRoom: sanitizeDealRoomForViewer(raw, access.viewerRole, buyerVer),
+    },
   };
 }
