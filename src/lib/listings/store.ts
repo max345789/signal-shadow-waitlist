@@ -32,6 +32,10 @@ import {
   resetLocalVerificationsStoreForTest,
 } from "@/lib/verification/local-store";
 import {
+  hasLocalBuyerSignedNdaForBusiness,
+  resetLocalDealRoomsStoreForTest,
+} from "@/lib/deal-rooms/local-store";
+import {
   CurrencyCode as PrismaCurrencyCode,
   ListingStatus as PrismaListingStatus,
   MetricKey as PrismaMetricKey,
@@ -99,6 +103,7 @@ export function resetLocalListingsStoreForTest(): void {
   globalForListingsStore.__trustMarketplaceLocalListings =
     createSampleSeedListings();
   resetLocalVerificationsStoreForTest();
+  resetLocalDealRoomsStoreForTest();
 }
 
 function buildSellerReportedMetrics(
@@ -484,6 +489,26 @@ export async function getListingBySlugForViewer(
     return null;
   }
 
+  if (session?.userId) {
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const signed = await prisma.dealRoom.findFirst({
+        where: {
+          businessId: raw.id,
+          buyerProfile: { userId: session.userId },
+          ndaSignedAt: { not: null },
+        },
+        select: { id: true },
+      });
+      viewer.hasSignedNda = Boolean(signed);
+    } else {
+      viewer.hasSignedNda = hasLocalBuyerSignedNdaForBusiness(
+        raw.id,
+        session.userId
+      );
+    }
+  }
+
   return sanitizeListingForViewer(raw, viewer, now);
 }
 
@@ -511,6 +536,26 @@ export async function getListingByIdForViewer(
 
   if (!raw || !canViewerAccessListing(raw, viewer)) {
     return null;
+  }
+
+  if (session?.userId) {
+    if (isDatabaseConfigured()) {
+      const prisma = getPrismaClient();
+      const signed = await prisma.dealRoom.findFirst({
+        where: {
+          businessId: raw.id,
+          buyerProfile: { userId: session.userId },
+          ndaSignedAt: { not: null },
+        },
+        select: { id: true },
+      });
+      viewer.hasSignedNda = Boolean(signed);
+    } else {
+      viewer.hasSignedNda = hasLocalBuyerSignedNdaForBusiness(
+        raw.id,
+        session.userId
+      );
+    }
   }
 
   return sanitizeListingForViewer(raw, viewer, now);
