@@ -111,6 +111,81 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
 Input.displayName = "Input";
 
+export interface SelectProps
+  extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label: string;
+  helperText?: string;
+  error?: string;
+}
+
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ id, label, helperText, error, className, required, children, ...props }, ref) => {
+    const generatedId = React.useId();
+    const selectId = id ?? generatedId;
+    const helperId = `${selectId}-helper`;
+    const errorId = `${selectId}-error`;
+    const describedBy =
+      [error ? errorId : null, helperText ? helperId : null]
+        .filter(Boolean)
+        .join(" ") || undefined;
+
+    return (
+      <div className="flex w-full flex-col gap-2">
+        <LabelPrimitive.Root
+          htmlFor={selectId}
+          className="text-16 font-medium text-deep-navy"
+        >
+          {label}
+          {required ? (
+            <span className="ml-2 text-14 font-normal text-slate" aria-hidden="true">
+              (required)
+            </span>
+          ) : null}
+        </LabelPrimitive.Root>
+
+        <select
+          ref={ref}
+          id={selectId}
+          required={required}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={describedBy}
+          className={cn(
+            "min-h-12 w-full rounded border px-4 py-2 text-16 state-transition",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue",
+            error ? "border-brick-red" : "border-mist focus-visible:border-trust-blue",
+            props.disabled
+              ? "cursor-not-allowed bg-cloud text-slate"
+              : "bg-white text-ink",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </select>
+
+        {helperText ? (
+          <span id={helperId} className="text-14 text-slate">
+            {helperText}
+          </span>
+        ) : null}
+
+        {error ? (
+          <span
+            id={errorId}
+            role="alert"
+            className="flex items-center gap-2 text-14 font-medium text-brick-red"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{error}</span>
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+);
+
+Select.displayName = "Select";
+
 export interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;

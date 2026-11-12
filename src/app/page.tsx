@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Lock, ShieldCheck } from "lucide-react";
+import { ArrowRight, Lock, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +13,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatusChip } from "@/components/ui/status-chip";
-import { MetricTile } from "@/components/domain/metric-tile";
 import { HomeThesisForm } from "@/components/home/home-thesis-form";
+import { ListingCard } from "@/components/listings/listing-card";
 import { getServerSession } from "@/lib/auth/session-server";
 import { canEnterDealRoom } from "@/lib/auth/permissions";
+import { listApprovedListings } from "@/lib/listings/store";
+
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const session = await getServerSession();
@@ -24,26 +27,25 @@ export default async function HomePage() {
     buyerUserId: session?.userId ?? "none",
     sellerUserId: "none",
   });
-
-  const referenceNow = "2026-11-12T10:00:00.000Z";
+  const approvedListings = await listApprovedListings();
 
   return (
     <AppShell
       activeNav="home"
       trustBanner={{
         canTrustAnswer:
-          "Phase 0 Foundation active. No live listings are published yet; any example figures below are marked Sample data.",
+          "Phase 1 Listings & Vitals active. Every verified metric displays its source and verification timestamp; demo listings are labelled Sample data.",
         nextStepAnswer:
-          "Inspect the Section 4 Style Guide or verify your account with mandatory 2FA before Phase 1 listings launch.",
+          "Browse approved listings, create a seller listing with guided valuation, or sign in with 2FA.",
       }}
     >
       <div className="flex flex-col gap-8">
         {/* Section 5: Home — single prompt 'What do you want to buy?' */}
         <section aria-labelledby="home-hero-heading">
           <Card className="p-6 sm:p-8">
-            <div className="flex max-w-[720px] flex-col gap-6">
+            <div className="flex max-w-[760px] flex-col gap-6">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusChip tone="neutral" label="Phase 0: Foundation" />
+                <StatusChip tone="neutral" label="Phase 1: Listings & Vitals" />
                 <StatusChip
                   tone={dealRoomGate.allowed ? "verified" : "neutral"}
                   label={
@@ -69,11 +71,23 @@ export default async function HomePage() {
               </div>
 
               <HomeThesisForm />
+
+              <div className="flex flex-wrap gap-4 border-t border-mist pt-4">
+                <Button asChild variant="action">
+                  <Link href="/listings">
+                    <span>Browse approved listings</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+                <Button asChild variant="secondary">
+                  <Link href="/sell">List a business for sale</Link>
+                </Button>
+              </div>
             </div>
           </Card>
         </section>
 
-        {/* Saved-thesis feed preview (Phase 0 empty state + Sample data vitals contrast) */}
+        {/* Saved-thesis feed (Phase 2) + Approved Listings Preview (Phase 1) */}
         <section aria-labelledby="saved-thesis-heading" className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -81,56 +95,35 @@ export default async function HomePage() {
                 id="saved-thesis-heading"
                 className="font-serif text-28 font-semibold text-deep-navy"
               >
-                Saved-thesis feed preview
+                Saved-thesis feed &amp; approved listings
               </h2>
               <p className="text-16 text-slate">
-                Illustrative preview showing how verified and seller-reported vitals are
-                kept visually distinct.
+                Thesis matching alerts launch in Phase 2. Explore approved listings below
+                showing verified vs seller-reported vitals.
               </p>
             </div>
-            <StatusChip tone="neutral" label="Sample data" />
+            <Button asChild variant="link">
+              <Link href="/listings">View all listings ({approvedListings.length})</Link>
+            </Button>
           </div>
 
           <CardStateEmpty
             title="No saved acquisition theses yet"
-            description="Saved theses and ranked matches launch in Phase 2. Below is a Sample data preview demonstrating verified versus seller-reported vitals."
+            description="Saved theses and ranked matches launch in Phase 2. Below are currently approved marketplace listings (sample records labelled Sample data)."
           />
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <MetricTile
-              label="Annual Recurring Revenue (Sample)"
-              value={12_500_000}
-              unit="CURRENCY"
-              currency="INR"
-              compactCurrency
-              sourceLabel="Stripe"
-              isSampleData
-              referenceNow={referenceNow}
-              verification={{
-                id: "sample-ver-stripe-01",
-                provider: "Stripe (Sample)",
-                status: "VERIFIED",
-                verifiedAt: "2026-11-12T08:00:00.000Z",
-                expiresAt: "2026-11-19T08:00:00.000Z",
-              }}
-            />
-            <MetricTile
-              label="Owner Discretionary Profit (Sample)"
-              value={4_250_000}
-              unit="CURRENCY"
-              currency="INR"
-              compactCurrency
-              sourceLabel="Seller-reported"
-              isSampleData
-              referenceNow={referenceNow}
-              verification={null}
-            />
-          </div>
+          {approvedListings.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {approvedListings.slice(0, 4).map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          ) : null}
         </section>
 
-        {/* Phase 0 Foundation verification cards */}
+        {/* Foundation & Account quick cards */}
         <section
-          aria-label="Phase 0 components and security"
+          aria-label="Platform verification and design system"
           className="grid grid-cols-1 gap-4 md:grid-cols-2"
         >
           <Card>
@@ -138,7 +131,7 @@ export default async function HomePage() {
               <CardTitle>Design System &amp; Style Guide</CardTitle>
               <CardDescription>
                 Verify Section 4 solid colors, WCAG AA contrast checks, 8px spacing,
-                tabular figures, and all Phase 0 components.
+                tabular figures, and UI components.
               </CardDescription>
             </CardHeader>
             <CardContent>
