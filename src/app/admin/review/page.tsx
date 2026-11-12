@@ -9,6 +9,7 @@ import { getServerSession } from "@/lib/auth/session-server";
 import { listDisputedDealRoomsForAdmin } from "@/lib/deal-rooms/store";
 import { listListingsForAdminReview } from "@/lib/listings/store";
 import { listVerificationsForAdminReview } from "@/lib/verification/store";
+import { listReportsForAdmin } from "@/lib/reports/store";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +55,11 @@ export default async function AdminReviewPage() {
     );
   }
 
-  const [listings, verifications, disputesRes] = await Promise.all([
+  const [listings, verifications, disputesRes, reports] = await Promise.all([
     listListingsForAdminReview(session!),
     listVerificationsForAdminReview(session!),
     listDisputedDealRoomsForAdmin(session!),
+    listReportsForAdmin(),
   ]);
 
   const disputes = disputesRes.ok ? disputesRes.data : [];
@@ -67,15 +69,16 @@ export default async function AdminReviewPage() {
       activeNav="admin"
       trustBanner={{
         canTrustAnswer:
-          "You are viewing confidential identity fields, verification records, and escrow disputes under Reviewer access. Every action appends to the AuditLog.",
+          "You are viewing confidential identity fields, verification records, user reports, and Connect room audits under Reviewer access.",
         nextStepAnswer:
-          "Inspect pending submissions, KYC/POF/Connector verifications, or flagged escrow disputes, enter a reviewer note, and record your decision.",
+          "Inspect pending submissions, light verifications, user reports, or disputed rooms, enter a reviewer note, and record your decision.",
       }}
     >
       <AdminReviewClient
         initialListings={listings}
         initialVerifications={verifications}
         initialDisputes={disputes}
+        initialReports={reports}
       />
     </AppShell>
   );

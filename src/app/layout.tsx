@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
+import { SITE_CONFIG } from "@/lib/config/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,9 +16,11 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Trust Marketplace — Buy and Sell Businesses with Verified Data",
-  description:
-    "A safe, clear, and fast marketplace for buying and selling businesses and startups.",
+  title: {
+    default: `${SITE_CONFIG.name} | ${SITE_CONFIG.tagline}`,
+    template: `%s | ${SITE_CONFIG.name}`,
+  },
+  description: SITE_CONFIG.metaDescription,
 };
 
 export const viewport: Viewport = {

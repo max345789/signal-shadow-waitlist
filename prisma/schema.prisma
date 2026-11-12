@@ -54,6 +54,11 @@ enum MetricSource {
 }
 
 enum VerificationType {
+  EMAIL
+  PHONE
+  DOMAIN
+  REVENUE
+  TRAFFIC
   IDENTITY
   PROOF_OF_FUNDS
   PAYMENT_CONNECTOR
@@ -69,6 +74,12 @@ enum VerificationStatus {
 }
 
 enum DealStageType {
+  INTERESTED
+  INTRODUCED
+  DETAILS_SHARED
+  OFFER_DISCUSSED
+  CLOSING
+  CLOSED_OR_WITHDRAWN
   INTRO
   NDA
   DATA_ACCESS
@@ -94,6 +105,8 @@ enum StageStatus {
 
 enum DealRoomStatus {
   ACTIVE
+  CLOSED
+  WITHDRAWN
   DISPUTED
   COMPLETED
   CANCELLED
@@ -162,6 +175,10 @@ model User {
   notifications       Notification[]
   auditLogs           AuditLog[]
   questionsAsked      ListingQuestion[]
+  reportsSubmitted    Report[]
+  legalAcceptances    LegalAcceptance[]
+  subscriptions       Subscription[]
+  detailRequests      ListingDetailRequest[]
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -177,6 +194,8 @@ model BuyerProfile {
   minBudget          Decimal?           @db.Decimal(18, 2)
   maxBudget          Decimal?           @db.Decimal(18, 2)
   preferredCurrency  CurrencyCode       @default(INR)
+  emailVerified      Boolean            @default(false)
+  phoneVerified      Boolean            @default(false)
   identityStatus     VerificationStatus @default(PENDING)
   proofOfFundsStatus VerificationStatus @default(PENDING)
   theses             Thesis[]
@@ -261,6 +280,8 @@ model Business {
   questions           ListingQuestion[]
   matches             Match[]
   dealRooms           DealRoom[]
+  detailRequests      ListingDetailRequest[]
+  reports             Report[]
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -510,4 +531,83 @@ model AuditLog {
 
   @@index([dealRoomId, createdAt])
   @@index([entityType, entityId])
+}
+
+// C6: Seller Approval for full listing detail unlock
+model ListingDetailRequest {
+  id                     String    @id @default(cuid())
+  businessId             String
+  business               Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  buyerId                String
+  buyer                  User      @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  status                 String    @default("PENDING") // PENDING, APPROVED, DECLINED
+  confidentialityNote    String?
+  confidentialityAgreed  Boolean   @default(false)
+  approvedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([businessId, buyerId])
+  @@index([businessId, status])
+}
+
+// C7: Flat-fee plans & subscriptions
+model Plan {
+  id            String         @id
+  name          String
+  targetRole    RoleType
+  price         Decimal        @db.Decimal(18, 2)
+  currency      CurrencyCode   @default(INR)
+  interval      String         // "one-time" | "month"
+  description   String
+  subscriptions Subscription[]
+  createdAt     DateTime       @default(now())
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  providerId       String    // External provider ID (e.g. Razorpay/Stripe subscription id)
+  status           String    @default("ACTIVE") // ACTIVE, CANCELLED, EXPIRED
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
+// C8: Legal document acceptances
+model LegalAcceptance {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentName String   // "Terms of Service", "Listing Rules", etc.
+  version      String
+  acceptedAt   DateTime @default(now())
+
+  @@index([userId, documentName])
+}
+
+// C8: User reports for listings & Connect rooms
+model Report {
+  id             String    @id @default(cuid())
+  listingId      String
+  listing        Business  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporterId     String?
+  reporter       User?     @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+  reporterEmail  String?
+  reason         String    // fake_information, scam, illegal, duplicate, copyright, other
+  details        String
+  status         String    @default("NEW") // NEW, IN_REVIEW, ACTION_TAKEN, NO_ACTION
+  actionTaken    String?   // REQUEST_EDITS, HIDE, REMOVE, SUSPEND_ACCOUNT, NONE
+  adminNote      String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([listingId])
 }

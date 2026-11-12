@@ -221,7 +221,7 @@ function mapPrismaDealRoomToRaw(row: PrismaDealRoomFull): RawDealRoomRecord {
   const stageIndex = new Map(DEAL_STAGES_ORDER.map((s, idx) => [s, idx]));
   const sortedStages = [...row.stages].sort(
     (a, b) =>
-      (stageIndex.get(a.stage) ?? 99) - (stageIndex.get(b.stage) ?? 99)
+      (stageIndex.get(a.stage as any) ?? 99) - (stageIndex.get(b.stage as any) ?? 99)
   );
 
   return {
@@ -431,7 +431,10 @@ async function getBuyerVerificationReadiness(
 
 function buildInitialStages(dealRoomId: string, nowIso: string) {
   return DEAL_STAGES_ORDER.map((stage, idx) => {
-    const def = DEAL_STAGE_DEFINITIONS[stage];
+    const def = DEAL_STAGE_DEFINITIONS[stage] || {
+      defaultOwner: "BOTH" as const,
+      defaultRequiredAction: "",
+    };
     return {
       id: `${dealRoomId}-stg-${stage.toLowerCase()}`,
       stage,
@@ -754,7 +757,10 @@ export async function createOrOpenDealRoom(
           status: PrismaDealRoomStatus.ACTIVE,
           stages: {
             create: DEAL_STAGES_ORDER.map((stage, idx) => {
-              const def = DEAL_STAGE_DEFINITIONS[stage];
+              const def = DEAL_STAGE_DEFINITIONS[stage] || {
+                defaultOwner: "BOTH" as const,
+                defaultRequiredAction: "",
+              };
               return {
                 stage: stage as PrismaDealStageType,
                 ownerRole: def.defaultOwner as PrismaStageOwner,
@@ -1041,7 +1047,7 @@ export async function transitionDealRoomStage(
     };
   }
 
-  const toIdx = DEAL_STAGES_ORDER.indexOf(toStage);
+  const toIdx = DEAL_STAGES_ORDER.indexOf(toStage as any);
   const needsTransferChecklist =
     toStage === "TRANSFER" &&
     !raw.checklistItems.some((c) => c.phase === "TRANSFER");
@@ -1137,7 +1143,7 @@ export async function transitionDealRoomStage(
   raw.currentStage = toStage;
   raw.updatedAt = nowIso;
   raw.stages = raw.stages.map((s) => {
-    const idx = DEAL_STAGES_ORDER.indexOf(s.stage);
+    const idx = DEAL_STAGES_ORDER.indexOf(s.stage as any);
     if (idx < toIdx) {
       return {
         ...s,

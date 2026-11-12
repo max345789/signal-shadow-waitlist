@@ -248,7 +248,7 @@ export function DealRoomClient({
       }
       setDealRoom(data.dealRoom);
       setStatusMessage(
-        `Stage updated to ${DEAL_STAGE_DEFINITIONS[toStage].label}. Entry written to audit log.`
+        `Stage updated to ${DEAL_STAGE_DEFINITIONS[toStage]?.label || toStage}. Entry written to audit log.`
       );
     } catch {
       setActionError("Network error while updating stage.");
@@ -904,12 +904,34 @@ export function DealRoomClient({
       ) : null}
 
       {/* Shared Stage Tracker & Allowed Transitions */}
-      <StageTracker
-        stages={trackerStages}
-        strictThreeColorBudget
-        allowGreenAccent={allowGreen}
-        allowRiskAccent={allowRisk}
-      />
+      <div className="flex flex-col gap-2">
+        <StageTracker
+          stages={trackerStages}
+          strictThreeColorBudget
+          allowGreenAccent={allowGreen}
+          allowRiskAccent={allowRisk}
+        />
+        <p className="text-14 text-slate italic">
+          Stages are set by the buyer and seller. The platform does not check or enforce them.
+        </p>
+      </div>
+
+      {/* First-time room notice & Platform role disclaimer (C4, C8) */}
+      <div className="rounded border border-mist bg-cloud p-4 flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 text-trust-blue shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="flex flex-col gap-1 text-14 text-ink">
+          <strong className="text-deep-navy font-semibold">
+            Direct Introduction Notice
+          </strong>
+          <span>
+            You are talking to the other party directly. We are not part of any deal.
+            Get independent legal and financial advice before you pay or sign anything.
+          </span>
+          <span className="text-12 text-slate pt-1 border-t border-mist mt-1">
+            Baton is a listing and introduction platform. We do not hold funds, verify users beyond the named badges, or provide legal advice.
+          </span>
+        </div>
+      </div>
 
       <Card>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -920,10 +942,19 @@ export function DealRoomClient({
             <p className="text-16 text-slate">
               Current stage:{" "}
               <strong className="font-semibold text-deep-navy">
-                {DEAL_STAGE_DEFINITIONS[dealRoom.currentStage].label}
+                {DEAL_STAGE_DEFINITIONS[dealRoom.currentStage]?.label || dealRoom.currentStage}
               </strong>
-              . Transitions follow strict server-enforced prerequisites.
+              . Either party can advance or update the stage.
             </p>
+            <div className="pt-1">
+              <Link
+                href="/closing-guide"
+                className="text-14 font-medium text-trust-blue hover:underline inline-flex items-center gap-1"
+              >
+                <span>Read the Closing Guide (How closing works)</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
 
           {dealRoom.status !== "ACTIVE" ? (
@@ -950,8 +981,8 @@ export function DealRoomClient({
             <div className="flex flex-wrap gap-2">
               {allowedNextStages.map((nextStage) => {
                 const isForward =
-                  DEAL_STAGES_ORDER.indexOf(nextStage) >
-                  DEAL_STAGES_ORDER.indexOf(dealRoom.currentStage);
+                  (DEAL_STAGES_ORDER as readonly string[]).indexOf(nextStage) >
+                  (DEAL_STAGES_ORDER as readonly string[]).indexOf(dealRoom.currentStage);
                 return (
                   <Button
                     key={nextStage}
@@ -959,10 +990,10 @@ export function DealRoomClient({
                     variant={isForward ? "primary" : "secondary"}
                     loading={busyAction === `stage:${nextStage}`}
                     loadingLabel="Updating..."
-                    onClick={() => void handleStageTransition(nextStage)}
+                    onClick={() => void handleStageTransition(nextStage as DealStageType)}
                   >
                     <span>
-                      Move to {DEAL_STAGE_DEFINITIONS[nextStage].label}
+                      Move to {DEAL_STAGE_DEFINITIONS[nextStage]?.label || nextStage}
                     </span>
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
@@ -1283,17 +1314,27 @@ export function DealRoomClient({
                       className="h-5 w-5 text-trust-blue"
                       aria-hidden="true"
                     />
-                    <CardTitle as="h2">Threaded deal room chat</CardTitle>
+                    <CardTitle as="h2">Direct Connect Room Chat</CardTitle>
                   </div>
-                  <StatusChip tone="neutral" label="Rate-limited & audited" />
+                  <StatusChip tone="neutral" label="Text & links only" />
                 </div>
                 <CardDescription>
-                  Private discussion restricted to Buyer, Seller, and assigned
-                  Platform Reviewers with active 2FA.
+                  Direct discussion between Buyer and Seller. Documents are shared via your own private links.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="flex flex-col gap-6">
+                {/* C4 Required Chat Banner */}
+                <div
+                  role="alert"
+                  className="rounded border border-brick-red bg-white p-3 text-14 text-brick-red font-medium flex items-center gap-2"
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>
+                    Never pay deposits to anyone you haven&apos;t independently verified. We do not hold or process deal payments.
+                  </span>
+                </div>
+
                 <form
                   onSubmit={handleSendMessage}
                   className="flex flex-col gap-4 rounded border border-mist bg-cloud p-4"
@@ -1319,13 +1360,19 @@ export function DealRoomClient({
                     label={
                       replyTargetMessage
                         ? "Post threaded reply"
-                        : "Post deal room message"
+                        : "Post Connect room message"
                     }
                     value={messageBody}
                     onChange={(e) => setMessageBody(e.target.value)}
-                    placeholder="Ask clarifying questions on financials, customer cohorts, or transition timelines."
+                    placeholder="Ask questions or share links to external due diligence documents..."
                     rows={3}
                   />
+
+                  {/* C4 Required Link-sharing hint */}
+                  <span className="text-12 text-slate italic -mt-2">
+                    You can paste a private link to documents you store yourself. We do not open, check, or store those documents.
+                  </span>
+
                   <div className="flex justify-end">
                     <Button
                       type="submit"
@@ -1692,7 +1739,7 @@ export function DealRoomClient({
                   </CardTitle>
                   <CardDescription>
                     Current stage is{" "}
-                    {DEAL_STAGE_DEFINITIONS[dealRoom.currentStage].label}.
+                    {DEAL_STAGE_DEFINITIONS[dealRoom.currentStage]?.label || dealRoom.currentStage}.
                     Complete NDA and Data access first before exchanging binding
                     or non-binding offers.
                   </CardDescription>
@@ -2098,7 +2145,7 @@ export function DealRoomClient({
                       description={
                         dealRoom.currentStage === "ESCROW"
                           ? "An accepted offer and active deal room status are required to open third-party escrow."
-                          : `Current stage is ${DEAL_STAGE_DEFINITIONS[dealRoom.currentStage].label}. Complete Offer acceptance and Due diligence before initiating escrow.`
+                          : `Current stage is ${DEAL_STAGE_DEFINITIONS[dealRoom.currentStage]?.label || dealRoom.currentStage}. Complete Offer acceptance and Due diligence before initiating escrow.`
                       }
                     />
                   )
@@ -2450,19 +2497,18 @@ export function DealRoomClient({
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle as="h2">
-                    Due-diligence checklist ({dealRoom.sector})
+                    Things to ask for ({dealRoom.sector} due diligence)
                   </CardTitle>
                   <StatusChip
                     tone={verifiedTone(
                       dueDiligenceItems.length > 0 &&
                         dueDiligenceItems.every((i) => i.status === "CONFIRMED")
                     )}
-                    label={`${dueDiligenceItems.filter((i) => i.status === "CONFIRMED").length} / ${dueDiligenceItems.length} confirmed`}
+                    label={`${dueDiligenceItems.filter((i) => i.status === "CONFIRMED").length} / ${dueDiligenceItems.length} checked`}
                   />
                 </div>
                 <CardDescription>
-                  Generated automatically from business type ({dealRoom.sector}
-                  ). Each item tracks Buyer and Seller confirmation timestamps.
+                  Recommended due-diligence checklist generated from business type. Tick items for yourself as you review them directly with the counterparty.
                 </CardDescription>
               </CardHeader>
             </Card>

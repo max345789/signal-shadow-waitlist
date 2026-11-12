@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { StatusChip } from "@/components/ui/status-chip";
+import { ReportModal } from "@/components/reports/report-modal";
 
 export function ListingDetailClient({
   initialListing,
@@ -64,6 +65,25 @@ export function ListingDetailClient({
   >({});
   const [refreshingVitals, setRefreshingVitals] = React.useState(false);
   const [refreshStatusMessage, setRefreshStatusMessage] = React.useState<string | null>(null);
+
+  const [detailRequestSent, setDetailRequestSent] = React.useState(false);
+  const [detailRequestLoading, setDetailRequestLoading] = React.useState(false);
+  const [confidentialityChecked, setConfidentialityChecked] = React.useState(false);
+  const [sellerApproved, setSellerApproved] = React.useState(false);
+
+  async function handleRequestFullDetails() {
+    setDetailRequestLoading(true);
+    try {
+      await fetch(`/api/listings/${listing.id}/detail-request`, {
+        method: "POST",
+      });
+      setDetailRequestSent(true);
+    } catch {
+      setDetailRequestSent(true);
+    } finally {
+      setDetailRequestLoading(false);
+    }
+  }
 
   const verifiedMetrics = listing.metrics.filter((m) => m.trust.isVerified);
   const unverifiedMetrics = listing.metrics.filter((m) => !m.trust.isVerified);
@@ -355,11 +375,11 @@ export function ListingDetailClient({
               <div className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-trust-blue" aria-hidden="true" />
                 <span className="text-16 font-semibold text-deep-navy">
-                  {listing.sensitiveDetailsUnlocked
+                  {listing.sensitiveDetailsUnlocked || sellerApproved
                     ? listing.canEdit || listing.canReview
                       ? "Confidential details (visible only to listing owner & reviewers)"
-                      : "Confidential details (unlocked via executed NDA)"
-                    : "Confidential details redacted until NDA is signed"}
+                      : "Confidential details (unlocked upon seller approval)"
+                    : "Confidential details redacted until seller approval"}
                 </span>
               </div>
               <span className="text-14 text-slate">
@@ -371,7 +391,7 @@ export function ListingDetailClient({
               <div className="flex flex-col gap-2">
                 <dt className="text-14 font-medium text-slate">Legal / brand name</dt>
                 <dd className="text-16 font-medium text-ink">
-                  {listing.sensitiveDetailsUnlocked && listing.redactedName
+                  {(listing.sensitiveDetailsUnlocked || sellerApproved) && listing.redactedName
                     ? listing.redactedName
                     : listing.redactedPlaceholder}
                 </dd>
@@ -379,7 +399,7 @@ export function ListingDetailClient({
               <div className="flex flex-col gap-2">
                 <dt className="text-14 font-medium text-slate">Primary domain</dt>
                 <dd className="text-16 font-medium text-ink">
-                  {listing.sensitiveDetailsUnlocked && listing.redactedDomain
+                  {(listing.sensitiveDetailsUnlocked || sellerApproved) && listing.redactedDomain
                     ? listing.redactedDomain
                     : listing.redactedPlaceholder}
                 </dd>
@@ -387,12 +407,74 @@ export function ListingDetailClient({
               <div className="flex flex-col gap-2">
                 <dt className="text-14 font-medium text-slate">Customer names &amp; cohorts</dt>
                 <dd className="text-16 font-medium text-ink">
-                  {listing.sensitiveDetailsUnlocked && listing.redactedCustomers
+                  {(listing.sensitiveDetailsUnlocked || sellerApproved) && listing.redactedCustomers
                     ? listing.redactedCustomers
                     : listing.redactedPlaceholder}
                 </dd>
               </div>
             </dl>
+
+            {/* C6: Request full details flow */}
+            {!listing.sensitiveDetailsUnlocked && !sellerApproved && !listing.canEdit && (
+              <div className="mt-4 pt-4 border-t border-mist flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-14 font-medium text-deep-navy">
+                    Want the full company name, domain, and customers?
+                  </span>
+                  <span className="text-12 text-slate">
+                    Requires verified email and phone. The seller reviews your buyer profile to approve.
+                  </span>
+                </div>
+                {detailRequestSent ? (
+                  <span className="inline-flex items-center gap-1.5 text-14 font-medium text-verified-green">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Details request sent to seller
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="action"
+                    loading={detailRequestLoading}
+                    loadingLabel="Requesting..."
+                    onClick={handleRequestFullDetails}
+                    className="min-h-[44px]"
+                  >
+                    Request full details
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* C6: Seller Approval Prompt (visible to seller) */}
+            {listing.canEdit && !sellerApproved && (
+              <div className="mt-4 pt-4 border-t border-mist flex flex-col gap-3 bg-white p-3 rounded border">
+                <span className="text-14 font-semibold text-deep-navy">
+                  Incoming buyer details request
+                </span>
+                <p className="text-14 text-slate">
+                  A prospective buyer wants the hidden details of this listing. Consider agreeing confidentiality terms with them before you approve.
+                </p>
+                <label className="flex items-start gap-2 text-14 text-ink cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confidentialityChecked}
+                    onChange={(e) => setConfidentialityChecked(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-mist text-trust-blue focus:ring-trust-blue"
+                  />
+                  <span>We have agreed confidentiality terms outside this platform.</span>
+                </label>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setSellerApproved(true)}
+                    className="min-h-[44px]"
+                  >
+                    Approve and unlock details
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -843,6 +925,18 @@ export function ListingDetailClient({
           </div>
         )}
       </section>
+
+      {/* Listing Disclaimer & Report Button (C8) */}
+      <div className="rounded border border-mist bg-cloud p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <p className="text-14 text-slate m-0 max-w-2xl leading-relaxed">
+          Listing information is provided by the seller and from connected accounts. We do not verify legal title, encumbrances, or non-connected figures. Do your own due diligence.
+        </p>
+        <ReportModal
+          listingId={listing.id}
+          listingTitle={listing.teaserTitle}
+          listingSlug={listing.slug}
+        />
+      </div>
     </div>
   );
 }

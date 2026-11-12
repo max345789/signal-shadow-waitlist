@@ -70,8 +70,8 @@ function makeEscrowRoom(options: {
     stages: DEAL_STAGES_ORDER.map((stage, idx) => ({
       id: `stg-${idx}`,
       stage,
-      ownerRole: DEAL_STAGE_DEFINITIONS[stage].defaultOwner,
-      requiredAction: DEAL_STAGE_DEFINITIONS[stage].defaultRequiredAction,
+      ownerRole: DEAL_STAGE_DEFINITIONS[stage]?.defaultOwner ?? "BOTH",
+      requiredAction: DEAL_STAGE_DEFINITIONS[stage]?.defaultRequiredAction ?? "",
       status:
         idx < 6
           ? "COMPLETED"

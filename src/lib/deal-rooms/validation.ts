@@ -5,8 +5,19 @@ export const createDealRoomSchema = z.object({
   businessId: z.string().min(1, "Business ID is required."),
 });
 
+export const ALL_SUPPORTED_STAGES = [
+  ...DEAL_STAGES_ORDER,
+  "INTRO",
+  "NDA",
+  "DATA_ACCESS",
+  "OFFER",
+  "DUE_DILIGENCE",
+  "ESCROW",
+  "TRANSFER",
+] as const;
+
 export const transitionStageSchema = z.object({
-  toStage: z.enum(DEAL_STAGES_ORDER),
+  toStage: z.enum(ALL_SUPPORTED_STAGES),
 });
 
 export const signAgreementSchema = z.object({

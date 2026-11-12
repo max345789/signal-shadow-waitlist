@@ -394,7 +394,7 @@ export function SellerDashboardClient({
                         </span>
                         <span className="text-14 text-slate">
                           Buyer: {room.buyerName} · Stage:{" "}
-                          {DEAL_STAGE_DEFINITIONS[room.currentStage].label}
+                          {DEAL_STAGE_DEFINITIONS[room.currentStage]?.label || room.currentStage}
                         </span>
                       </div>
                       <Button asChild variant="secondary">

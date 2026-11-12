@@ -12,7 +12,13 @@ import type {
 
 export type { EscrowProviderName, EscrowStatusValue };
 
-export type DealRoomStatusValue = "ACTIVE" | "DISPUTED" | "COMPLETED" | "CANCELLED";
+export type DealRoomStatusValue =
+  | "ACTIVE"
+  | "DISPUTED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "CLOSED"
+  | "WITHDRAWN";
 export type OfferStatusValue =
   | "PROPOSED"
   | "COUNTERED"

@@ -148,7 +148,14 @@ export function StageTracker({
   const inspectedItem =
     stages.find((s) => s.stage === activeSelection) ?? stages[0]!;
   const inspectedMeta = STATUS_META[inspectedItem.status];
-  const inspectedDef = DEAL_STAGE_DEFINITIONS[inspectedItem.stage];
+  const inspectedDef =
+    DEAL_STAGE_DEFINITIONS[inspectedItem.stage] || {
+      label: inspectedItem.stage,
+      order: 1,
+      stage: inspectedItem.stage,
+      defaultOwner: "BOTH" as const,
+      defaultRequiredAction: "",
+    };
 
   function resolveStageTone(status: StageStatusValue): StatusChipTone {
     if (!strictThreeColorBudget) {
@@ -243,7 +250,7 @@ export function StageTracker({
       {/* Responsive 7-stage list: vertical stack on 360px mobile, grid on tablet/desktop */}
       <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {stages.map((item, idx) => {
-          const def = DEAL_STAGE_DEFINITIONS[item.stage];
+          const def = DEAL_STAGE_DEFINITIONS[item.stage] || { label: item.stage };
           const meta = STATUS_META[item.status];
           const visual = resolveStageVisual(item.status, inspectedItem.stage === item.stage);
           const Icon = meta.Icon;

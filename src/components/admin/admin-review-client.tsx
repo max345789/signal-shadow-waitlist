@@ -65,6 +65,18 @@ function verificationTypeLabel(type: VerificationTypeValue): string {
       return "Payment connector";
     case "ANALYTICS_CONNECTOR":
       return "Analytics connector";
+    case "DOMAIN":
+      return "Domain TXT";
+    case "EMAIL":
+      return "Email check";
+    case "PHONE":
+      return "Phone check";
+    case "REVENUE":
+      return "Revenue connector";
+    case "TRAFFIC":
+      return "Traffic connector";
+    default:
+      return String(type);
   }
 }
 
@@ -72,10 +84,12 @@ export function AdminReviewClient({
   initialListings,
   initialVerifications = [],
   initialDisputes = [],
+  initialReports = [],
 }: {
   initialListings: SanitizedListingView[];
   initialVerifications?: VerificationWithEvaluation[];
   initialDisputes?: AdminDisputeView[];
+  initialReports?: any[];
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
@@ -83,6 +97,9 @@ export function AdminReviewClient({
     React.useState<VerificationWithEvaluation[]>(initialVerifications);
   const [disputes, setDisputes] =
     React.useState<AdminDisputeView[]>(initialDisputes);
+  const [reports, setReports] = React.useState<any[]>(initialReports);
+  const [reportNotesById, setReportNotesById] = React.useState<Record<string, string>>({});
+  const [reportActionById, setReportActionById] = React.useState<Record<string, string>>({});
   const [notesById, setNotesById] = React.useState<Record<string, string>>({});
   const [fieldErrorsById, setFieldErrorsById] = React.useState<
     Record<string, string | undefined>
@@ -117,14 +134,16 @@ export function AdminReviewClient({
     setLoading(true);
     setFetchError(null);
     try {
-      const [listingsRes, verRes, disputesRes] = await Promise.all([
+      const [listingsRes, verRes, disputesRes, reportsRes] = await Promise.all([
         fetch("/api/admin/listings"),
         fetch("/api/admin/verifications"),
         fetch("/api/admin/disputes"),
+        fetch("/api/reports"),
       ]);
       const listingsData = await listingsRes.json();
       const verData = await verRes.json();
       const disputesData = await disputesRes.json();
+      const reportsData = await reportsRes.json().catch(() => ({ reports: [] }));
       if (!listingsRes.ok) {
         setFetchError(listingsData.error ?? "Could not load Admin review queue.");
         return;
@@ -140,10 +159,40 @@ export function AdminReviewClient({
         return;
       }
       setDisputes(disputesData.disputes ?? []);
+      setReports(reportsData.reports ?? []);
     } catch {
       setFetchError("Network error while refreshing review queue.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitReportDecision(
+    reportId: string,
+    status: string,
+    actionTaken?: string
+  ) {
+    const adminNote = reportNotesById[reportId] ?? "";
+    try {
+      const res = await fetch("/api/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportId,
+          status,
+          actionTaken: actionTaken || reportActionById[reportId] || "NONE",
+          adminNote,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setReports((prev) =>
+          prev.map((r) => (r.id === reportId ? data.report : r))
+        );
+        setFeedback(`Report marked as ${status}.`);
+      }
+    } catch {
+      setFeedback("Network error updating report.");
     }
   }
 
@@ -1118,6 +1167,9 @@ export function AdminReviewClient({
           <TabsTrigger value="disputes">
             Dispute queue ({openDisputes.length} open)
           </TabsTrigger>
+          <TabsTrigger value="reports">
+            Reports queue ({reports.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="listings">
@@ -1231,6 +1283,126 @@ export function AdminReviewClient({
                 "resolved"
               )}
             </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <Tabs defaultValue="reports-new">
+            <TabsList aria-label="Filter user reports by status">
+              <TabsTrigger value="reports-new">
+                New ({reports.filter((r) => r.status === "NEW").length})
+              </TabsTrigger>
+              <TabsTrigger value="reports-review">
+                In review ({reports.filter((r) => r.status === "IN_REVIEW").length})
+              </TabsTrigger>
+              <TabsTrigger value="reports-action">
+                Action taken ({reports.filter((r) => r.status === "ACTION_TAKEN").length})
+              </TabsTrigger>
+              <TabsTrigger value="reports-noaction">
+                No action ({reports.filter((r) => r.status === "NO_ACTION").length})
+              </TabsTrigger>
+            </TabsList>
+
+            {["NEW", "IN_REVIEW", "ACTION_TAKEN", "NO_ACTION"].map((statusKey) => {
+              const tabValue =
+                statusKey === "NEW"
+                  ? "reports-new"
+                  : statusKey === "IN_REVIEW"
+                    ? "reports-review"
+                    : statusKey === "ACTION_TAKEN"
+                      ? "reports-action"
+                      : "reports-noaction";
+              const items = reports.filter((r) => r.status === statusKey);
+
+              return (
+                <TabsContent key={statusKey} value={tabValue}>
+                  {items.length === 0 ? (
+                    <CardStateEmpty
+                      title={`No ${statusKey.toLowerCase().replace("_", " ")} reports`}
+                      description="User reports for fraudulent figures, impersonation, or IP breaches appear here."
+                    />
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {items.map((rep) => (
+                        <Card key={rep.id} className="bg-white border-mist">
+                          <CardHeader className="pb-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <CardTitle as="h3" className="text-18 font-bold text-deep-navy">
+                                {rep.listingTitle}
+                              </CardTitle>
+                              <span className="inline-flex items-center rounded border px-2.5 py-0.5 text-12 font-medium bg-cloud text-ink border-mist">
+                                {rep.reason}
+                              </span>
+                            </div>
+                            <CardDescription>
+                              Reported on {new Date(rep.createdAt).toLocaleString("en-IN")} • Slug: {rep.listingSlug}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="flex flex-col gap-4">
+                            <div className="rounded border border-mist bg-cloud p-3 text-14 text-ink">
+                              <strong>Report details: </strong>
+                              {rep.details}
+                            </div>
+
+                            {rep.adminNote && (
+                              <div className="text-14 text-slate">
+                                <strong>Admin note: </strong>
+                                {rep.adminNote}
+                              </div>
+                            )}
+
+                            {statusKey !== "ACTION_TAKEN" && statusKey !== "NO_ACTION" && (
+                              <div className="flex flex-col gap-3 pt-2 border-t border-mist">
+                                <Textarea
+                                  label="Admin note"
+                                  placeholder="Record resolution rationale or evidence check..."
+                                  value={reportNotesById[rep.id] ?? ""}
+                                  onChange={(e) =>
+                                    setReportNotesById((prev) => ({
+                                      ...prev,
+                                      [rep.id]: e.target.value,
+                                    }))
+                                  }
+                                  rows={2}
+                                />
+                                <div className="flex flex-wrap gap-2 justify-end">
+                                  {statusKey === "NEW" && (
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      onClick={() => submitReportDecision(rep.id, "IN_REVIEW")}
+                                      className="min-h-[44px]"
+                                    >
+                                      Mark In Review
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="primary"
+                                    onClick={() => submitReportDecision(rep.id, "ACTION_TAKEN", "REQUEST_EDITS")}
+                                    className="min-h-[44px]"
+                                  >
+                                    Action taken (Edit/Hide)
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => submitReportDecision(rep.id, "NO_ACTION", "NONE")}
+                                    className="min-h-[44px]"
+                                  >
+                                    No action required
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              );
+            })}
           </Tabs>
         </TabsContent>
       </Tabs>

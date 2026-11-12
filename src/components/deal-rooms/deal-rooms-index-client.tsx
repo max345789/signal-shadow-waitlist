@@ -160,7 +160,7 @@ export function DealRoomsIndexClient({
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusChip
                       tone="neutral"
-                      label={`Stage: ${DEAL_STAGE_DEFINITIONS[room.currentStage].label}`}
+                      label={`Stage: ${DEAL_STAGE_DEFINITIONS[room.currentStage]?.label || room.currentStage}`}
                     />
                     {room.ndaCompleted ? (
                       <StatusChip
