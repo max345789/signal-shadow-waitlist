@@ -230,11 +230,24 @@ test("Phase 2 acceptance: three distinct theses return different ranked results 
   await page.getByLabel(/Free-text thesis/i).fill("skincare repeat Razorpay Shopify");
   await page.getByRole("button", { name: /Save thesis & open matches/i }).click();
   await page.waitForURL(/\/matches\?thesisId=/);
+  await expect(
+    page.getByRole("heading", { name: /Saved theses & ranked matches/i })
+  ).toBeVisible();
   await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
 
   const rankedSectionD2C = page.locator("section").filter({ hasText: /Ranked matches \(\d+\)/ });
   const firstMatchD2C = rankedSectionD2C.locator("article").first();
   await expect(firstMatchD2C).toContainText("Specialty Botanical Skincare D2C Brand");
+
+  // Pausing & re-enabling alerts via PATCH must preserve all structured criteria
+  await page.getByRole("button", { name: /Pause alerts/i }).click();
+  await expect(page.getByText("Alerts paused", { exact: true })).toBeVisible();
+  const activePanelD2C = page.getByRole("tabpanel");
+  await expect(activePanelD2C).toContainText("E-commerce / D2C");
+  await expect(activePanelD2C).toContainText("India (Mumbai)");
+  await expect(firstMatchD2C).toContainText("Specialty Botanical Skincare D2C Brand");
+  await page.getByRole("button", { name: /Enable alerts/i }).click();
+  await expect(page.getByText("Alerts active", { exact: true })).toBeVisible();
 
   // Thesis 3: Lean Content & Media + DevTools alert test thesis
   await page.goto("/thesis/new", { waitUntil: "networkidle" });
@@ -246,6 +259,9 @@ test("Phase 2 acceptance: three distinct theses return different ranked results 
   await page.getByLabel(/Free-text thesis/i).fill("newsletter fintech GA4 sponsors");
   await page.getByRole("button", { name: /Save thesis & open matches/i }).click();
   await page.waitForURL(/\/matches\?thesisId=/);
+  await expect(
+    page.getByRole("heading", { name: /Saved theses & ranked matches/i })
+  ).toBeVisible();
 
   const rankedSectionMedia = page.locator("section").filter({ hasText: /Ranked matches \(\d+\)/ });
   const firstMatchMedia = rankedSectionMedia.locator("article").first();
@@ -253,12 +269,33 @@ test("Phase 2 acceptance: three distinct theses return different ranked results 
     "Profitable B2B Fintech & Regulatory Briefing Media"
   );
 
-  // Switch back to Thesis 1 (B2B SaaS Sample) -> #1 is TaxBridge GST SaaS
+  // Switch back to Thesis 1 (B2B SaaS Sample) via keyboard -> #1 is TaxBridge GST SaaS
+  const mediaTab = page.getByRole("tab", { name: /Lean Media Under 60L/i });
+  await mediaTab.focus();
+  await page.keyboard.press("End");
+  await expect(
+    page.getByRole("tab", { name: /India B2B SaaS with verified Stripe revenue/i })
+  ).toHaveAttribute("aria-selected", "true");
+  const firstMatchSaaS = rankedSectionMedia.locator("article").first();
+  await expect(firstMatchSaaS).toContainText("Profitable B2B GST & E-Invoicing SaaS");
+
+  // Edit Thesis 2 via /thesis/new?thesisId=... and confirm updated title persists
+  await page.getByRole("tab", { name: /Mumbai D2C Brand Focus/i }).click();
+  await page.getByRole("link", { name: /Edit thesis/i }).click();
+  await page.waitForURL(/\/thesis\/new\?thesisId=/);
+  await page.getByLabel(/Thesis title/i).fill("Mumbai D2C Brand Focus (Edited)");
+  await page.getByRole("button", { name: /Save thesis changes/i }).click();
+  await page.waitForURL(/\/matches\?thesisId=/);
+  await expect(
+    page.getByRole("heading", { name: /Saved theses & ranked matches/i })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: /Mumbai D2C Brand Focus \(Edited\)/i })
+  ).toBeVisible();
+
   await page
     .getByRole("tab", { name: /India B2B SaaS with verified Stripe revenue/i })
     .click();
-  const firstMatchSaaS = rankedSectionMedia.locator("article").first();
-  await expect(firstMatchSaaS).toContainText("Profitable B2B GST & E-Invoicing SaaS");
 
   // 4. Select 3 businesses in /matches (4th becomes disabled) and open side-by-side /compare
   const compareCheckboxes = page.getByRole("checkbox", {
@@ -305,6 +342,9 @@ test("Phase 2 acceptance: three distinct theses return different ranked results 
   await page.getByLabel(/Free-text thesis/i).fill("API latency monitoring webhook teams");
   await page.getByRole("button", { name: /Save thesis & open matches/i }).click();
   await page.waitForURL(/\/matches\?thesisId=/);
+  await expect(
+    page.getByRole("heading", { name: /Saved theses & ranked matches/i })
+  ).toBeVisible();
 
   await signInAsSampleRole(page, "seller.sample@trustmarketplace.local");
   await page.goto("/sell", { waitUntil: "networkidle" });
@@ -364,6 +404,13 @@ test("Phase 2 acceptance: three distinct theses return different ranked results 
     await alertsPanel.getByRole("button", { name: /Mark all read/i }).click();
   }
   await expect(page.getByText(/New thesis match alerts/i)).toHaveCount(0);
+
+  // 6. Seller dashboard reflects anonymized Phase 2 matched buyer thesis demand cleanly
+  await signInAsSampleRole(page, "seller.sample@trustmarketplace.local");
+  await page.goto("/seller", { waitUntil: "networkidle" });
+  await expect(page.getByText("Matched buyer theses (Phase 2)")).toBeVisible();
+  await expect(page.getByText(/matching buyer thes/i).first()).toBeVisible();
+  await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

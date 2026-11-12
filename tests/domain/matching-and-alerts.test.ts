@@ -200,6 +200,34 @@ describe("Phase 2 matching engine, prompt extraction, and validation", () => {
     expect(hints.maxOwnerHours).toBe(10);
     expect(hints.maxPrice).toBe(20_000_000);
     expect(hints.freeText).toContain("B2B SaaS in India");
+
+    // Must not confuse revenue cap with maxPrice
+    const revPromptHints = extractThesisHintsFromPrompt(
+      "B2B SaaS under ₹50L revenue with recurring billing"
+    );
+    expect(revPromptHints.sector).toBe("B2B SaaS");
+    expect(revPromptHints.maxPrice).toBeNull();
+  });
+
+  it("scores free-text-only prompts containing broad domain terms instead of collapsing to zero", () => {
+    const broadFreeText: ThesisCriteria = {
+      title: "Broad free text",
+      sector: null,
+      minRevenue: null,
+      maxRevenue: null,
+      minProfit: null,
+      maxOwnerHours: null,
+      geography: null,
+      minPrice: null,
+      maxPrice: null,
+      currency: "INR",
+      freeText: "high profit business in India",
+      alertsEnabled: true,
+    };
+
+    const res = scoreListingAgainstThesis(sampleListings[0]!, broadFreeText);
+    expect(res.score).toBeGreaterThan(0);
+    expect(res.reasons.length).toBeGreaterThan(0);
   });
 
   it("validates thesis bounds and compare ID limits strictly", () => {

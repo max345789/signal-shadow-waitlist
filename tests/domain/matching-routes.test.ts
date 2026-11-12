@@ -180,7 +180,7 @@ describe("Phase 2 thesis, match preview, compare, and new-listing alert API rout
       ).status
     ).toBe(403);
 
-    // Owner updates & deletes cleanly
+    // Owner updates & deletes cleanly — partial PATCH must preserve existing structured criteria!
     await setActiveSession(BUYER_SESSION);
     const patchRes = await thesisPatch(
       new Request(`http://127.0.0.1:3000/api/theses/${createdBody.thesis.id}`, {
@@ -191,7 +191,57 @@ describe("Phase 2 thesis, match preview, compare, and new-listing alert API rout
       { params: Promise.resolve({ id: createdBody.thesis.id }) }
     );
     expect(patchRes.status).toBe(200);
-    expect((await patchRes.json()).thesis.alertsEnabled).toBe(false);
+    const patchedBody = await patchRes.json();
+    expect(patchedBody.thesis.alertsEnabled).toBe(false);
+    expect(patchedBody.thesis.sector).toBe("Developer Tools");
+    expect(patchedBody.thesis.maxOwnerHours).toBe(15);
+    expect(patchedBody.thesis.maxPrice).toBe(12_000_000);
+    expect(patchedBody.thesis.freeText).toBe("API monitoring developer teams");
+
+    // Reject empty PATCH, inverted bounds, and clearing all thesis criteria
+    expect(
+      (
+        await thesisPatch(
+          new Request(`http://127.0.0.1:3000/api/theses/${createdBody.thesis.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({}),
+          }),
+          { params: Promise.resolve({ id: createdBody.thesis.id }) }
+        )
+      ).status
+    ).toBe(400);
+
+    expect(
+      (
+        await thesisPatch(
+          new Request(`http://127.0.0.1:3000/api/theses/${createdBody.thesis.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ minPrice: 20_000_000 }),
+          }),
+          { params: Promise.resolve({ id: createdBody.thesis.id }) }
+        )
+      ).status
+    ).toBe(400);
+
+    expect(
+      (
+        await thesisPatch(
+          new Request(`http://127.0.0.1:3000/api/theses/${createdBody.thesis.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              sector: null,
+              maxOwnerHours: null,
+              maxPrice: null,
+              freeText: "",
+            }),
+          }),
+          { params: Promise.resolve({ id: createdBody.thesis.id }) }
+        )
+      ).status
+    ).toBe(400);
 
     const delRes = await thesisDelete(
       new Request(`http://127.0.0.1:3000/api/theses/${createdBody.thesis.id}`),
@@ -245,6 +295,7 @@ describe("Phase 2 thesis, match preview, compare, and new-listing alert API rout
     expect(compareRes.status).toBe(200);
     const compareBody = await compareRes.json();
     expect(compareBody.listings).toHaveLength(2);
+    expect(compareBody.excludedCount).toBe(1);
     expect(
       compareBody.listings.every((l: { status: string }) => l.status === "APPROVED")
     ).toBe(true);
