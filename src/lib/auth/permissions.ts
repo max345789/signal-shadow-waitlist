@@ -70,6 +70,16 @@ export function canReviewAdminQueue(session: AuthSession | null): PermissionChec
   return { allowed: true };
 }
 
+const customRegisteredAdminEmails = new Set<string>();
+
+export function registerCustomAdminEmail(email: string): void {
+  customRegisteredAdminEmails.add(email.toLowerCase().trim());
+}
+
+export function isCustomAdminEmail(email: string): boolean {
+  return customRegisteredAdminEmails.has(email.toLowerCase().trim());
+}
+
 /**
  * Strict Admin Portal Authorization Check:
  * Enforces both the `ADMIN` role AND an authorized admin email.
@@ -80,6 +90,12 @@ export function isAuthorizedAdmin(session: AuthSession | null): boolean {
   if (!session.roles.includes("ADMIN")) return false;
 
   const email = session.email.toLowerCase().trim();
+
+  // If user changed admin email dynamically, it is explicitly trusted
+  if (customRegisteredAdminEmails.has(email)) {
+    return true;
+  }
+
   const configuredAdminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "")
     .toLowerCase()
     .split(",")

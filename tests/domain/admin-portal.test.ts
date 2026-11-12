@@ -286,3 +286,101 @@ describe("Boost & Portal-Admin Page Guard", () => {
     await expect(PortalAdminPage()).rejects.toThrow();
   });
 });
+
+describe("Admin Credentials Replacement & OTP Password Reset", () => {
+  it("generates 6-digit OTP, validates it, and rejects expired or wrong codes", async () => {
+    const { generateAdminOtp, verifyAdminOtp, consumeAdminOtp } = await import("@/lib/auth/admin-otp");
+
+    const email = "admin.test@baton.com";
+    const gen = generateAdminOtp(email);
+    expect(gen.ok).toBe(true);
+    expect(gen.code).toHaveLength(6);
+
+    // Wrong code fails
+    const wrong = verifyAdminOtp(email, "000000");
+    expect(wrong.valid).toBe(false);
+
+    // Correct code succeeds
+    const correct = verifyAdminOtp(email, gen.code!);
+    expect(correct.valid).toBe(true);
+
+    // Consume deletes it
+    const consumed = consumeAdminOtp(email, gen.code!);
+    expect(consumed).toBe(true);
+
+    // Cannot reuse consumed OTP
+    const reuse = verifyAdminOtp(email, gen.code!);
+    expect(reuse.valid).toBe(false);
+  });
+
+  it("updates admin email and authorizes the new email dynamically", async () => {
+    const { updateAdminEmail } = await import("@/lib/auth/store");
+    const { isAuthorizedAdmin } = await import("@/lib/auth/permissions");
+
+    const updateRes = await updateAdminEmail("admin@baton.com", "sarath.ceo@company.com");
+    expect(updateRes.ok).toBe(true);
+
+    const newSession: AuthSession = {
+      userId: "user-admin-1",
+      email: "sarath.ceo@company.com",
+      name: "Sarath CEO",
+      roles: ["ADMIN"],
+      twoFactorEnabled: true,
+      twoFactorVerifiedAt: new Date().toISOString(),
+      authMode: "local-dev",
+      isSampleAccount: true,
+    };
+
+    expect(isAuthorizedAdmin(newSession)).toBe(true);
+  });
+
+  it("updates admin password and verifies new password", async () => {
+    const { updateAdminPassword, verifyAdminPassword } = await import("@/lib/auth/store");
+
+    const updateRes = await updateAdminPassword("admin.sample@trustmarketplace.local", "BrandNewSecurePass!2026");
+    expect(updateRes.ok).toBe(true);
+
+    const valid = await verifyAdminPassword("admin.sample@trustmarketplace.local", "BrandNewSecurePass!2026");
+    expect(valid).toBe(true);
+
+    const invalid = await verifyAdminPassword("admin.sample@trustmarketplace.local", "WrongPassword!123");
+    expect(invalid).toBe(false);
+  });
+
+  it("handles unauthenticated OTP request and reset via /api/auth/reset-password", async () => {
+    const { POST } = await import("@/app/api/auth/reset-password/route");
+
+    // Request OTP
+    const req1 = new Request("http://localhost:3000/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "request_otp", email: "admin.sample@trustmarketplace.local" }),
+    });
+    const res1 = await POST(req1);
+    expect(res1.status).toBe(200);
+    const data1 = await res1.json();
+    expect(data1.ok).toBe(true);
+    expect(data1.devOtp).toBeTruthy();
+
+    // Reset with correct OTP
+    const req2 = new Request("http://localhost:3000/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "verify_and_reset",
+        email: "admin.sample@trustmarketplace.local",
+        otp: data1.devOtp,
+        newPassword: "ResetViaOtpPass!2026",
+      }),
+    });
+    const res2 = await POST(req2);
+    expect(res2.status).toBe(200);
+    const data2 = await res2.json();
+    expect(data2.ok).toBe(true);
+
+    // Verify login with new password
+    const { verifyAdminPassword } = await import("@/lib/auth/store");
+    const valid = await verifyAdminPassword("admin.sample@trustmarketplace.local", "ResetViaOtpPass!2026");
+    expect(valid).toBe(true);
+  });
+});

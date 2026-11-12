@@ -1,5 +1,6 @@
 import { getPrismaClient, isDatabaseConfigured } from "@/lib/db/prisma";
-import { hashPassword } from "@/lib/auth/crypto";
+import { hashPassword, verifyPassword } from "@/lib/auth/crypto";
+import { registerCustomAdminEmail } from "@/lib/auth/permissions";
 import type { RoleName, StoredUserRecord } from "@/lib/auth/types";
 
 /**
@@ -264,4 +265,83 @@ export async function updateUserRoleAsAdmin(
     devUser.roles = roles;
   }
   return { ok: true };
+}
+
+export async function updateAdminEmail(
+  currentEmail: string,
+  newEmail: string
+): Promise<{ ok: boolean; error?: string }> {
+  const normCurrent = currentEmail.toLowerCase().trim();
+  const normNew = newEmail.toLowerCase().trim();
+
+  if (!normNew.includes("@") || normNew.length < 5) {
+    return { ok: false, error: "Please provide a valid new email address." };
+  }
+
+  registerCustomAdminEmail(normNew);
+
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      await prisma.user.update({
+        where: { email: normCurrent },
+        data: { email: normNew },
+      });
+      return { ok: true };
+    } catch {
+      // Fallback
+    }
+  }
+
+  const devUsers = getLocalDevUsers();
+  const user = devUsers.find((u) => u.email === normCurrent);
+  if (user) {
+    user.email = normNew;
+    return { ok: true };
+  }
+
+  return { ok: false, error: "Admin user not found." };
+}
+
+export async function updateAdminPassword(
+  email: string,
+  newPassword: string
+): Promise<{ ok: boolean; error?: string }> {
+  const normEmail = email.toLowerCase().trim();
+  if (newPassword.length < 8) {
+    return { ok: false, error: "New password must be at least 8 characters." };
+  }
+
+  const newHash = hashPassword(newPassword);
+
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      await prisma.user.update({
+        where: { email: normEmail },
+        data: { passwordHash: newHash },
+      });
+      return { ok: true };
+    } catch {
+      // Fallback
+    }
+  }
+
+  const devUsers = getLocalDevUsers();
+  const user = devUsers.find((u) => u.email === normEmail);
+  if (user) {
+    user.passwordHash = newHash;
+    return { ok: true };
+  }
+
+  return { ok: false, error: "Admin user not found." };
+}
+
+export async function verifyAdminPassword(
+  email: string,
+  passwordAttempt: string
+): Promise<boolean> {
+  const user = await findUserByEmail(email);
+  if (!user || !user.passwordHash) return false;
+  return verifyPassword(passwordAttempt, user.passwordHash);
 }

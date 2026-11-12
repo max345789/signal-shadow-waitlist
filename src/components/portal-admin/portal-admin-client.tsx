@@ -15,8 +15,10 @@ import {
   Ban,
   Check,
   FileText,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format/currency";
 import type { AuthSession, RoleName } from "@/lib/auth/types";
@@ -49,7 +51,8 @@ type TabType =
   | "verifications"
   | "reports"
   | "billing"
-  | "audit";
+  | "audit"
+  | "security";
 
 export function PortalAdminClient({
   session,
@@ -69,6 +72,15 @@ export function PortalAdminClient({
   const [auditLogs] = useState(initialAuditLogs);
   const [financials] = useState(initialFinancials);
   const [metrics] = useState(initialMetrics);
+
+  const [currentAdminEmail, setCurrentAdminEmail] = useState(session.email);
+  const [newEmailInput, setNewEmailInput] = useState("");
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
+  const [otpCodeInput, setOtpCodeInput] = useState("");
+  const [otpNewPasswordInput, setOtpNewPasswordInput] = useState("");
+  const [generatedOtpDisplay, setGeneratedOtpDisplay] = useState<string | null>(null);
 
   const [listingFilter, setListingFilter] = useState<string>("ALL");
   const [listingSearch, setListingSearch] = useState<string>("");
@@ -284,6 +296,135 @@ export function PortalAdminClient({
     }
   };
 
+  // 4. Admin Credentials Management
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmailInput.trim() || !newEmailInput.includes("@")) {
+      showNotification(undefined, "Please enter a valid email address.");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const res = await fetch("/api/admin/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change_email", newEmail: newEmailInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(undefined, data.error || "Failed to update admin email.");
+      } else {
+        setCurrentAdminEmail(data.newEmail);
+        setNewEmailInput("");
+        showNotification(`Admin email successfully changed to ${data.newEmail}.`);
+      }
+    } catch {
+      showNotification(undefined, "Network error updating admin email.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPasswordInput) {
+      showNotification(undefined, "Current password is required.");
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      showNotification(undefined, "New passwords do not match.");
+      return;
+    }
+    if (newPasswordInput.length < 8) {
+      showNotification(undefined, "New password must be at least 8 characters.");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const res = await fetch("/api/admin/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change_password",
+          currentPassword: currentPasswordInput,
+          newPassword: newPasswordInput,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(undefined, data.error || "Failed to update password.");
+      } else {
+        setCurrentPasswordInput("");
+        setNewPasswordInput("");
+        setConfirmPasswordInput("");
+        showNotification("Admin password successfully updated.");
+      }
+    } catch {
+      showNotification(undefined, "Network error updating password.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    setIsProcessing(true);
+    try {
+      const res = await fetch("/api/admin/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request_otp" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(undefined, data.error || "Failed to generate OTP.");
+      } else {
+        setGeneratedOtpDisplay(data.devOtp || "Sent");
+        showNotification("6-digit verification code generated! Enter it below to update password.");
+      }
+    } catch {
+      showNotification(undefined, "Network error generating OTP.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResetWithOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpCodeInput || otpCodeInput.trim().length !== 6) {
+      showNotification(undefined, "6-digit OTP code is required.");
+      return;
+    }
+    if (!otpNewPasswordInput || otpNewPasswordInput.length < 8) {
+      showNotification(undefined, "New password must be at least 8 characters.");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const res = await fetch("/api/admin/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reset_with_otp",
+          otp: otpCodeInput,
+          newPassword: otpNewPasswordInput,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(undefined, data.error || "Failed to reset password via OTP.");
+      } else {
+        setOtpCodeInput("");
+        setOtpNewPasswordInput("");
+        setGeneratedOtpDisplay(null);
+        showNotification("Password successfully updated using OTP!");
+      }
+    } catch {
+      showNotification(undefined, "Network error verifying OTP.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Filter listings
   const filteredListings = listings.filter((l) => {
     if (listingFilter !== "ALL" && l.status !== listingFilter) return false;
@@ -325,7 +466,7 @@ export function PortalAdminClient({
           <div className="flex items-center gap-4">
             <div className="flex flex-col text-right">
               <span className="text-14 font-semibold text-white">{session.name}</span>
-              <span className="text-14 text-mist font-mono">{session.email}</span>
+              <span className="text-14 text-mist font-mono">{currentAdminEmail}</span>
             </div>
             <Button
               type="button"
@@ -356,6 +497,7 @@ export function PortalAdminClient({
             { id: "reports", label: `Abuse Reports (${reports.length})`, icon: AlertTriangle },
             { id: "billing", label: "Financials & Billing", icon: CreditCard },
             { id: "audit", label: `Audit Trail (${auditLogs.length})`, icon: FileText },
+            { id: "security", label: "Admin Credentials", icon: KeyRound },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1226,6 +1368,176 @@ export function PortalAdminClient({
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Security & Credentials Tab */}
+        {activeTab === "security" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-serif text-24 font-bold text-deep-navy">Admin Credentials &amp; Security Settings</h2>
+              <p className="text-16 text-slate">
+                Replace your administrator login email, update your secure password, or reset credentials via One-Time Password (OTP).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Account Overview & Change Email */}
+              <Card className="bg-white border-mist">
+                <CardHeader>
+                  <CardTitle as="h3" className="text-18 font-semibold text-deep-navy">
+                    Replace Admin Email
+                  </CardTitle>
+                  <CardDescription className="text-14 text-slate">
+                    Update the primary email used to access the executive console.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="p-3 bg-cloud border border-mist rounded flex flex-col gap-1">
+                    <span className="text-12 font-medium text-slate uppercase">Current Active Email</span>
+                    <span className="text-16 font-mono font-semibold text-deep-navy">{currentAdminEmail}</span>
+                  </div>
+
+                  <form onSubmit={handleChangeEmail} className="flex flex-col gap-3">
+                    <Input
+                      label="New Admin Email"
+                      type="email"
+                      required
+                      value={newEmailInput}
+                      onChange={(e) => setNewEmailInput(e.target.value)}
+                      placeholder="new-admin@yourdomain.com"
+                      className="min-h-12"
+                    />
+                    <Button type="submit" variant="primary" loading={isProcessing} className="min-h-12">
+                      Update Admin Email
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {/* Change Password */}
+              <Card className="bg-white border-mist">
+                <CardHeader>
+                  <CardTitle as="h3" className="text-18 font-semibold text-deep-navy">
+                    Change Password
+                  </CardTitle>
+                  <CardDescription className="text-14 text-slate">
+                    Verify your current password to set a new high-entropy password.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+                    <Input
+                      label="Current Password"
+                      type="password"
+                      required
+                      value={currentPasswordInput}
+                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                      placeholder="Current password"
+                      className="min-h-12"
+                    />
+                    <Input
+                      label="New Password"
+                      type="password"
+                      required
+                      minLength={8}
+                      value={newPasswordInput}
+                      onChange={(e) => setNewPasswordInput(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      className="min-h-12"
+                    />
+                    <Input
+                      label="Confirm New Password"
+                      type="password"
+                      required
+                      minLength={8}
+                      value={confirmPasswordInput}
+                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="min-h-12"
+                    />
+                    <Button type="submit" variant="primary" loading={isProcessing} className="min-h-12 mt-1">
+                      Update Admin Password
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* OTP Reset Section */}
+            <Card className="bg-white border-mist">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-trust-blue" />
+                  <CardTitle as="h3" className="text-18 font-semibold text-deep-navy">
+                    Reset Password with OTP (One-Time Password)
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-14 text-slate">
+                  Generate a 6-digit verification code to reset the administrator password immediately without entering your current password.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {generatedOtpDisplay ? (
+                  <div className="p-4 bg-cloud border border-trust-blue rounded flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-12 font-medium text-slate uppercase">Your Verification OTP Code</span>
+                      <span className="text-28 font-mono font-bold text-trust-blue tracking-widest">{generatedOtpDisplay}</span>
+                      <span className="text-12 text-slate">Expires in 10 minutes</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setOtpCodeInput(generatedOtpDisplay)}
+                      className="min-h-10 text-14"
+                    >
+                      Fill into OTP input
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={isProcessing}
+                      onClick={handleRequestOtp}
+                      className="min-h-12"
+                    >
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      Request 6-Digit OTP Code
+                    </Button>
+                  </div>
+                )}
+
+                <form onSubmit={handleResetWithOtp} className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <Input
+                    label="6-Digit OTP Code"
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={otpCodeInput}
+                    onChange={(e) => setOtpCodeInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    className="min-h-12 font-mono text-center tracking-widest text-16"
+                  />
+                  <Input
+                    label="New Password"
+                    type="password"
+                    minLength={8}
+                    required
+                    value={otpNewPasswordInput}
+                    onChange={(e) => setOtpNewPasswordInput(e.target.value)}
+                    placeholder="Minimum 8 characters"
+                    className="min-h-12"
+                  />
+                  <div className="flex flex-col justify-end">
+                    <Button type="submit" variant="primary" loading={isProcessing} className="min-h-12 w-full">
+                      Verify OTP &amp; Reset Password
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>
