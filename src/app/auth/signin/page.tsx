@@ -6,6 +6,7 @@ import { getLocalDevSampleAccountHints } from "@/lib/auth/store";
 import { getCurrentTotpTokenForDev } from "@/lib/auth/crypto";
 import { isDatabaseConfigured } from "@/lib/db/prisma";
 import { isAuth0Configured } from "@/lib/auth0";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function SignInPage() {
         sampleAccounts={sampleHints}
         databaseConfigured={isDatabaseConfigured()}
         auth0Configured={isAuth0Configured}
+        supabaseConfigured={isSupabaseConfigured()}
       />
     </AppShell>
   );

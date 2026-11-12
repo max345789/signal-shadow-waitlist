@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
 import type { AuthSession, RoleName } from "@/lib/auth/types";
 import { auth0 } from "@/lib/auth0";
+import { getSupabaseAuthSession } from "@/lib/supabase/auth";
 
 export async function getServerSession(): Promise<AuthSession | null> {
   const cookieStore = await cookies();
@@ -11,6 +12,16 @@ export async function getServerSession(): Promise<AuthSession | null> {
     if (session) {
       return session;
     }
+  }
+
+  // If Supabase Auth is active, check for Supabase session
+  try {
+    const supabaseSession = await getSupabaseAuthSession();
+    if (supabaseSession) {
+      return supabaseSession;
+    }
+  } catch {
+    // Supabase session not available or unauthenticated
   }
 
   // If Auth0 is configured, check for Auth0 session

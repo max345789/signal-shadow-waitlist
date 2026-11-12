@@ -25,11 +25,13 @@ export function SignInClient({
   sampleAccounts,
   databaseConfigured,
   auth0Configured = false,
+  supabaseConfigured = false,
 }: {
   initialSession: AuthSession | null;
   sampleAccounts: SampleAccountHint[];
   databaseConfigured: boolean;
   auth0Configured?: boolean;
+  supabaseConfigured?: boolean;
 }) {
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
   const [email, setEmail] = React.useState(sampleAccounts[0]?.email ?? "");
@@ -109,6 +111,44 @@ export function SignInClient({
     }
   }
 
+  async function handleSupabaseMagicLink() {
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address first.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      if (!supabase) {
+        setError("Supabase is not configured.");
+        return;
+      }
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+        },
+      });
+
+      if (otpError) {
+        setError(otpError.message);
+      } else {
+        setStatusMessage(
+          `Magic sign-in link sent to ${email}. Check your email to sign in.`
+        );
+      }
+    } catch {
+      setError("Network error sending Supabase magic link.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -146,9 +186,11 @@ export function SignInClient({
             />
           </div>
           <CardDescription>
-            {databaseConfigured
-              ? "Connected to PostgreSQL session store."
-              : "Running in local development mode (DATABASE_URL not configured)."}
+            {supabaseConfigured && databaseConfigured
+              ? "Connected to Supabase PostgreSQL & Auth backend."
+              : databaseConfigured
+                ? "Connected to PostgreSQL session store."
+                : "Running in local development mode (DATABASE_URL not configured)."}
           </CardDescription>
         </CardHeader>
 
@@ -193,6 +235,16 @@ export function SignInClient({
                 <Button type="submit" variant="primary" loading={loading}>
                   Sign in with Email
                 </Button>
+                {supabaseConfigured ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={loading}
+                    onClick={handleSupabaseMagicLink}
+                  >
+                    Supabase Magic Link
+                  </Button>
+                ) : null}
                 {auth0Configured ? (
                   <Button asChild variant="secondary">
                     <a href="/auth/login">Sign in with Auth0 (SSO &amp; 2FA)</a>

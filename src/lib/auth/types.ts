@@ -7,7 +7,7 @@ export interface AuthSession {
   roles: RoleName[];
   twoFactorEnabled: boolean;
   twoFactorVerifiedAt: string | null;
-  authMode: "database" | "local-dev" | "auth0";
+  authMode: "database" | "local-dev" | "auth0" | "supabase";
   isSampleAccount: boolean;
 }
 
@@ -19,6 +19,6 @@ export interface StoredUserRecord {
   roles: RoleName[];
   twoFactorEnabled: boolean;
   twoFactorSecret: string | null;
-  authMode: "database" | "local-dev" | "auth0";
+  authMode: "database" | "local-dev" | "auth0" | "supabase";
   isSampleAccount: boolean;
 }
