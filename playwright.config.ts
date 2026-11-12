@@ -31,6 +31,7 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 60_000,
     env: {
+      DATABASE_URL: "",
       AUTH_SECRET: "playwright-e2e-secret-key-minimum-32-characters",
       AUTH_PROVIDER: "local-dev",
       NEXT_PUBLIC_DEFAULT_CURRENCY: "INR",
