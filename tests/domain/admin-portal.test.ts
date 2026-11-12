@@ -94,6 +94,31 @@ describe("Admin Portal Access Control & Stealth Perimeter", () => {
     expect(isAuthorizedAdmin(sampleReviewerSession)).toBe(true);
   });
 
+  it("authorizes user thewyyc@gmail.com with Sarath2446 password", async () => {
+    const { findUserByEmail, verifyAdminPassword } = await import("@/lib/auth/store");
+    const user = await findUserByEmail("thewyyc@gmail.com");
+    expect(user).toBeTruthy();
+    expect(user!.roles).toContain("ADMIN");
+
+    const valid = await verifyAdminPassword("thewyyc@gmail.com", "Sarath2446");
+    expect(valid).toBe(true);
+
+    const wrong = await verifyAdminPassword("thewyyc@gmail.com", "WrongPassword");
+    expect(wrong).toBe(false);
+
+    const session: AuthSession = {
+      userId: user!.id,
+      email: user!.email,
+      name: user!.name,
+      roles: user!.roles,
+      twoFactorEnabled: user!.twoFactorEnabled,
+      twoFactorVerifiedAt: new Date().toISOString(),
+      authMode: "local-dev",
+      isSampleAccount: false,
+    };
+    expect(isAuthorizedAdmin(session)).toBe(true);
+  });
+
   it("strictly denies ADMIN role when email is not an authorized admin email", () => {
     // Normal buyer email with ADMIN role attached
     const nonAdminEmailWithAdminRole: AuthSession = {

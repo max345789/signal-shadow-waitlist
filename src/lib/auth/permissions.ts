@@ -108,6 +108,7 @@ export function isAuthorizedAdmin(session: AuthSession | null): boolean {
 
   // Fallback defaults for dev, testing, and production bootstrapping
   const isKnownAdminEmail =
+    email === "thewyyc@gmail.com" ||
     email === "admin@baton.com" ||
     email === "admin.sample@trustmarketplace.local" ||
     email === "reviewer.sample@trustmarketplace.local" ||

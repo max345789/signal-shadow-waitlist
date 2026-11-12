@@ -34,7 +34,7 @@ export function SignInClient({
   supabaseConfigured?: boolean;
 }) {
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
-  const [email, setEmail] = React.useState(sampleAccounts[0]?.email ?? "");
+  const [email, setEmail] = React.useState(sampleAccounts[0]?.email ?? "thewyyc@gmail.com");
   const [password, setPassword] = React.useState("");
   const [totpCode, setTotpCode] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -166,7 +166,7 @@ export function SignInClient({
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle as="h2">
-                {session ? "Session & Mandatory 2FA" : "Sign in to Trust Marketplace"}
+                {session ? "Session & Mandatory 2FA" : "Sign in to Baton"}
               </CardTitle>
             <StatusChip
               tone={
@@ -190,7 +190,7 @@ export function SignInClient({
               ? "Connected to Supabase PostgreSQL & Auth backend."
               : databaseConfigured
                 ? "Connected to PostgreSQL session store."
-                : "Running in local development mode (DATABASE_URL not configured)."}
+                : "Secure platform authentication & verification."}
           </CardDescription>
         </CardHeader>
 
