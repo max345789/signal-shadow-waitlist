@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const forwardedFor = request.headers.get("x-forwarded-for") ?? "local";
   const clientIp = forwardedFor.split(",")[0]?.trim() || "local";
 
-  const rateLimit = await checkRateLimit(`login:${clientIp}`, 10, 60_000);
+  const rateLimit = await checkRateLimit(`login:${clientIp}`, 30, 60_000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       {

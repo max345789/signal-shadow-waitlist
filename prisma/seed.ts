@@ -11,7 +11,12 @@ import {
   VerificationType,
 } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth/crypto";
-import { createSampleSeedListings } from "../src/lib/listings/sample-data";
+import { sanitizeListingForViewer } from "../src/lib/domain/listings";
+import { scoreListingAgainstThesis } from "../src/lib/domain/matching";
+import {
+  createSampleSeedListings,
+  createSampleSeedTheses,
+} from "../src/lib/listings/sample-data";
 
 const prisma = new PrismaClient();
 
@@ -259,9 +264,77 @@ async function main() {
         });
       }
     }
+
+    const approvedSanitized = sampleListings
+      .filter((b) => b.status === "APPROVED")
+      .map((b) =>
+        sanitizeListingForViewer(b, { userId: null, roles: [], hasSignedNda: false })
+      );
+
+    for (const thesis of createSampleSeedTheses()) {
+      await prisma.thesis.upsert({
+        where: { id: thesis.id },
+        update: {
+          title: thesis.title,
+          sector: thesis.sector,
+          minRevenue: thesis.minRevenue,
+          maxRevenue: thesis.maxRevenue,
+          minProfit: thesis.minProfit,
+          maxOwnerHours: thesis.maxOwnerHours,
+          geography: thesis.geography,
+          minPrice: thesis.minPrice,
+          maxPrice: thesis.maxPrice,
+          currency: thesis.currency as CurrencyCode,
+          freeText: thesis.freeText,
+          alertsEnabled: thesis.alertsEnabled,
+          isSampleData: true,
+        },
+        create: {
+          id: thesis.id,
+          buyerProfileId: thesis.buyerProfileId,
+          title: thesis.title,
+          sector: thesis.sector,
+          minRevenue: thesis.minRevenue,
+          maxRevenue: thesis.maxRevenue,
+          minProfit: thesis.minProfit,
+          maxOwnerHours: thesis.maxOwnerHours,
+          geography: thesis.geography,
+          minPrice: thesis.minPrice,
+          maxPrice: thesis.maxPrice,
+          currency: thesis.currency as CurrencyCode,
+          freeText: thesis.freeText,
+          alertsEnabled: thesis.alertsEnabled,
+          isSampleData: true,
+        },
+      });
+
+      for (const listing of approvedSanitized) {
+        const evalRes = scoreListingAgainstThesis(listing, thesis);
+        await prisma.match.upsert({
+          where: {
+            thesisId_businessId: {
+              thesisId: thesis.id,
+              businessId: listing.id,
+            },
+          },
+          update: {
+            score: evalRes.score,
+            reasonsJson: evalRes.reasons as unknown as Prisma.InputJsonValue,
+            mismatchesJson: evalRes.mismatches as unknown as Prisma.InputJsonValue,
+          },
+          create: {
+            thesisId: thesis.id,
+            businessId: listing.id,
+            score: evalRes.score,
+            reasonsJson: evalRes.reasons as unknown as Prisma.InputJsonValue,
+            mismatchesJson: evalRes.mismatches as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
   }
 
-  console.log("Seeded canonical Role records and Sample Phase 1 listings.");
+  console.log("Seeded canonical Role records, Sample listings, and Sample buyer thesis.");
 }
 
 main()

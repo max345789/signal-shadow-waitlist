@@ -34,6 +34,24 @@ export function canCreateListing(session: AuthSession | null): PermissionCheckRe
   return { allowed: true };
 }
 
+export function canManageBuyerThesis(session: AuthSession | null): PermissionCheckResult {
+  if (!session) {
+    return {
+      allowed: false,
+      code: "UNAUTHENTICATED",
+      reason: "Sign in with a Buyer account to save theses and receive match alerts.",
+    };
+  }
+  if (!hasRole(session, "BUYER") && !hasRole(session, "ADMIN")) {
+    return {
+      allowed: false,
+      code: "FORBIDDEN",
+      reason: "A Buyer or Admin role is required to save acquisition theses.",
+    };
+  }
+  return { allowed: true };
+}
+
 export function canReviewAdminQueue(session: AuthSession | null): PermissionCheckResult {
   if (!session) {
     return {

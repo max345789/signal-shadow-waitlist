@@ -25,6 +25,7 @@ import {
   type FinancialSeriesPoint,
 } from "@/lib/domain/valuation";
 import { createSampleSeedListings } from "@/lib/listings/sample-data";
+import { evaluateAndSendThesisAlertsForListing } from "@/lib/matching/alerts";
 import {
   CurrencyCode as PrismaCurrencyCode,
   ListingStatus as PrismaListingStatus,
@@ -1044,13 +1045,13 @@ export async function reviewListingAsAdmin(
     });
 
     const auditMap = await fetchAuditLogsForBusinesses([updated.id]);
+    const rawUpdated = mapPrismaBusinessToRaw(updated, auditMap.get(updated.id) ?? []);
+    if (validation.nextStatus === "APPROVED") {
+      await evaluateAndSendThesisAlertsForListing(rawUpdated, actor.userId);
+    }
     return {
       ok: true,
-      listing: sanitizeListingForViewer(
-        mapPrismaBusinessToRaw(updated, auditMap.get(updated.id) ?? []),
-        viewer,
-        now
-      ),
+      listing: sanitizeListingForViewer(rawUpdated, viewer, now),
     };
   }
 
@@ -1121,6 +1122,9 @@ export async function reviewListingAsAdmin(
   };
 
   store[idx] = updatedRaw;
+  if (validation.nextStatus === "APPROVED") {
+    await evaluateAndSendThesisAlertsForListing(updatedRaw, actor.userId);
+  }
   return {
     ok: true,
     listing: sanitizeListingForViewer(updatedRaw, viewer, now),

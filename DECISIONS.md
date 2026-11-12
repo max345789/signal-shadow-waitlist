@@ -87,9 +87,28 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 
 ---
 
-## Next: Phase 2 Plan (Buyer Thesis and Matching)
-1. **Buyer Thesis Builder (`/thesis/new` & Home prompt wiring)**: Guided structured inputs (sector, revenue range, net profit floor, max owner hours/week, geography, target price range, currency) plus free-text narrative persisted to `Thesis`.
-2. **Transparent Match Scoring Engine**: Weighted hard-criteria scoring (`price`, `revenue`, `profit`, `ownerHours`, `sector`, `geography`) combined with keyword/semantic free-text scoring, explicitly outputting both `Why this matches` and `What doesn't fit` mismatches for every ranked `Match` record.
-3. **Saved-Thesis Feed & Matches View (`/matches`)**: Replace the Phase 0/1 empty thesis preview on Home with live saved theses, ranked matches with fit scores, and one-line explanations.
-4. **Side-by-Side Compare View (`/compare`)**: Compare up to 3 businesses cleanly across price, verified vs seller-reported vitals, owner hours, risks, and match mismatches at both 360px and 1280px.
-5. **Thesis Alerts (`Notification`)**: Generate `Notification` alerts when newly approved listings match an existing saved thesis with `alertsEnabled: true`.
+## Phase 2: Buyer Thesis and Matching
+
+### 16. Weighted Match Scoring Engine & Cross-Currency Normalization
+- **Decision**: Implemented `scoreListingAgainstThesis()` and `rankListingsForThesis()` in `src/lib/domain/matching.ts` using normalized weights across active structured criteria (`sector: 22`, `askingPrice: 20`, `revenue: 15`, `minProfit: 15`, `ownerHours: 10`, `geography: 8`) plus free-text soft criteria (`10` alongside hard criteria, or `100` when free-text only). Cross-currency comparisons normalize via deterministic reference INR FX rates (`USD=84`, `EUR=91`, `GBP=107`) until live FX feeds are added.
+- **Why**: Satisfies Section 6 ("weighted fit on hard criteria ... plus soft criteria from free text") without distorting scores when optional bounds are omitted. Partial proximity credit produces sensible rankings while **never hiding mismatches** (`mismatches` explicitly documents every ceiling overage, shortfall, sector/geography difference, missing connector requirement, and Seller-reported status).
+
+### 17. Redaction-Safe Scoring & Free-Text Verification Guard
+- **Decision**: `scoreListingAgainstThesis()` operates exclusively on `SanitizedListingView` public fields (never reading `redactedName`, `redactedDomain`, or `redactedCustomers`). Verification keywords in free text (`verified`, `stripe`, `razorpay`, `ga4`, `plausible`) earn credit ONLY when `metric.trust.isVerified === true` from an active non-expired `Verification` record; otherwise a mismatch is surfaced explicitly.
+- **Why**: Prevents NDA-redacted details from leaking through rankings or alert notifications and prevents expired or Seller-reported metrics from earning free-text trust credit.
+
+### 18. Saved-Thesis Feed, Instant Preview, and Alert Threshold (`>= 70`)
+- **Decision**: Wired Home's `"What do you want to buy?"` prompt (`HomeThesisForm`) from the Phase 0 `/style-guide?thesisPrompt=` stub to `/thesis/new?prompt=...` with deterministic prompt hint extraction (`extractThesisHintsFromPrompt()`). Anonymous users can preview ranked matches immediately (`POST /api/matches/preview`) without signing in, while saving theses (`POST /api/theses`), viewing saved-thesis feeds (`/` and `/matches`), and receiving alerts require a `BUYER` (or `ADMIN`) account. Admin listing approvals (`reviewListingAsAdmin` -> `APPROVED`) automatically evaluate `alertsEnabled: true` theses via `evaluateAndSendThesisAlertsForListing()`, creating a `Notification` when `score >= 70` (and respecting explicit target `sector` unless overall fit `>= 85`) and recording `alertSentAt` on `(thesisId, businessId)` so re-approvals never duplicate alerts.
+- **Why**: Lets prospective buyers evaluate the marketplace immediately before sign-in while enforcing strict per-buyer ownership on saved `Thesis`, `Match`, and `Notification` records.
+
+### 19. Expanded Sample Seed Catalog & Responsive 3-Business Compare Grid
+- **Decision**: Added two additional `APPROVED` sample listings (`sample-biz-media-04` Content & Media at ₹48 L and `sample-biz-mkt-05` Marketplace at ₹88 L) and one `Sample data`-labelled thesis (`sample-thesis-01`) for `sample-buyer-01`, keeping existing indices `[0..2]` unchanged. `/compare` caps selection strictly at `<= 3` businesses on both client and server (`GET /api/compare`) and renders each dimension in a responsive `grid-cols-1 md:grid-cols-3` comparison layout.
+- **Why**: Provides 4 distinct approved sample listings across different sectors, budgets, and workloads so three distinct buyer theses produce three distinct top-ranked results out of the box, while avoiding wide `<table>` horizontal overflow at `360px` mobile width.
+
+---
+
+## Next: Phase 3 Plan (Verification and Connectors)
+1. **Verification Centre (`/verify`)**: Buyer identity (KYC) and Proof of Funds verification flows (persisting `Verification` records with provider, `verifiedAt`, `expiresAt`, and `BuyerProfile` status), plus Seller identity verification.
+2. **Read-Only Payment & Analytics Connectors**: Implement read-only OAuth/API-key connector flows for at least one payment provider (`Stripe` / `Razorpay`) and one analytics provider (`GA4` / `Plausible`) with sandbox/test adapters.
+3. **Auto-Refresh & Expiry Enforcement**: Scheduled/on-demand metric sync updating `BusinessMetric` rows (`source`, `verificationId`, `verifiedAt`) and automatically stripping the green `Verified` mark when a connector fails, revokes, or passes `expiresAt`.
+4. **Live Listing & Match Trust Sync**: Ensure updated verification states propagate immediately to `/listings/[slug]`, `/matches`, `/compare`, and `ListingCard` without stale cached verification labels.
