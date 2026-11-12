@@ -83,6 +83,38 @@ describe("Phase 1 guided valuation, leak detection, and auto-listing builder", (
     expect(findings.length).toBeGreaterThanOrEqual(2);
     expect(findings.some((f) => f.field === "teaserTitle")).toBe(true);
     expect(findings.some((f) => f.field === "teaserSummary")).toBe(true);
+
+    // Must NOT false-positive on generic city/sector tokens in sample or real names
+    const sample = createSampleSeedListings()[0]!;
+    const sampleCheck = detectConfidentialLeak(
+      {
+        teaserTitle: sample.teaserTitle,
+        teaserSummary: sample.teaserSummary,
+        reasonForSelling: sample.reasonForSelling,
+        financialNarrative: sample.financialNarrative,
+        risksSummary: sample.risksSummary,
+        founderStory: sample.founderStory,
+      },
+      {
+        redactedName: sample.redactedName,
+        redactedDomain: sample.redactedDomain,
+      }
+    );
+    expect(sampleCheck).toEqual([]);
+
+    // Catches multi-label subdomains & 3-letter brand names without false-matching substrings
+    const subDomainLeaks = detectConfidentialLeak(
+      {
+        teaserTitle: "Fast FleetPulse tool",
+        teaserSummary: "Built for sized logistics fleets by Zed team.",
+      },
+      {
+        redactedName: "Zed Logistics Pvt Ltd",
+        redactedDomain: "https://app.fleetpulse.co.in/",
+      }
+    );
+    expect(subDomainLeaks.some((f) => f.matchedTerm === "fleetpulse")).toBe(true);
+    expect(subDomainLeaks.some((f) => f.matchedTerm === "zed")).toBe(true);
   });
 
   it("generates seller-reported auto-built draft narrative and 4-quarter series", () => {
@@ -122,6 +154,8 @@ describe("Phase 1 redaction, media URL safety, and admin review state transition
     expect(sanitizeFounderMediaUrl("javascript:alert(1)")).toBeNull();
     expect(sanitizeFounderMediaUrl("http://insecure.example.com/a.mp3")).toBeNull();
     expect(sanitizeFounderMediaUrl("data:text/html,<script>")).toBeNull();
+    expect(sanitizeFounderMediaUrl("/api/media/../auth/logout")).toBeNull();
+    expect(sanitizeFounderMediaUrl("/api/media/sample?evil=1")).toBeNull();
   });
 
   it("redacts sensitive identity fields for public/buyer viewers without NDA and unlocks for owner/admin", () => {

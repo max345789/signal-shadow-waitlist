@@ -322,3 +322,101 @@ test("Phase 1 acceptance: Seller creates listing, Admin approves it, and public 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
+
+test("Flagged listing edit & resubmission flow via /sell?listingId=<id> preserves redaction and reaches re-approval", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // 1. Seller creates a pending submission
+  await signInAsSampleRole(page, "seller.sample@trustmarketplace.local");
+  await page.goto("/sell", { waitUntil: "networkidle" });
+  await page.getByLabel(/Legal or brand business name/i).fill("DeltaCore Ops Pvt Ltd");
+  await page.getByLabel(/Primary domain/i).fill("deltacore-ops.in");
+  await page.getByRole("button", { name: /Continue to financials/i }).click();
+  await page.getByLabel(/Trailing 12m revenue/i).fill("8000000");
+  await page.getByLabel(/Trailing 12m net profit/i).fill("3200000");
+  await page.getByRole("button", { name: /Use midpoint/i }).click();
+  await page.getByRole("button", { name: /Continue to trust/i }).click();
+  await page
+    .getByLabel(/Reason for selling/i)
+    .fill("Founder joining an academic research fellowship full time.");
+  await page.getByRole("button", { name: /Auto-build & review listing/i }).click();
+  const flaggedTitle = "Profitable Workflow SaaS for Logistics (Pune)";
+  await page.getByLabel(/Public teaser title/i).fill(flaggedTitle);
+  await page.getByRole("button", { name: /Submit for Admin review/i }).click();
+  await expect(page.getByText("Listing submitted for Admin review")).toBeVisible();
+
+  // 2. Admin flags the listing with an explicit note
+  await signInAsSampleRole(page, "reviewer.sample@trustmarketplace.local");
+  await page.goto("/admin/review", { waitUntil: "networkidle" });
+  const reviewCard = page
+    .locator("div")
+    .filter({ hasText: flaggedTitle })
+    .filter({ has: page.getByRole("button", { name: /Flag for edits/i }) })
+    .last();
+  await reviewCard
+    .getByLabel(/Reviewer decision note/i)
+    .fill("Clarify customer concentration risk before approval.");
+  await reviewCard.getByRole("button", { name: /Flag for edits/i }).click();
+  await expect(page.getByRole("status")).toContainText("FLAGGED");
+
+  // 3. Seller sees flagged listing in /seller, opens /sell?listingId=..., sees reviewer feedback, edits & resubmits
+  await signInAsSampleRole(page, "seller.sample@trustmarketplace.local");
+  await page.goto("/seller", { waitUntil: "networkidle" });
+  await page.getByRole("tab", { name: /Flagged & rejected/i }).click();
+  await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
+
+  const flaggedCard = page
+    .locator("div")
+    .filter({ hasText: flaggedTitle })
+    .filter({ has: page.getByRole("link", { name: /Edit listing/i }) })
+    .last();
+  await expect(
+    flaggedCard.getByText("Clarify customer concentration risk before approval.")
+  ).toBeVisible();
+  await flaggedCard.getByRole("link", { name: /Edit listing/i }).click();
+
+  await page.waitForURL(/\/sell\?listingId=/);
+  await expect(
+    page.getByText("Clarify customer concentration risk before approval.")
+  ).toBeVisible();
+  await page.getByRole("button", { name: /4\. Review & submit/i }).click();
+  await page
+    .getByLabel(/Key risks & buyer diligence disclosures/i)
+    .fill("Top customer represents 4.2% of ARR; all metrics seller-reported pending Phase 3 connectors.");
+  await page.getByRole("button", { name: /Submit for Admin review/i }).click();
+  await expect(page.getByText("Listing submitted for Admin review")).toBeVisible();
+
+  // 4. Admin re-approves & verifies mobile 360px audit on public listing
+  await signInAsSampleRole(page, "reviewer.sample@trustmarketplace.local");
+  await page.goto("/admin/review", { waitUntil: "networkidle" });
+  const reReviewCard = page
+    .locator("div")
+    .filter({ hasText: flaggedTitle })
+    .filter({ has: page.getByRole("button", { name: /Approve listing/i }) })
+    .last();
+  await reReviewCard
+    .getByLabel(/Reviewer decision note/i)
+    .fill("Concentration disclosure updated and approved.");
+  await reReviewCard.getByRole("button", { name: /Approve listing/i }).click();
+  await expect(page.getByRole("status")).toContainText("APPROVED");
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/listings", { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: flaggedTitle }).click();
+  await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
+  await expect(
+    page.getByText(/Top customer represents 4\.2% of ARR/i)
+  ).toBeVisible();
+
+  expect(consoleErrors).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});

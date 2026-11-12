@@ -354,4 +354,168 @@ describe("Phase 1 listing, admin review, redaction, and Q&A API routes", () => {
     expect(String.fromCharCode(...bytes.slice(0, 4))).toBe("RIFF");
     expect(String.fromCharCode(...bytes.slice(8, 12))).toBe("WAVE");
   });
+
+  it("blocks leaks in reasonForSelling, handles negative profit / malformed inputs, enforces draft pull-back on PATCH, and blocks self-Q&A", async () => {
+    // 1. Leak in reasonForSelling must be blocked
+    await setActiveSession(SELLER_SESSION);
+    const reasonLeakRes = await listingsPost(
+      new Request("http://127.0.0.1:3000/api/listings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          reasonForSelling: "Selling FleetPulse because founder is moving abroad.",
+        }),
+      })
+    );
+    expect(reasonLeakRes.status).toBe(400);
+
+    // 2. Non-HTTPS founderMediaUrl and malformed financialSeries rejected with 400
+    const badMediaRes = await listingsPost(
+      new Request("http://127.0.0.1:3000/api/listings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          founderMediaUrl: "http://insecure.example.com/audio.mp3",
+        }),
+      })
+    );
+    expect(badMediaRes.status).toBe(400);
+
+    const badSeriesRes = await listingsPost(
+      new Request("http://127.0.0.1:3000/api/listings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          financialSeries: [{ period: "", revenue: -50, profit: 10 }],
+        }),
+      })
+    );
+    expect(badSeriesRes.status).toBe(400);
+
+    // 3. Negative annualProfit with 0 annualRevenue succeeds cleanly as seller-reported
+    const lossMakingRes = await listingsPost(
+      new Request("http://127.0.0.1:3000/api/listings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          annualRevenue: 0,
+          annualProfit: -450_000,
+        }),
+      })
+    );
+    expect(lossMakingRes.status).toBe(201);
+    const { listing: lossListing } = await lossMakingRes.json();
+    expect(lossListing.valuationLow).toBeNull();
+
+    // 4. PATCH with submitForReview: false on PENDING_REVIEW transitions cleanly to DRAFT (no leaked pending state)
+    const draftPullbackRes = await listingPatch(
+      new Request(`http://127.0.0.1:3000/api/listings/${lossListing.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          teaserTitle: "Updated FleetPulse title saved as draft",
+          submitForReview: false,
+        }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(draftPullbackRes.status).toBe(200);
+    const pulledBack = await draftPullbackRes.json();
+    expect(pulledBack.listing.status).toBe("DRAFT");
+
+    // 5. Re-submit cleanly -> Admin FLAG -> Seller fixes & re-submits -> Admin APPROVE -> Seller blocked from self-Q&A, Buyer gets Prospective Buyer
+    const resubmitRes = await listingPatch(
+      new Request(`http://127.0.0.1:3000/api/listings/${lossListing.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          submitForReview: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(resubmitRes.status).toBe(200);
+
+    await setActiveSession(REVIEWER_SESSION);
+    const flagRes = await adminReviewPost(
+      new Request(`http://127.0.0.1:3000/api/admin/listings/${lossListing.id}/review`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          decision: "FLAG",
+          reviewerNote: "Clarify zero-revenue launch stage in risks summary.",
+        }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(flagRes.status).toBe(200);
+    expect((await flagRes.json()).listing.status).toBe("FLAGGED");
+
+    const approveAfterFlag = await adminReviewPost(
+      new Request(`http://127.0.0.1:3000/api/admin/listings/${lossListing.id}/review`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          decision: "APPROVE",
+          reviewerNote: "Disclosures verified after seller clarification.",
+        }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(approveAfterFlag.status).toBe(200);
+    expect((await approveAfterFlag.json()).listing.status).toBe("APPROVED");
+
+    // Seller cannot post fake buyer Q&A on own listing
+    await setActiveSession(SELLER_SESSION);
+    const selfQuestionRes = await questionPost(
+      new Request(`http://127.0.0.1:3000/api/listings/${lossListing.id}/questions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: "Self-posted fake buyer interest check?" }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(selfQuestionRes.status).toBe(403);
+
+    // Buyer gets honest Prospective Buyer label (never Verified Buyer without KYC)
+    await setActiveSession(BUYER_SESSION);
+    const buyerQuestionRes = await questionPost(
+      new Request(`http://127.0.0.1:3000/api/listings/${lossListing.id}/questions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: "Is source code covered by automated tests?" }),
+      }),
+      { params: Promise.resolve({ id: lossListing.id }) }
+    );
+    expect(buyerQuestionRes.status).toBe(201);
+    const createdQ = await buyerQuestionRes.json();
+    expect(createdQ.question.askerLabel).toBe("Prospective Buyer");
+
+    // Verify editing sample listing preserves verified metrics & verified financialSeries
+    await setActiveSession(SELLER_SESSION);
+    const samplePatchRes = await listingPatch(
+      new Request("http://127.0.0.1:3000/api/listings/sample-biz-gst-01", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_LISTING_PAYLOAD,
+          redactedName: "TaxBridge Compliance Systems Pvt Ltd (Confidential Sample)",
+          redactedDomain: "taxbridge-sample.in",
+          teaserTitle: "Profitable B2B GST SaaS with updated copy",
+          submitForReview: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "sample-biz-gst-01" }) }
+    );
+    expect(samplePatchRes.status).toBe(200);
+    const updatedSample = await samplePatchRes.json();
+    expect(updatedSample.listing.trustSummary.verifiedCount).toBe(3);
+    expect(updatedSample.listing.financialSeries[0].source).toBe("VERIFIED");
+  });
 });

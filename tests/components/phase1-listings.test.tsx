@@ -124,4 +124,96 @@ describe("Phase 1 UI components: ListingDetailClient, FinancialChart, SellerOnbo
     await user.type(titleInput, " secretbrand.in");
     expect(screen.getByText(/Confidential redaction warning/i)).toBeInTheDocument();
   });
+
+  it("scopes ListingDetailClient Q&A answer validation errors per question and withholds green shield when 0 metrics are verified", async () => {
+    const user = userEvent.setup();
+    const now = new Date("2026-11-12T10:00:00.000Z");
+    const base = createSampleSeedListings(now.getTime())[2]!;
+    const unverifiedWithQuestions = sanitizeListingForViewer(
+      {
+        ...base,
+        status: "APPROVED",
+        questions: [
+          {
+            id: "q-1",
+            businessId: base.id,
+            askerId: "buyer-1",
+            askerLabel: "Prospective Buyer",
+            question: "First unanswered question about infrastructure costs?",
+            answer: null,
+            answeredAt: null,
+            isSampleData: false,
+            createdAt: now.toISOString(),
+          },
+          {
+            id: "q-2",
+            businessId: base.id,
+            askerId: "buyer-2",
+            askerLabel: "Prospective Buyer",
+            question: "Second unanswered question about SLA uptime?",
+            answer: null,
+            answeredAt: null,
+            isSampleData: false,
+            createdAt: now.toISOString(),
+          },
+        ],
+      },
+      { userId: base.sellerUserId, roles: ["SELLER"], hasSignedNda: false },
+      now
+    );
+
+    const { container } = render(
+      <ListingDetailClient
+        initialListing={unverifiedWithQuestions}
+        referenceNow={now.toISOString()}
+        isAuthenticated={true}
+      />
+    );
+
+    // 0 verified metrics must NOT render Verified Green classes anywhere
+    expect(container.querySelector(".text-verified-green")).toBeNull();
+
+    // Clicking Save answer on first question triggers alert ONLY once (not duplicated to second question)
+    const saveButtons = screen.getAllByRole("button", { name: /Save answer/i });
+    await user.click(saveButtons[0]!);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("renders reviewer feedback and locks connector-verified inputs when editing an existing listing", async () => {
+    const user = userEvent.setup();
+    const now = new Date("2026-11-12T10:00:00.000Z");
+    const verifiedSample = sanitizeListingForViewer(
+      {
+        ...createSampleSeedListings(now.getTime())[0]!,
+        status: "FLAGGED",
+        reviewerNote: "Please expand regulatory API risk disclosure.",
+      },
+      { userId: "sample-seller-01", roles: ["SELLER"], hasSignedNda: false },
+      now
+    );
+
+    render(
+      <SellerOnboardingClient
+        editingListing={verifiedSample}
+        session={{
+          userId: "sample-seller-01",
+          email: "seller.sample@trustmarketplace.local",
+          name: "Rohan Mehta (Sample Seller)",
+          roles: ["SELLER"],
+          twoFactorEnabled: true,
+          twoFactorVerifiedAt: now.toISOString(),
+          authMode: "local-dev",
+          isSampleAccount: true,
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText(/Please expand regulatory API risk disclosure/i)
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Continue to financials/i }));
+    expect(screen.getByLabelText(/Trailing 12m revenue/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Trailing 12m net profit/i)).toBeEnabled();
+  });
 });
