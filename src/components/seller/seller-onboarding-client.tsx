@@ -9,11 +9,15 @@ import {
   ArrowRight,
   CheckCircle2,
   FileText,
+  Info,
   Lock,
   Sparkles,
 } from "lucide-react";
 import type { AuthSession } from "@/lib/auth/types";
-import type { SanitizedListingView } from "@/lib/domain/listings";
+import {
+  sanitizeFounderMediaUrl,
+  type SanitizedListingView,
+} from "@/lib/domain/listings";
 import {
   BUSINESS_SECTORS,
   COMMON_ASSETS_INCLUDED,
@@ -176,10 +180,26 @@ export function SellerOnboardingClient({
     [sector, revNum, profNum, hoursNum, growthNum, currency]
   );
 
+  const verifiedMetricByKey = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of editingListing?.metrics ?? []) {
+      if (m.trust.isVerified) {
+        map.set(m.key, m.sourceLabel);
+      }
+    }
+    return map;
+  }, [editingListing]);
+
   const effectiveAskingPrice =
-    askingPrice.trim().length > 0 && Number(askingPrice) > 0
+    askingPrice.trim().length > 0
       ? Number(askingPrice)
       : valuation.suggestedAskingPrice;
+
+  const mediaUrlError =
+    founderMediaUrl.trim().length > 0 &&
+    sanitizeFounderMediaUrl(founderMediaUrl) === null
+      ? "Founder media URL must start with https:// (or leave blank)."
+      : undefined;
 
   const leakFindings = React.useMemo(
     () =>
@@ -187,6 +207,7 @@ export function SellerOnboardingClient({
         {
           teaserTitle,
           teaserSummary,
+          reasonForSelling,
           financialNarrative,
           risksSummary,
           founderStory,
@@ -199,6 +220,7 @@ export function SellerOnboardingClient({
     [
       teaserTitle,
       teaserSummary,
+      reasonForSelling,
       financialNarrative,
       risksSummary,
       founderStory,
@@ -260,6 +282,31 @@ export function SellerOnboardingClient({
       setError(
         "Sign in with a Seller account before saving or submitting a listing."
       );
+      return;
+    }
+
+    if (redactedName.trim().length < 2) {
+      setError("Step 1: Confidential legal or brand business name is required.");
+      return;
+    }
+    if (redactedDomain.trim().length < 3) {
+      setError("Step 1: Confidential primary domain is required.");
+      return;
+    }
+    if (!Number.isFinite(effectiveAskingPrice) || effectiveAskingPrice <= 0) {
+      setError("Step 2: Asking price must be greater than zero.");
+      return;
+    }
+    if (reasonForSelling.trim().length < 15) {
+      setError("Step 3: Explain the reason for selling (at least 15 characters).");
+      return;
+    }
+    if (assetsIncluded.length === 0) {
+      setError("Step 3: Select at least one asset included in the transfer.");
+      return;
+    }
+    if (mediaUrlError) {
+      setError(`Step 4: ${mediaUrlError}`);
       return;
     }
 
@@ -327,34 +374,59 @@ export function SellerOnboardingClient({
   }
 
   if (successListing) {
+    const isPending = successListing.status === "PENDING_REVIEW";
+    const isFlaggedOrRejected =
+      successListing.status === "FLAGGED" || successListing.status === "REJECTED";
+
     return (
       <Card className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CheckCircle2
-              className="h-6 w-6 text-verified-green"
-              aria-hidden="true"
-            />
+            {isFlaggedOrRejected ? (
+              <AlertTriangle
+                className="h-6 w-6 text-brick-red"
+                aria-hidden="true"
+              />
+            ) : (
+              <CheckCircle2
+                className="h-6 w-6 text-verified-green"
+                aria-hidden="true"
+              />
+            )}
             <h1 className="font-serif text-28 font-semibold text-deep-navy">
-              {successListing.status === "PENDING_REVIEW"
+              {isPending
                 ? "Listing submitted for Admin review"
-                : "Listing draft saved"}
+                : isFlaggedOrRejected
+                  ? "Listing edits saved (re-submission required)"
+                  : "Listing draft saved"}
             </h1>
           </div>
           <StatusChip
-            tone={successListing.status === "PENDING_REVIEW" ? "neutral" : "seller-reported"}
+            tone={
+              isPending
+                ? "neutral"
+                : isFlaggedOrRejected
+                  ? "risk"
+                  : "seller-reported"
+            }
             label={
-              successListing.status === "PENDING_REVIEW"
+              isPending
                 ? "Submitted for review"
-                : "Draft saved"
+                : successListing.status === "FLAGGED"
+                  ? "Flagged — action needed"
+                  : successListing.status === "REJECTED"
+                    ? "Rejected"
+                    : "Draft saved"
             }
           />
         </div>
 
         <p className="text-16 text-ink">
-          {successListing.status === "PENDING_REVIEW"
-            ? "A platform reviewer will inspect your redacted identity fields and financial narrative before publishing. All figures remain marked Seller-reported until connected accounts are verified."
-            : "Your draft is saved privately in your Seller dashboard. You can edit and submit it for Admin review whenever ready."}
+          {isPending
+            ? "A platform reviewer will inspect your redacted identity fields and financial narrative before publishing. Unconnected metrics remain labelled Seller-reported until verified."
+            : isFlaggedOrRejected
+              ? "Your draft edits have been saved. Submit for Admin review when all reviewer notes are addressed so your listing can be re-evaluated."
+              : "Your draft is saved privately in your Seller dashboard. You can edit and submit it for Admin review whenever ready."}
         </p>
 
         <div className="rounded border border-mist bg-cloud p-4">
@@ -376,9 +448,12 @@ export function SellerOnboardingClient({
             </div>
             <div className="flex flex-col gap-2">
               <dt className="text-14 text-slate">Metric verification</dt>
-              <dd className="text-16 font-medium text-ink">
-                0 verified / {successListing.trustSummary.sellerReportedCount}{" "}
-                seller-reported
+              <dd className="text-16 font-medium text-ink tabular-figures">
+                {successListing.trustSummary.verifiedCount} verified /{" "}
+                {successListing.trustSummary.sellerReportedCount} seller-reported
+                {successListing.trustSummary.expiredOrFailedCount > 0
+                  ? ` / ${successListing.trustSummary.expiredOrFailedCount} expired/failed`
+                  : ""}
               </dd>
             </div>
           </dl>
@@ -398,6 +473,15 @@ export function SellerOnboardingClient({
     );
   }
 
+  const sectorOptions = BUSINESS_SECTORS.includes(sector as (typeof BUSINESS_SECTORS)[number])
+    ? [...BUSINESS_SECTORS]
+    : [sector, ...BUSINESS_SECTORS];
+  const geographyOptions = GEOGRAPHY_OPTIONS.includes(
+    geography as (typeof GEOGRAPHY_OPTIONS)[number]
+  )
+    ? [...GEOGRAPHY_OPTIONS]
+    : [geography, ...GEOGRAPHY_OPTIONS];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -409,6 +493,20 @@ export function SellerOnboardingClient({
           NDA, and review your auto-built listing before Admin approval.
         </p>
       </div>
+
+      {editingListing?.reviewerNote ? (
+        <Card className="border-mist bg-white">
+          <div className="flex items-start gap-4">
+            <Info className="mt-1 h-6 w-6 shrink-0 text-trust-blue" aria-hidden="true" />
+            <div className="flex flex-col gap-2">
+              <span className="text-16 font-semibold text-deep-navy">
+                Reviewer feedback ({editingListing.status.replace("_", " ")})
+              </span>
+              <p className="text-16 text-ink">{editingListing.reviewerNote}</p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {!isAuthorizedSeller ? (
         <Card className="border-trust-blue bg-white">
@@ -481,7 +579,7 @@ export function SellerOnboardingClient({
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
               >
-                {BUSINESS_SECTORS.map((s) => (
+                {sectorOptions.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -494,7 +592,7 @@ export function SellerOnboardingClient({
                 value={geography}
                 onChange={(e) => setGeography(e.target.value)}
               >
-                {GEOGRAPHY_OPTIONS.map((g) => (
+                {geographyOptions.map((g) => (
                   <option key={g} value={g}>
                     {g}
                   </option>
@@ -582,6 +680,12 @@ export function SellerOnboardingClient({
                 min={0}
                 prefixText={currency}
                 value={annualRevenue}
+                disabled={verifiedMetricByKey.has("REVENUE")}
+                helperText={
+                  verifiedMetricByKey.has("REVENUE")
+                    ? `Verified via ${verifiedMetricByKey.get("REVENUE")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setAnnualRevenue(e.target.value)}
               />
               <Input
@@ -590,6 +694,12 @@ export function SellerOnboardingClient({
                 required
                 prefixText={currency}
                 value={annualProfit}
+                disabled={verifiedMetricByKey.has("PROFIT")}
+                helperText={
+                  verifiedMetricByKey.has("PROFIT")
+                    ? `Verified via ${verifiedMetricByKey.get("PROFIT")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setAnnualProfit(e.target.value)}
               />
               <Input
@@ -608,6 +718,12 @@ export function SellerOnboardingClient({
                 required
                 suffixText="%"
                 value={growthPercent}
+                disabled={verifiedMetricByKey.has("GROWTH")}
+                helperText={
+                  verifiedMetricByKey.has("GROWTH")
+                    ? `Verified via ${verifiedMetricByKey.get("GROWTH")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setGrowthPercent(e.target.value)}
               />
               <Input
@@ -619,6 +735,12 @@ export function SellerOnboardingClient({
                 max={100}
                 suffixText="%"
                 value={churnPercent}
+                disabled={verifiedMetricByKey.has("CHURN")}
+                helperText={
+                  verifiedMetricByKey.has("CHURN")
+                    ? `Verified via ${verifiedMetricByKey.get("CHURN")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setChurnPercent(e.target.value)}
               />
               <Input
@@ -627,6 +749,12 @@ export function SellerOnboardingClient({
                 required
                 min={0}
                 value={monthlyTraffic}
+                disabled={verifiedMetricByKey.has("TRAFFIC")}
+                helperText={
+                  verifiedMetricByKey.has("TRAFFIC")
+                    ? `Verified via ${verifiedMetricByKey.get("TRAFFIC")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setMonthlyTraffic(e.target.value)}
               />
               <Input
@@ -635,6 +763,12 @@ export function SellerOnboardingClient({
                 required
                 min={0}
                 value={customerCount}
+                disabled={verifiedMetricByKey.has("CUSTOMERS")}
+                helperText={
+                  verifiedMetricByKey.has("CUSTOMERS")
+                    ? `Verified via ${verifiedMetricByKey.get("CUSTOMERS")} — managed by connector`
+                    : undefined
+                }
                 onChange={(e) => setCustomerCount(e.target.value)}
               />
               <div className="md:col-span-2">
@@ -910,8 +1044,9 @@ export function SellerOnboardingClient({
                   label="Founder audio/video link (optional, https://)"
                   value={founderMediaUrl}
                   onChange={(e) => setFounderMediaUrl(e.target.value)}
+                  error={mediaUrlError}
                   placeholder="https://media.example.com/founder-intro.mp3"
-                  helperText="Optional secure HTTPS URL to a founder voice note or intro video."
+                  helperText="Optional secure HTTPS URL (or internal /api/media/ asset) for a founder voice note or video."
                 />
               </div>
             </div>

@@ -180,7 +180,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
           id: "sample-q-01",
           businessId: "sample-biz-gst-01",
           askerId: "sample-buyer-01",
-          askerLabel: "Verified Buyer (Sample)",
+          askerLabel: "Prospective Buyer (Sample)",
           question:
             "Are the 312 active subscriptions mostly annual plans or monthly billing?",
           answer:

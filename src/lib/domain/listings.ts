@@ -199,7 +199,7 @@ export function sanitizeFounderMediaUrl(
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  if (trimmed.startsWith("/api/media/")) {
+  if (/^\/api\/media\/[a-zA-Z0-9_-]+$/.test(trimmed)) {
     return trimmed;
   }
 
@@ -221,8 +221,16 @@ export function createListingSlug(title: string, suffix?: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 56);
   const cleanBase = base.length > 0 ? base : "business-listing";
-  const cleanSuffix =
-    suffix ?? Math.random().toString(36).slice(2, 7);
+  let cleanSuffix = suffix;
+  if (!cleanSuffix) {
+    if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function") {
+      const buf = new Uint32Array(2);
+      globalThis.crypto.getRandomValues(buf);
+      cleanSuffix = `${(buf[0] ?? 0).toString(36).slice(0, 4)}${(buf[1] ?? 0).toString(36).slice(0, 4)}`;
+    } else {
+      cleanSuffix = Math.random().toString(36).slice(2, 10);
+    }
+  }
   return `${cleanBase}-${cleanSuffix}`;
 }
 

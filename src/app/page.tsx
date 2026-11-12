@@ -136,7 +136,7 @@ export default async function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2 text-16 text-ink">
-                <ShieldCheck className="h-4 w-4 text-verified-green" aria-hidden="true" />
+                <ShieldCheck className="h-4 w-4 text-trust-blue" aria-hidden="true" />
                 <span>Includes interactive loading, empty, and error states.</span>
               </div>
             </CardContent>

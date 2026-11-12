@@ -21,6 +21,7 @@ import {
 import {
   buildDefaultFinancialSeries,
   calculateGuidedValuation,
+  detectConfidentialLeak,
   type FinancialSeriesPoint,
 } from "@/lib/domain/valuation";
 import { createSampleSeedListings } from "@/lib/listings/sample-data";
@@ -429,7 +430,10 @@ export async function listListingsForAdminReview(
         ? { status: { in: statuses as PrismaListingStatus[] } }
         : undefined,
       include: PRISMA_BUSINESS_INCLUDE,
-      orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+      orderBy: [
+        { submittedAt: { sort: "desc", nulls: "last" } },
+        { updatedAt: "desc" },
+      ],
     });
     const auditMap = await fetchAuditLogsForBusinesses(rows.map((r) => r.id));
     return rows.map((r) =>
@@ -701,18 +705,6 @@ export async function updateSellerListing(
     currency: input.currency,
   });
 
-  const series =
-    input.financialSeries && input.financialSeries.length > 0
-      ? input.financialSeries.map((pt) => ({
-          ...pt,
-          source: "SELLER_REPORTED" as const,
-        }))
-      : buildDefaultFinancialSeries(
-          input.annualRevenue,
-          input.annualProfit,
-          input.growthPercent
-        );
-
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
     const existing = await prisma.business.findUnique({
@@ -740,10 +732,26 @@ export async function updateSellerListing(
       };
     }
 
+    const existingSeries = parseFinancialSeries(existing.financialSeriesJson);
+    const hasVerifiedSeries = existingSeries.some((pt) => pt.source === "VERIFIED");
+    const series =
+      input.financialSeries && input.financialSeries.length > 0
+        ? input.financialSeries.map((pt) => ({
+            ...pt,
+            source: "SELLER_REPORTED" as const,
+          }))
+        : hasVerifiedSeries
+          ? existingSeries
+          : buildDefaultFinancialSeries(
+              input.annualRevenue,
+              input.annualProfit,
+              input.growthPercent
+            );
+
     const nextStatus: ListingStatusValue = input.submitForReview
       ? "PENDING_REVIEW"
-      : existing.status === "APPROVED"
-        ? "PENDING_REVIEW"
+      : existing.status === "APPROVED" || existing.status === "PENDING_REVIEW"
+        ? "DRAFT"
         : (existing.status as ListingStatusValue);
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -857,10 +865,27 @@ export async function updateSellerListing(
   }
 
   const prevStatus = existing.status;
+  const hasVerifiedSeries = existing.financialSeries.some(
+    (pt) => pt.source === "VERIFIED"
+  );
+  const series =
+    input.financialSeries && input.financialSeries.length > 0
+      ? input.financialSeries.map((pt) => ({
+          ...pt,
+          source: "SELLER_REPORTED" as const,
+        }))
+      : hasVerifiedSeries
+        ? existing.financialSeries
+        : buildDefaultFinancialSeries(
+            input.annualRevenue,
+            input.annualProfit,
+            input.growthPercent
+          );
+
   const nextStatus: ListingStatusValue = input.submitForReview
     ? "PENDING_REVIEW"
-    : existing.status === "APPROVED"
-      ? "PENDING_REVIEW"
+    : existing.status === "APPROVED" || existing.status === "PENDING_REVIEW"
+      ? "DRAFT"
       : existing.status;
 
   const preservedVerified = existing.metrics.filter(
@@ -963,6 +988,31 @@ export async function reviewListingAsAdmin(
       return validation;
     }
 
+    if (decision === "APPROVE") {
+      const leaks = detectConfidentialLeak(
+        {
+          teaserTitle: existing.teaserTitle,
+          teaserSummary: existing.teaserSummary,
+          reasonForSelling: existing.reasonForSelling,
+          financialNarrative: existing.financialNarrative,
+          risksSummary: existing.risksSummary,
+          founderStory: existing.founderStory,
+        },
+        {
+          redactedName: existing.redactedName,
+          redactedDomain: existing.redactedDomain,
+        }
+      );
+      if (leaks.length > 0) {
+        const first = leaks[0]!;
+        return {
+          ok: false,
+          code: "INVALID_TRANSITION",
+          reason: `Cannot approve listing while confidential term ("${first.matchedTerm}") appears in "${first.field}". Flag for edits instead.`,
+        };
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const biz = await tx.business.update({
         where: { id: existing.id },
@@ -1023,6 +1073,31 @@ export async function reviewListingAsAdmin(
     return validation;
   }
 
+  if (decision === "APPROVE") {
+    const leaks = detectConfidentialLeak(
+      {
+        teaserTitle: existing.teaserTitle,
+        teaserSummary: existing.teaserSummary,
+        reasonForSelling: existing.reasonForSelling,
+        financialNarrative: existing.financialNarrative,
+        risksSummary: existing.risksSummary,
+        founderStory: existing.founderStory,
+      },
+      {
+        redactedName: existing.redactedName,
+        redactedDomain: existing.redactedDomain,
+      }
+    );
+    if (leaks.length > 0) {
+      const first = leaks[0]!;
+      return {
+        ok: false,
+        code: "INVALID_TRANSITION",
+        reason: `Cannot approve listing while confidential term ("${first.matchedTerm}") appears in "${first.field}". Flag for edits instead.`,
+      };
+    }
+  }
+
   const updatedRaw: RawBusinessRecord = {
     ...existing,
     status: validation.nextStatus,
@@ -1063,15 +1138,18 @@ export async function addListingQuestion(
   const now = new Date();
   const nowIso = now.toISOString();
   const trimmed = questionText.trim();
-  const askerLabel = actor.roles.includes("BUYER")
-    ? "Verified Buyer"
+  const defaultAskerLabel = actor.roles.includes("BUYER")
+    ? "Prospective Buyer"
     : actor.roles.includes("ADMIN") || actor.roles.includes("REVIEWER")
       ? "Platform Reviewer"
       : "Marketplace Member";
 
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
-    const biz = await prisma.business.findUnique({ where: { id: listingId } });
+    const biz = await prisma.business.findUnique({
+      where: { id: listingId },
+      include: { sellerProfile: { select: { userId: true } } },
+    });
     if (!biz || biz.status !== PrismaListingStatus.APPROVED) {
       return {
         ok: false,
@@ -1079,6 +1157,24 @@ export async function addListingQuestion(
         reason: "Questions can only be posted on approved listings.",
       };
     }
+    if (biz.sellerProfile.userId === actor.userId) {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        reason: "Listing owners cannot submit buyer questions on their own listing.",
+      };
+    }
+
+    const buyerProfile = actor.roles.includes("BUYER")
+      ? await prisma.buyerProfile.findUnique({
+          where: { userId: actor.userId },
+          select: { identityStatus: true },
+        })
+      : null;
+    const askerLabel =
+      buyerProfile?.identityStatus === "VERIFIED"
+        ? "Identity-verified Buyer"
+        : defaultAskerLabel;
 
     const q = await prisma.$transaction(async (tx) => {
       const created = await tx.listingQuestion.create({
@@ -1127,12 +1223,19 @@ export async function addListingQuestion(
       reason: "Questions can only be posted on approved listings.",
     };
   }
+  if (biz.sellerUserId === actor.userId) {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      reason: "Listing owners cannot submit buyer questions on their own listing.",
+    };
+  }
 
   const record: ListingQuestionRecord = {
     id: `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     businessId: listingId,
     askerId: actor.userId,
-    askerLabel,
+    askerLabel: defaultAskerLabel,
     question: trimmed,
     answer: null,
     answeredAt: null,

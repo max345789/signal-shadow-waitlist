@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Edit3, PlusCircle } from "lucide-react";
+import { ArrowRight, Edit3, PlusCircle, RefreshCw } from "lucide-react";
 import type { SanitizedListingView } from "@/lib/domain/listings";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
@@ -112,7 +112,9 @@ export function SellerDashboardClient({
 
     return (
       <div className="flex flex-col gap-4">
-        {items.map((item) => (
+        {items.map((item) => {
+          const unansweredCount = item.questions.filter((q) => !q.answer).length;
+          return (
           <Card key={item.id}>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -135,21 +137,21 @@ export function SellerDashboardClient({
                   </strong>
                 </span>
               </div>
-              <CardTitle className="pt-2">{item.teaserTitle}</CardTitle>
+              <CardTitle as="h2" className="pt-2">{item.teaserTitle}</CardTitle>
               <CardDescription>{item.teaserSummary}</CardDescription>
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 gap-4 rounded border border-mist bg-cloud p-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 rounded border border-mist bg-cloud p-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="flex flex-col gap-2">
                   <span className="text-14 text-slate">Confidential entity</span>
-                  <span className="text-16 font-medium text-ink">
+                  <span className="break-words text-16 font-medium text-ink">
                     {item.redactedName ?? item.redactedPlaceholder}
                   </span>
                 </div>
                 <div className="flex flex-col gap-2">
                   <span className="text-14 text-slate">Confidential domain</span>
-                  <span className="text-16 font-medium text-ink">
+                  <span className="break-words text-16 font-medium text-ink">
                     {item.redactedDomain ?? item.redactedPlaceholder}
                   </span>
                 </div>
@@ -158,6 +160,19 @@ export function SellerDashboardClient({
                   <span className="text-16 font-medium text-ink tabular-figures">
                     {item.trustSummary.verifiedCount} verified /{" "}
                     {item.trustSummary.sellerReportedCount} seller-reported
+                    {item.trustSummary.expiredOrFailedCount > 0
+                      ? ` / ${item.trustSummary.expiredOrFailedCount} expired/failed`
+                      : ""}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-14 text-slate">Buyer Q&amp;A activity</span>
+                  <span className="text-16 font-medium text-ink tabular-figures">
+                    {item.questions.length}{" "}
+                    {item.questions.length === 1 ? "inquiry" : "inquiries"}
+                    {unansweredCount > 0
+                      ? ` (${unansweredCount} awaiting reply)`
+                      : ""}
                   </span>
                 </div>
               </div>
@@ -181,13 +196,18 @@ export function SellerDashboardClient({
               </Button>
               <Button asChild variant="action">
                 <Link href={`/listings/${item.slug}`}>
-                  <span>Preview listing</span>
+                  <span>
+                    {unansweredCount > 0
+                      ? `Answer Q&A (${unansweredCount})`
+                      : "Preview listing"}
+                  </span>
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
             </CardFooter>
           </Card>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -205,12 +225,24 @@ export function SellerDashboardClient({
           </p>
         </div>
 
-        <Button asChild variant="primary">
-          <Link href="/sell">
-            <PlusCircle className="h-4 w-4" aria-hidden="true" />
-            <span>Create new listing</span>
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            loading={loading}
+            loadingLabel="Refreshing..."
+            onClick={() => void refreshListings()}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            <span>Refresh</span>
+          </Button>
+          <Button asChild variant="primary">
+            <Link href="/sell">
+              <PlusCircle className="h-4 w-4" aria-hidden="true" />
+              <span>Create new listing</span>
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="pending">
@@ -250,15 +282,20 @@ export function SellerDashboardClient({
       </Tabs>
 
       {/* Phase 2 / 4 clear roadmap empty states */}
-      <section aria-label="Upcoming seller modules" className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <CardStateEmpty
-          title="Matched buyers (Phase 2)"
-          description="Ranked buyer matches with fit reasons and mismatches unlock once Phase 2 thesis matching is active."
-        />
-        <CardStateEmpty
-          title="Active deal rooms (Phase 4)"
-          description="NDA execution, watermarked documents, and buyer offers unlock in Phase 4 deal rooms."
-        />
+      <section aria-labelledby="upcoming-modules-heading" className="flex flex-col gap-4">
+        <h2 id="upcoming-modules-heading" className="font-serif text-20 font-semibold text-deep-navy">
+          Upcoming seller modules
+        </h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <CardStateEmpty
+            title="Matched buyers (Phase 2)"
+            description="Ranked buyer matches with fit reasons and mismatches unlock once Phase 2 thesis matching is active."
+          />
+          <CardStateEmpty
+            title="Active deal rooms (Phase 4)"
+            description="NDA execution, watermarked documents, and buyer offers unlock in Phase 4 deal rooms."
+          />
+        </div>
       </section>
     </div>
   );

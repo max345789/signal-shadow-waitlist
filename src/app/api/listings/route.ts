@@ -82,6 +82,7 @@ export async function POST(request: Request) {
     {
       teaserTitle: data.teaserTitle,
       teaserSummary: data.teaserSummary,
+      reasonForSelling: data.reasonForSelling,
       financialNarrative: data.financialNarrative,
       risksSummary: data.risksSummary,
       founderStory: data.founderStory,

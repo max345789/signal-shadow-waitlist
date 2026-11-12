@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/card";
 import { StatusChip } from "@/components/ui/status-chip";
 
-export function ListingCard({ listing }: { listing: SanitizedListingView }) {
+export function ListingCard({
+  listing,
+  titleAs = "h3",
+}: {
+  listing: SanitizedListingView;
+  titleAs?: "h2" | "h3";
+}) {
   const revenueMetric = listing.metrics.find((m) => m.key === "REVENUE");
   const profitMetric = listing.metrics.find((m) => m.key === "PROFIT");
   const hasVerified = listing.trustSummary.verifiedCount > 0;
@@ -41,7 +47,7 @@ export function ListingCard({ listing }: { listing: SanitizedListingView }) {
             </div>
           </div>
 
-          <CardTitle as="h3" className="pt-2">
+          <CardTitle as={titleAs} className="pt-2">
             <Link
               href={`/listings/${listing.slug}`}
               className="text-deep-navy no-underline hover:text-trust-blue hover:underline"
@@ -118,7 +124,11 @@ export function ListingCard({ listing }: { listing: SanitizedListingView }) {
       <CardFooter>
         <span className="text-14 text-slate tabular-figures">
           {listing.trustSummary.verifiedCount} verified /{" "}
-          {listing.trustSummary.sellerReportedCount} seller-reported vitals
+          {listing.trustSummary.sellerReportedCount} seller-reported
+          {listing.trustSummary.expiredOrFailedCount > 0
+            ? ` / ${listing.trustSummary.expiredOrFailedCount} expired/failed`
+            : ""}{" "}
+          vitals
         </span>
         <Button asChild variant="action">
           <Link href={`/listings/${listing.slug}`}>

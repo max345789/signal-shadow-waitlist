@@ -167,7 +167,7 @@ export function ListingsDirectoryClient({
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {listings.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
+            <ListingCard key={listing.id} listing={listing} titleAs="h2" />
           ))}
         </div>
       )}

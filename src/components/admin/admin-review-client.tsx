@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ExternalLink, Lock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Lock, RefreshCw } from "lucide-react";
 import type { AdminReviewDecision, SanitizedListingView } from "@/lib/domain/listings";
+import { detectConfidentialLeak } from "@/lib/domain/valuation";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,10 @@ export function AdminReviewClient({
   const [fieldErrorsById, setFieldErrorsById] = React.useState<
     Record<string, string | undefined>
   >({});
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [busyAction, setBusyAction] = React.useState<{
+    id: string;
+    decision: AdminReviewDecision;
+  } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<string | null>(null);
@@ -79,7 +83,7 @@ export function AdminReviewClient({
       return;
     }
 
-    setBusyId(id);
+    setBusyAction({ id, decision });
     setFieldErrorsById((prev) => ({ ...prev, [id]: undefined }));
     setFeedback(null);
 
@@ -114,7 +118,7 @@ export function AdminReviewClient({
         [id]: "Network error while saving review decision.",
       }));
     } finally {
-      setBusyId(null);
+      setBusyAction(null);
     }
   }
 
@@ -152,7 +156,7 @@ export function AdminReviewClient({
     return (
       <div className="flex flex-col gap-6">
         {items.map((item) => {
-          const isBusy = busyId === item.id;
+          const isBusy = busyAction?.id === item.id;
           const noteError = fieldErrorsById[item.id];
           const canApprove =
             item.status === "PENDING_REVIEW" || item.status === "FLAGGED";
@@ -160,6 +164,23 @@ export function AdminReviewClient({
             item.status === "PENDING_REVIEW" || item.status === "APPROVED";
           const canReject =
             item.status === "PENDING_REVIEW" || item.status === "FLAGGED";
+          const leaks =
+            item.redactedName && item.redactedDomain
+              ? detectConfidentialLeak(
+                  {
+                    teaserTitle: item.teaserTitle,
+                    teaserSummary: item.teaserSummary,
+                    reasonForSelling: item.reasonForSelling,
+                    financialNarrative: item.financialNarrative,
+                    risksSummary: item.risksSummary,
+                    founderStory: item.founderStory,
+                  },
+                  {
+                    redactedName: item.redactedName,
+                    redactedDomain: item.redactedDomain,
+                  }
+                )
+              : [];
 
           return (
             <Card key={item.id}>
@@ -207,6 +228,9 @@ export function AdminReviewClient({
                     <span className="text-16 font-medium text-ink tabular-figures">
                       {item.trustSummary.verifiedCount} verified /{" "}
                       {item.trustSummary.sellerReportedCount} seller-reported
+                      {item.trustSummary.expiredOrFailedCount > 0
+                        ? ` / ${item.trustSummary.expiredOrFailedCount} expired/failed`
+                        : ""}
                     </span>
                   </div>
                 </div>
@@ -222,21 +246,49 @@ export function AdminReviewClient({
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="flex flex-col gap-2">
                       <dt className="text-14 text-slate">Legal / brand name</dt>
-                      <dd className="text-16 font-medium text-ink">
+                      <dd className="break-words text-16 font-medium text-ink">
                         {item.redactedName ?? "Not provided"}
                       </dd>
                     </div>
                     <div className="flex flex-col gap-2">
                       <dt className="text-14 text-slate">Primary domain</dt>
-                      <dd className="text-16 font-medium text-ink">
+                      <dd className="break-words text-16 font-medium text-ink">
                         {item.redactedDomain ?? "Not provided"}
                       </dd>
                     </div>
                     <div className="flex flex-col gap-2">
                       <dt className="text-14 text-slate">Customers summary</dt>
-                      <dd className="text-16 text-ink">
+                      <dd className="break-words text-16 text-ink">
                         {item.redactedCustomers ?? "Not provided"}
                       </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Public narrative & automated leak inspection */}
+                <div className="flex flex-col gap-4 rounded border border-mist bg-cloud p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      Public narrative &amp; redaction check
+                    </span>
+                    <span className="text-14 font-medium text-ink">
+                      {leaks.length > 0
+                        ? `Leak detected: "${leaks[0]?.matchedTerm}" in ${leaks[0]?.field}`
+                        : "Redaction check: no leaked brand/domain tokens detected"}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <dt className="text-14 text-slate">Reason for selling</dt>
+                      <dd className="text-16 text-ink">{item.reasonForSelling}</dd>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <dt className="text-14 text-slate">Disclosed risks</dt>
+                      <dd className="text-16 text-ink">{item.risksSummary}</dd>
+                    </div>
+                    <div className="flex flex-col gap-2 md:col-span-2">
+                      <dt className="text-14 text-slate">Financial narrative</dt>
+                      <dd className="text-16 text-ink">{item.financialNarrative}</dd>
                     </div>
                   </dl>
                 </div>
@@ -297,6 +349,8 @@ export function AdminReviewClient({
                       type="button"
                       variant="secondary"
                       disabled={isBusy}
+                      loading={isBusy && busyAction?.decision === "REJECT"}
+                      loadingLabel="Rejecting..."
                       onClick={() => void submitDecision(item.id, "REJECT")}
                     >
                       Reject listing
@@ -307,6 +361,8 @@ export function AdminReviewClient({
                       type="button"
                       variant="secondary"
                       disabled={isBusy}
+                      loading={isBusy && busyAction?.decision === "FLAG"}
+                      loadingLabel="Flagging..."
                       onClick={() => void submitDecision(item.id, "FLAG")}
                     >
                       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
@@ -317,7 +373,8 @@ export function AdminReviewClient({
                     <Button
                       type="button"
                       variant="primary"
-                      loading={isBusy}
+                      disabled={isBusy}
+                      loading={isBusy && busyAction?.decision === "APPROVE"}
                       loadingLabel="Approving..."
                       onClick={() => void submitDecision(item.id, "APPROVE")}
                     >
@@ -336,15 +393,28 @@ export function AdminReviewClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
-          Admin review queue
-        </h1>
-        <p className="max-w-[760px] text-16 text-slate">
-          Inspect confidential seller identity, verify redaction hygiene, and approve,
-          flag, or reject submissions. Every decision is written to the immutable audit
-          log.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
+            Admin review queue
+          </h1>
+          <p className="max-w-[760px] text-16 text-slate">
+            Inspect confidential seller identity, verify redaction hygiene, and approve,
+            flag, or reject submissions. Every decision is written to the immutable audit
+            log.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          loading={loading}
+          loadingLabel="Refreshing..."
+          onClick={() => void refreshQueue()}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          <span>Refresh queue</span>
+        </Button>
       </div>
 
       {feedback ? (

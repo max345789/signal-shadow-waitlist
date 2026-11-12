@@ -122,6 +122,18 @@ async function main() {
         update: {
           teaserTitle: biz.teaserTitle,
           teaserSummary: biz.teaserSummary,
+          reasonForSelling: biz.reasonForSelling,
+          founderStory: biz.founderStory,
+          founderMediaUrl: biz.founderMediaUrl,
+          founderMediaType: biz.founderMediaType,
+          financialNarrative: biz.financialNarrative,
+          financialSeriesJson: biz.financialSeries as unknown as Prisma.InputJsonValue,
+          risksSummary: biz.risksSummary,
+          techStack: biz.techStack,
+          assetsIncluded: biz.assetsIncluded,
+          valuationLow: biz.valuationLow,
+          valuationHigh: biz.valuationHigh,
+          valuationBasis: biz.valuationBasis,
           status: biz.status as ListingStatus,
           isSampleData: true,
         },
@@ -193,6 +205,7 @@ async function main() {
             value: m.value,
             source: m.source as MetricSource,
             verificationId: m.verification?.id ?? null,
+            verifiedAt: m.verification?.verifiedAt ? new Date(m.verification.verifiedAt) : null,
           },
           create: {
             id: m.id,
@@ -213,7 +226,9 @@ async function main() {
       for (const q of biz.questions) {
         await prisma.listingQuestion.upsert({
           where: { id: q.id },
-          update: {},
+          update: {
+            askerLabel: q.askerLabel,
+          },
           create: {
             id: q.id,
             businessId: biz.id,
@@ -223,6 +238,23 @@ async function main() {
             answer: q.answer,
             answeredAt: q.answeredAt ? new Date(q.answeredAt) : null,
             isSampleData: true,
+          },
+        });
+      }
+
+      for (const entry of biz.auditLogs) {
+        await prisma.auditLog.upsert({
+          where: { id: entry.id },
+          update: {},
+          create: {
+            id: entry.id,
+            actorId: entry.actorId,
+            entityType: "Business",
+            entityId: biz.id,
+            action: entry.action,
+            previousState: entry.previousStatus ? { status: entry.previousStatus } : Prisma.JsonNull,
+            newState: entry.newStatus ? { status: entry.newStatus } : Prisma.JsonNull,
+            metadataJson: entry.note ? { note: entry.note } : Prisma.JsonNull,
           },
         });
       }

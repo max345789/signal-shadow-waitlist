@@ -310,6 +310,12 @@ export interface ConfidentialLeakFinding {
 const GENERIC_LEGAL_TOKENS = new Set([
   "private",
   "limited",
+  "pvt",
+  "ltd",
+  "llp",
+  "inc",
+  "llc",
+  "gmbh",
   "solutions",
   "systems",
   "technologies",
@@ -317,6 +323,16 @@ const GENERIC_LEGAL_TOKENS = new Set([
   "services",
   "company",
   "india",
+  "bengaluru",
+  "bangalore",
+  "mumbai",
+  "delhi",
+  "pune",
+  "hyderabad",
+  "chennai",
+  "kolkata",
+  "apac",
+  "remote",
   "group",
   "holdings",
   "ventures",
@@ -349,7 +365,49 @@ const GENERIC_LEGAL_TOKENS = new Set([
   "retail",
   "saas",
   "tools",
+  "compliance",
+  "confidential",
+  "sample",
+  "demo",
+  "botanical",
+  "botanicals",
+  "skincare",
+  "wellness",
+  "telemetry",
+  "monitoring",
+  "automation",
+  "invoicing",
+  "billing",
+  "accounting",
+  "payment",
+  "payments",
 ]);
+
+const GENERIC_DOMAIN_LABELS = new Set([
+  "www",
+  "app",
+  "api",
+  "mail",
+  "portal",
+  "web",
+  "com",
+  "in",
+  "co",
+  "io",
+  "dev",
+  "org",
+  "net",
+  "ai",
+  "uk",
+  "us",
+  "eu",
+  "biz",
+  "info",
+]);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * Prevents sellers from accidentally exposing redacted business name or domain
@@ -367,32 +425,58 @@ export function detectConfidentialLeak(
       .toLowerCase()
       .replace(/^https?:\/\//, "")
       .replace(/^www\./, "")
-      .split("/")[0] ?? "";
+      .split("/")[0]
+      ?.split("?")[0] ?? "";
 
-  const candidateTerms: string[] = [];
+  const substringTerms: string[] = [];
+  const wordBoundaryTerms: string[] = [];
+
   if (rawName.length >= 3) {
-    candidateTerms.push(rawName);
+    if (rawName.length >= 4) {
+      substringTerms.push(rawName.toLowerCase());
+    } else {
+      wordBoundaryTerms.push(rawName.toLowerCase());
+    }
     for (const token of rawName.split(/[^a-zA-Z0-9]+/)) {
       const lowerToken = token.toLowerCase();
       if (lowerToken.length >= 4 && !GENERIC_LEGAL_TOKENS.has(lowerToken)) {
-        candidateTerms.push(lowerToken);
+        substringTerms.push(lowerToken);
+      } else if (
+        lowerToken.length === 3 &&
+        !GENERIC_LEGAL_TOKENS.has(lowerToken) &&
+        !new Set(["the", "and", "for", "gst", "api", "b2b", "d2c", "app", "web", "pro"]).has(
+          lowerToken
+        )
+      ) {
+        wordBoundaryTerms.push(lowerToken);
       }
     }
   }
+
   if (normalizedDomain.length >= 4) {
-    candidateTerms.push(normalizedDomain);
-    const domainRoot = normalizedDomain.split(".")[0];
-    if (domainRoot && domainRoot.length >= 4) {
-      candidateTerms.push(domainRoot);
+    substringTerms.push(normalizedDomain);
+    for (const label of normalizedDomain.split(".")) {
+      if (label.length >= 4 && !GENERIC_DOMAIN_LABELS.has(label) && !GENERIC_LEGAL_TOKENS.has(label)) {
+        substringTerms.push(label);
+      } else if (label.length === 3 && !GENERIC_DOMAIN_LABELS.has(label)) {
+        wordBoundaryTerms.push(label);
+      }
     }
   }
 
-  const uniqueTerms = Array.from(new Set(candidateTerms.map((t) => t.toLowerCase())));
+  const uniqueSubstrings = Array.from(new Set(substringTerms));
+  const uniqueWordTerms = Array.from(new Set(wordBoundaryTerms));
 
   for (const [field, text] of Object.entries(publicFields)) {
     const lowerText = text.toLowerCase();
-    for (const term of uniqueTerms) {
-      if (term.length >= 3 && lowerText.includes(term)) {
+    for (const term of uniqueSubstrings) {
+      if (term.length >= 4 && lowerText.includes(term)) {
+        findings.push({ field, matchedTerm: term });
+      }
+    }
+    for (const term of uniqueWordTerms) {
+      const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, "i");
+      if (pattern.test(lowerText)) {
         findings.push({ field, matchedTerm: term });
       }
     }

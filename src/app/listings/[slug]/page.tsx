@@ -52,7 +52,11 @@ export default async function ListingDetailPage({
     <AppShell
       activeNav="listings"
       trustBanner={{
-        canTrustAnswer: `${listing.trustSummary.verifiedCount} verified and ${listing.trustSummary.sellerReportedCount} seller-reported metrics. Sensitive identity fields stay redacted until NDA signature.`,
+        canTrustAnswer: `${listing.trustSummary.verifiedCount} verified, ${listing.trustSummary.sellerReportedCount} seller-reported${
+          listing.trustSummary.expiredOrFailedCount > 0
+            ? `, and ${listing.trustSummary.expiredOrFailedCount} expired/failed`
+            : ""
+        } metrics. Sensitive identity fields stay redacted until NDA signature.`,
         nextStepAnswer:
           "Review verified vs seller-reported vitals, read disclosed risks, and ask founder questions in Q&A below.",
       }}

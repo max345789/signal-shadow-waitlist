@@ -46,7 +46,9 @@ export function ListingDetailClient({
 
   const [answerDrafts, setAnswerDrafts] = React.useState<Record<string, string>>({});
   const [answeringId, setAnsweringId] = React.useState<string | null>(null);
-  const [answerError, setAnswerError] = React.useState<string | null>(null);
+  const [answerErrorsById, setAnswerErrorsById] = React.useState<
+    Record<string, string | undefined>
+  >({});
 
   const verifiedMetrics = listing.metrics.filter((m) => m.trust.isVerified);
   const unverifiedMetrics = listing.metrics.filter((m) => !m.trust.isVerified);
@@ -88,12 +90,15 @@ export function ListingDetailClient({
   async function handleAnswerQuestion(questionId: string) {
     const draft = (answerDrafts[questionId] ?? "").trim();
     if (draft.length < 5) {
-      setAnswerError("Answer must be at least 5 characters.");
+      setAnswerErrorsById((prev) => ({
+        ...prev,
+        [questionId]: "Answer must be at least 5 characters.",
+      }));
       return;
     }
 
     setAnsweringId(questionId);
-    setAnswerError(null);
+    setAnswerErrorsById((prev) => ({ ...prev, [questionId]: undefined }));
     try {
       const res = await fetch(
         `/api/listings/${listing.id}/questions/${questionId}`,
@@ -105,7 +110,10 @@ export function ListingDetailClient({
       );
       const data = await res.json();
       if (!res.ok) {
-        setAnswerError(data.error ?? "Could not save answer.");
+        setAnswerErrorsById((prev) => ({
+          ...prev,
+          [questionId]: data.error ?? "Could not save answer.",
+        }));
         return;
       }
       const updated: ListingQuestionRecord = data.question;
@@ -119,7 +127,10 @@ export function ListingDetailClient({
         return copy;
       });
     } catch {
-      setAnswerError("Network error while saving answer.");
+      setAnswerErrorsById((prev) => ({
+        ...prev,
+        [questionId]: "Network error while saving answer.",
+      }));
     } finally {
       setAnsweringId(null);
     }
@@ -269,7 +280,11 @@ export function ListingDetailClient({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-mist pb-4">
             <div className="flex items-center gap-2">
               <ShieldCheck
-                className="h-6 w-6 text-verified-green"
+                className={
+                  verifiedMetrics.length > 0
+                    ? "h-6 w-6 text-verified-green"
+                    : "h-6 w-6 text-slate"
+                }
                 aria-hidden="true"
               />
               <h3 className="font-serif text-20 font-semibold text-deep-navy">
@@ -388,9 +403,9 @@ export function ListingDetailClient({
               )}
             </div>
           ) : (
-            <span className="text-14 text-slate">
+            <p className="text-16 text-slate">
               No audio or video recording attached; written founder operations summary below.
-            </span>
+            </p>
           )}
           <p className="text-16 text-ink">{listing.founderStory}</p>
         </Card>
@@ -586,7 +601,7 @@ export function ListingDetailClient({
         {listing.questions.length === 0 ? (
           <CardStateEmpty
             title="No public Q&A threads yet"
-            description="Questions posted by verified buyers and answers from the founder will appear here."
+            description="Questions posted by signed-in buyers and answers from the founder will appear here."
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -615,13 +630,20 @@ export function ListingDetailClient({
                     <Textarea
                       label="Post seller answer"
                       value={answerDrafts[q.id] ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setAnswerDrafts((prev) => ({
                           ...prev,
-                          [q.id]: e.target.value,
-                        }))
-                      }
-                      error={answerError ?? undefined}
+                          [q.id]: val,
+                        }));
+                        if (answerErrorsById[q.id]) {
+                          setAnswerErrorsById((prev) => ({
+                            ...prev,
+                            [q.id]: undefined,
+                          }));
+                        }
+                      }}
+                      error={answerErrorsById[q.id]}
                       rows={2}
                       placeholder="Provide a clear, factual answer without revealing NDA-redacted details."
                     />

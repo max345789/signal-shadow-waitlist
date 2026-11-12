@@ -61,6 +61,7 @@ export function AppShell({
               <Link
                 key={item.key}
                 href={item.href}
+                aria-current={activeNav === item.key ? "page" : undefined}
                 className={cn(
                   "inline-flex min-h-12 items-center rounded border px-4 py-2 text-16 font-medium no-underline state-transition",
                   activeNav === item.key
@@ -73,6 +74,7 @@ export function AppShell({
             ))}
             <Link
               href="/auth/signin"
+              aria-current={activeNav === "signin" ? "page" : undefined}
               className={cn(
                 "inline-flex min-h-12 items-center rounded border px-4 py-2 text-16 font-medium no-underline state-transition",
                 activeNav === "signin"
