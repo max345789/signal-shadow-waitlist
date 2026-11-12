@@ -16,13 +16,13 @@ export function HomeThesisForm() {
     event.preventDefault();
     const trimmed = prompt.trim();
     if (!trimmed) {
-      setError("Describe the kind of business you want to buy before previewing.");
+      setError("Describe the kind of business you want to buy before matching.");
       return;
     }
 
     setError(undefined);
     setSubmitting(true);
-    router.push(`/style-guide?thesisPrompt=${encodeURIComponent(trimmed)}`);
+    router.push(`/thesis/new?prompt=${encodeURIComponent(trimmed)}`);
   }
 
   return (
@@ -42,13 +42,19 @@ export function HomeThesisForm() {
           }}
           error={error}
           placeholder="e.g., B2B SaaS in India, ₹50L+ net profit, under 10 owner hours/week"
-          helperText="Thesis matching launches in Phase 2. Submitting previews the Phase 0 component system."
+          helperText="Opens the guided Thesis Builder with your criteria pre-filled so you can rank matches and compare businesses."
           required
         />
       </div>
       <div className="sm:pt-8">
-        <Button type="submit" variant="primary" size="md" loading={submitting} loadingLabel="Opening preview...">
-          <span>Preview system</span>
+        <Button
+          type="submit"
+          variant="primary"
+          size="md"
+          loading={submitting}
+          loadingLabel="Opening thesis builder..."
+        >
+          <span>Build thesis &amp; match</span>
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>

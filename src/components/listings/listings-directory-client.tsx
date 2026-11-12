@@ -78,9 +78,14 @@ export function ListingsDirectoryClient({
           </p>
         </div>
 
-        <Button asChild variant="primary">
-          <Link href="/sell">List your business</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary">
+            <Link href="/compare">Compare businesses</Link>
+          </Button>
+          <Button asChild variant="primary">
+            <Link href="/sell">List your business</Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}

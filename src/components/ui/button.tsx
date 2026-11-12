@@ -20,7 +20,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   action:
     "bg-trust-blue text-white border border-trust-blue hover:bg-deep-navy hover:border-deep-navy disabled:bg-cloud disabled:text-slate disabled:border-mist",
   secondary:
-    "bg-white text-deep-navy border border-mist hover:bg-pale-blue hover:border-trust-blue disabled:bg-cloud disabled:text-slate disabled:border-mist",
+    "bg-white text-deep-navy border border-mist hover:bg-cloud hover:border-trust-blue disabled:bg-cloud disabled:text-slate disabled:border-mist",
   link: "bg-transparent text-trust-blue border border-transparent underline underline-offset-4 hover:text-deep-navy disabled:text-slate disabled:no-underline",
   danger:
     "bg-brick-red text-white border border-brick-red hover:bg-white hover:text-brick-red disabled:bg-cloud disabled:text-slate disabled:border-mist",
