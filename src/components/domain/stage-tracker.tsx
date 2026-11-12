@@ -32,6 +32,9 @@ export interface StageTrackerProps {
   state?: "ready" | "loading" | "empty" | "error";
   errorMessage?: string;
   onRetry?: () => void;
+  strictThreeColorBudget?: boolean;
+  allowGreenAccent?: boolean;
+  allowRiskAccent?: boolean;
 }
 
 const OWNER_LABELS: Record<StageOwnerRole, string> = {
@@ -93,6 +96,9 @@ export function StageTracker({
   state = "ready",
   errorMessage,
   onRetry,
+  strictThreeColorBudget = false,
+  allowGreenAccent = true,
+  allowRiskAccent = true,
 }: StageTrackerProps) {
   const [internalSelected, setInternalSelected] = React.useState<
     DealStageType | undefined
@@ -143,6 +149,50 @@ export function StageTracker({
     stages.find((s) => s.stage === activeSelection) ?? stages[0]!;
   const inspectedMeta = STATUS_META[inspectedItem.status];
   const inspectedDef = DEAL_STAGE_DEFINITIONS[inspectedItem.stage];
+
+  function resolveStageTone(status: StageStatusValue): StatusChipTone {
+    if (!strictThreeColorBudget) {
+      return STATUS_META[status].chipTone;
+    }
+    if (status === "COMPLETED") {
+      return allowGreenAccent ? "completed" : "neutral";
+    }
+    if (status === "BLOCKED") {
+      return allowRiskAccent ? "risk" : "seller-reported";
+    }
+    if (status === "ACTIVE") {
+      return "neutral";
+    }
+    return "seller-reported";
+  }
+
+  function resolveStageVisual(status: StageStatusValue, isSelected: boolean) {
+    const base = STATUS_META[status];
+    if (!strictThreeColorBudget) {
+      return {
+        borderClass: base.borderClass,
+        surfaceClass: isSelected ? "bg-pale-blue" : base.surfaceClass,
+        iconClass: base.iconClass,
+      };
+    }
+    const borderClass =
+      status === "COMPLETED" && !allowGreenAccent
+        ? "border-deep-navy"
+        : status === "BLOCKED" && !allowRiskAccent
+          ? "border-mist"
+          : base.borderClass;
+    const iconClass =
+      status === "COMPLETED" && !allowGreenAccent
+        ? "text-deep-navy"
+        : status === "BLOCKED" && !allowRiskAccent
+          ? "text-slate"
+          : base.iconClass;
+    return {
+      borderClass,
+      surfaceClass: isSelected ? "bg-cloud" : "bg-white",
+      iconClass,
+    };
+  }
 
   const handleSelect = (stage: DealStageType) => {
     setInternalSelected(stage);
@@ -195,6 +245,7 @@ export function StageTracker({
         {stages.map((item, idx) => {
           const def = DEAL_STAGE_DEFINITIONS[item.stage];
           const meta = STATUS_META[item.status];
+          const visual = resolveStageVisual(item.status, inspectedItem.stage === item.stage);
           const Icon = meta.Icon;
           const isSelected = inspectedItem.stage === item.stage;
           const isCurrent = item.status === "ACTIVE";
@@ -213,8 +264,8 @@ export function StageTracker({
                 className={cn(
                   "flex min-h-12 w-full flex-col items-start justify-between gap-2 rounded border p-4 text-left state-transition",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue",
-                  meta.borderClass,
-                  isSelected ? "bg-pale-blue" : meta.surfaceClass
+                  visual.borderClass,
+                  visual.surfaceClass
                 )}
               >
                 <div className="flex w-full items-center justify-between gap-2">
@@ -228,7 +279,7 @@ export function StageTracker({
                     )}
                   >
                     <Icon
-                      className={cn("h-4 w-4 shrink-0", meta.iconClass)}
+                      className={cn("h-4 w-4 shrink-0", visual.iconClass)}
                       aria-hidden={true}
                     />
                   </span>
@@ -257,7 +308,10 @@ export function StageTracker({
               {inspectedDef.label}
             </h4>
           </div>
-          <StatusChip tone={inspectedMeta.chipTone} label={inspectedMeta.label} />
+          <StatusChip
+            tone={resolveStageTone(inspectedItem.status)}
+            label={inspectedMeta.label}
+          />
         </div>
 
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -131,8 +131,28 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 
 ---
 
-## Next: Phase 4 Plan (Deal Room)
-1. **Deal Room Creation & Mandatory 2FA + Participant RBAC**: Implement `POST /api/deal-rooms` and `/deals/[id]` guarded on every read/write by `canEnterDealRoom()` (role + participant ownership + 12-hour fresh 2FA).
-2. **Stage Tracker & Enforced State Transitions**: Wire `StageTracker` to live `DealRoom` / `DealStage` records (`INTRO -> NDA -> DATA_ACCESS -> OFFER -> DUE_DILIGENCE -> ESCROW -> TRANSFER`) using `validateStageTransition()` so `DATA_ACCESS` strictly enforces signed NDA + active Buyer KYC + Proof of Funds and appends immutable `AuditLog` entries.
-3. **NDA E-Signature & Server-Side Redaction Unlock**: Implement NDA e-signature (`ndaSignedAt`, `ndaDocumentId`) that unlocks `redactedName`, `redactedDomain`, and `redactedCustomers` exclusively for participants in that deal room.
-4. **Threaded Chat, Versioned Document Vault with View Logs, Offers & Diligence Checklists**: Build rate-limited threaded chat (`Message`), private object storage / signed download URLs with `DocumentView` audit logging and watermark metadata, `Offer` / counter-offer history, and business-type due-diligence `ChecklistItem` generation.
+## Phase 4: Deal Room
+
+### 25. Mandatory 2FA + Participant RBAC & Deal Room Entry
+- **Decision**: Implemented `/deals`, `/deals/[id]`, and all `/api/deal-rooms/*` routes guarded on every read and write by `canEnterDealRoom()` (verifying participant ownership `buyerUserId`/`sellerUserId` or `ADMIN`/`REVIEWER` staff role plus `twoFactorEnabled === true` and `twoFactorVerifiedAt` within 12 hours). Unauthenticated requests return `401`; missing/expired 2FA or non-participant access returns `403`.
+- **Why**: Enforces Section 7 ("mandatory 2FA for anyone entering a deal room") and Section 10 ("Role-based access checked on the server for every deal-room read and write").
+
+### 26. Two-Sided NDA E-Signature, Legal Placeholder Framing & Cross-Surface Redaction Unlock
+- **Decision**: Implemented `POST /api/deal-rooms/[id]/nda` and `POST /api/deal-rooms/[id]/purchase-agreement` using draft placeholder templates explicitly badged **`Needs legal review`** (Section 10). Confidential fields (`redactedName`, `redactedDomain`, `redactedCustomers`) remain strictly `null` / `"Redacted until NDA is signed"` for the Buyer on BOTH `/deals/[id]` and `/listings/[slug]` until both Buyer and Seller complete NDA e-signature (`ndaSignedAt` populated).
+- **Why**: Satisfies Section 6, Section 10, and Phase 4 acceptance ("redacted fields stay hidden until NDA completion") without risking single-sided or client-only bypasses.
+
+### 27. Private Object Storage Vault, Virus Scan on Upload, Watermarked Previews & Signed URLs
+- **Decision**: Stored uploaded and executed agreement payloads in a private non-public directory (`DEAL_VAULT_DIR` or `os.tmpdir()/trust-marketplace-private-vault`) via `src/lib/deal-rooms/vault.ts`. Uploads run `scanDocumentContent()` (blocking EICAR test signatures, PE/ELF headers, forbidden executable extensions, and `<script` payloads as `INFECTED`), auto-increment `version` per `(title, category)`, and generate watermarked copies. Downloads require a 5-minute HS256 signed URL (`/api/deal-rooms/[id]/documents/[docId]/signed-url` -> `/download?token=...`) bound to `(dealRoomId, documentId, viewerId)` and record a `DocumentView` + `DOCUMENT_VIEWED` `AuditLog` entry on every preview/download.
+- **Why**: Satisfies Section 7 ("private object storage with signed URLs, virus scan on upload, watermarked previews") and Section 10 ("Log document access") without exposing unauthenticated static files.
+
+### 28. Enforced Stage Machine, Threaded Chat + Rate Limits, Offers, Sector Checklists & Immutable AuditLog
+- **Decision**: Wired `StageTracker` (with `strictThreeColorBudget` preserving `<= 3` non-neutral colors across all stage and error states) to `validateStageTransition()`, requiring executed NDA + active Buyer KYC + Proof of Funds for `NDA -> DATA_ACCESS` and an accepted `Offer` for `OFFER -> DUE_DILIGENCE`. Added deferred SSE realtime updates (`/api/deal-rooms/[id]/events`) starting 1s post-hydration, rate-limited threaded chat (`Message.parentId`) and uploads (`checkRateLimit()`), structured offer/counter-offer state machine (`validateOfferAction()`), sector-tailored `DUE_DILIGENCE` checklist generation (`generateDueDiligenceChecklistForSector()`), and append-only `AuditLog` entries on every state change.
+- **Why**: Meets all Phase 4 acceptance criteria while keeping Playwright `networkidle` deterministic and upholding Section 4's strict color and typography rules.
+
+---
+
+## Next: Phase 5 Plan (Escrow and Transfer)
+1. **Licensed Third-Party Escrow Adapter**: Integrate a sandbox-capable escrow provider boundary (e.g., Escrow.com / regulated partner adapter) in `src/lib/escrow/` without holding funds on-platform, tracking `INITIATED`, `FUNDED`, `IN_REVIEW`, `RELEASED`, `DISPUTED`, and `REFUNDED` states in `EscrowTransaction`.
+2. **Deal Room Escrow & Dispute UI**: Add an Escrow & Transfer workflow panel inside `/deals/[id]` displaying visual escrow status, funding milestones, release authorization, and clear dispute reporting paths (`DealRoomStatus.DISPUTED` + Admin/Reviewer dispute resolution).
+3. **Two-Sided Transfer Checklist**: Generate the 7 Section 6 `TRANSFER` `ChecklistItem` categories (domain, code repository, cloud and hosting accounts, payment accounts, social handles, customer data, vendor contracts) requiring confirmation from both Buyer and Seller before escrow release and `COMPLETED` room status.
+4. **Full Intro-to-Transfer E2E Acceptance**: Verify a complete test deal progresses cleanly from `INTRO` through `TRANSFER` in the sandbox with zero manual database edits and full `AuditLog` coverage.

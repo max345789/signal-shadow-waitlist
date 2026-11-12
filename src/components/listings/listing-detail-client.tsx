@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   CheckCircle2,
   FileText,
   Info,
@@ -35,13 +37,22 @@ export function ListingDetailClient({
   initialListing,
   referenceNow,
   isAuthenticated,
+  canOpenDealRoom = false,
+  hasTwoFactorVerified = false,
+  existingDealRoomId = null,
 }: {
   initialListing: SanitizedListingView;
   referenceNow: string;
   isAuthenticated: boolean;
+  canOpenDealRoom?: boolean;
+  hasTwoFactorVerified?: boolean;
+  existingDealRoomId?: string | null;
 }) {
+  const router = useRouter();
   const [listing, setListing] = React.useState<SanitizedListingView>(initialListing);
   const [effectiveNow, setEffectiveNow] = React.useState<string>(referenceNow);
+  const [openingDealRoom, setOpeningDealRoom] = React.useState(false);
+  const [dealRoomError, setDealRoomError] = React.useState<string | null>(null);
   const [questionText, setQuestionText] = React.useState("");
   const [questionError, setQuestionError] = React.useState<string | null>(null);
   const [questionSubmitting, setQuestionSubmitting] = React.useState(false);
@@ -65,6 +76,32 @@ export function ListingDetailClient({
   );
   const allowCautionAccent = !hasAnyVerified && !hasFailed;
   const allowRiskAccent = !hasAnyVerified && !hasExpired;
+
+  async function handleOpenDealRoom() {
+    if (existingDealRoomId) {
+      router.push(`/deals/${existingDealRoomId}`);
+      return;
+    }
+    setOpeningDealRoom(true);
+    setDealRoomError(null);
+    try {
+      const res = await fetch("/api/deal-rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: listing.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDealRoomError(data.error ?? "Unable to open deal room.");
+        return;
+      }
+      router.push(`/deals/${data.dealRoom.id}`);
+    } catch {
+      setDealRoomError("Network error while opening deal room.");
+    } finally {
+      setOpeningDealRoom(false);
+    }
+  }
 
   async function handleRefreshVitals() {
     setRefreshingVitals(true);
@@ -209,12 +246,56 @@ export function ListingDetailClient({
               ) : null}
             </div>
 
-            {listing.canEdit ? (
-              <Button asChild variant="secondary">
-                <Link href={`/sell?listingId=${listing.id}`}>Edit listing</Link>
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {listing.canEdit ? (
+                <Button asChild variant="secondary">
+                  <Link href={`/sell?listingId=${listing.id}`}>Edit listing</Link>
+                </Button>
+              ) : null}
+
+              {listing.status === "APPROVED" && !listing.canEdit ? (
+                existingDealRoomId ? (
+                  <Button asChild variant="primary">
+                    <Link href={`/deals/${existingDealRoomId}`}>
+                      <span>Enter deal room</span>
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : canOpenDealRoom && hasTwoFactorVerified ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={openingDealRoom}
+                    loadingLabel="Opening room..."
+                    onClick={() => void handleOpenDealRoom()}
+                  >
+                    <span>Open deal room</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                ) : (
+                  <Button asChild variant="action">
+                    <Link href="/auth/signin">
+                      <Lock className="h-4 w-4" aria-hidden="true" />
+                      <span>
+                        {isAuthenticated
+                          ? "Verify 2FA to open deal room"
+                          : "Sign in & 2FA for deal room"}
+                      </span>
+                    </Link>
+                  </Button>
+                )
+              ) : null}
+            </div>
           </div>
+
+          {dealRoomError ? (
+            <div
+              role="alert"
+              className="rounded border border-brick-red bg-white p-4 text-16 font-medium text-brick-red"
+            >
+              {dealRoomError}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-2 lg:col-span-2">
@@ -266,7 +347,9 @@ export function ListingDetailClient({
                 <Lock className="h-4 w-4 text-trust-blue" aria-hidden="true" />
                 <span className="text-16 font-semibold text-deep-navy">
                   {listing.sensitiveDetailsUnlocked
-                    ? "Confidential details (visible only to listing owner & reviewers)"
+                    ? listing.canEdit || listing.canReview
+                      ? "Confidential details (visible only to listing owner & reviewers)"
+                      : "Confidential details (unlocked via executed NDA)"
                     : "Confidential details redacted until NDA is signed"}
                 </span>
               </div>

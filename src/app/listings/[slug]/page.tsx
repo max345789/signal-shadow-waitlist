@@ -5,6 +5,7 @@ import { ListingDetailClient } from "@/components/listings/listing-detail-client
 import { Button } from "@/components/ui/button";
 import { CardStateEmpty } from "@/components/ui/card";
 import { getServerSession } from "@/lib/auth/session-server";
+import { listDealRoomsForUser } from "@/lib/deal-rooms/store";
 import { getListingBySlugForViewer } from "@/lib/listings/store";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,23 @@ export default async function ListingDetailPage({
     );
   }
 
+  const hasTwoFactorVerified = Boolean(
+    session?.twoFactorEnabled && session?.twoFactorVerifiedAt
+  );
+  const canOpenDealRoom = Boolean(
+    session &&
+      (session.roles.includes("BUYER") || session.roles.includes("ADMIN")) &&
+      !listing.canEdit
+  );
+  let existingDealRoomId: string | null = null;
+  if (session && hasTwoFactorVerified) {
+    const roomsRes = await listDealRoomsForUser(session);
+    if (roomsRes.ok) {
+      const match = roomsRes.data.find((r) => r.businessId === listing.id);
+      existingDealRoomId = match?.id ?? null;
+    }
+  }
+
   return (
     <AppShell
       activeNav="listings"
@@ -58,13 +76,16 @@ export default async function ListingDetailPage({
             : ""
         } metrics. Sensitive identity fields stay redacted until NDA signature.`,
         nextStepAnswer:
-          "Review verified vs seller-reported vitals, read disclosed risks, and ask founder questions in Q&A below.",
+          "Review verified vs seller-reported vitals, read disclosed risks, ask questions in Q&A, or open a 2FA-protected deal room.",
       }}
     >
       <ListingDetailClient
         initialListing={listing}
         referenceNow={referenceNow}
         isAuthenticated={Boolean(session)}
+        canOpenDealRoom={canOpenDealRoom}
+        hasTwoFactorVerified={hasTwoFactorVerified}
+        existingDealRoomId={existingDealRoomId}
       />
     </AppShell>
   );

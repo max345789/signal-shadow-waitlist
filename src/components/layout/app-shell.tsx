@@ -11,6 +11,7 @@ export interface AppShellProps {
     | "thesis"
     | "matches"
     | "compare"
+    | "deals"
     | "sell"
     | "seller"
     | "verify"
@@ -38,6 +39,7 @@ export function AppShell({
     { key: "thesis", href: "/thesis/new", label: "Thesis builder" },
     { key: "matches", href: "/matches", label: "Matches" },
     { key: "compare", href: "/compare", label: "Compare" },
+    { key: "deals", href: "/deals", label: "Deal rooms" },
     { key: "sell", href: "/sell", label: "List a business" },
     { key: "seller", href: "/seller", label: "Seller" },
     { key: "verify", href: "/verify", label: "Verification" },
@@ -128,7 +130,7 @@ export function AppShell({
       <footer className="mt-8 border-t border-mist bg-white">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-2 px-4 py-6 text-14 text-slate sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <span>
-            Trust Marketplace — Phase 3: Verification and read-only connectors. Verified marks require active verification records.
+            Trust Marketplace — Phase 4: Deal rooms, NDA redaction unlock, document vault, offers, and audit trail.
           </span>
           <span>
             Legal templates and regulatory positions require qualified counsel review prior to launch.

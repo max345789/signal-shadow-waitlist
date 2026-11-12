@@ -4,6 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, Edit3, PlusCircle, RefreshCw, Users } from "lucide-react";
 import type { SanitizedListingView } from "@/lib/domain/listings";
+import type { DealRoomSummary } from "@/lib/domain/deal-room";
+import { DEAL_STAGE_DEFINITIONS } from "@/lib/domain/deal-stages";
 import type { SellerListingBuyerDemand } from "@/lib/matching/store";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
@@ -55,9 +57,13 @@ function statusLabel(status: SanitizedListingView["status"]): string {
 export function SellerDashboardClient({
   initialListings,
   buyerDemandByListingId = {},
+  dealRooms = [],
+  twoFactorRequiredForDeals = false,
 }: {
   initialListings: SanitizedListingView[];
   buyerDemandByListingId?: Record<string, SellerListingBuyerDemand>;
+  dealRooms?: DealRoomSummary[];
+  twoFactorRequiredForDeals?: boolean;
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
@@ -349,10 +355,62 @@ export function SellerDashboardClient({
             </CardContent>
           </Card>
 
-          <CardStateEmpty
-            title="Active deal rooms (Phase 4)"
-            description="NDA execution, watermarked documents, and buyer offers unlock in Phase 4 deal rooms."
-          />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle as="h3">Active deal rooms</CardTitle>
+                <StatusChip tone="neutral" label={`${dealRooms.length} rooms`} />
+              </div>
+              <CardDescription>
+                2FA-protected deal rooms with interested buyers, NDA e-signatures, document vault, and offers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {twoFactorRequiredForDeals ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-16 text-ink">
+                    Verify your 6-digit authenticator code to view and enter buyer deal rooms.
+                  </p>
+                  <div>
+                    <Button asChild variant="action">
+                      <Link href="/auth/signin">Verify 2FA</Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : dealRooms.length === 0 ? (
+                <p className="text-16 text-slate">
+                  No buyers have opened a deal room on your listings yet. Once a buyer opens a room, it will appear here.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {dealRooms.slice(0, 5).map((room) => (
+                    <li
+                      key={room.id}
+                      className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-16 font-semibold text-deep-navy">
+                          {room.teaserTitle}
+                        </span>
+                        <span className="text-14 text-slate">
+                          Buyer: {room.buyerName} · Stage:{" "}
+                          {DEAL_STAGE_DEFINITIONS[room.currentStage].label}
+                        </span>
+                      </div>
+                      <Button asChild variant="secondary">
+                        <Link href={`/deals/${room.id}`}>Open room</Link>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button asChild variant="link">
+                <Link href="/deals">View all deal rooms</Link>
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </section>
     </div>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { canCreateListing } from "@/lib/auth/permissions";
 import { getServerSession } from "@/lib/auth/session-server";
+import { listDealRoomsForUser } from "@/lib/deal-rooms/store";
 import { listListingsForSeller } from "@/lib/listings/store";
 import { getBuyerDemandSummaryForSellerListings } from "@/lib/matching/store";
 
@@ -53,9 +54,18 @@ export default async function SellerDashboardPage() {
     );
   }
 
-  const listings = await listListingsForSeller(session!);
+  const [listings, dealRoomsRes] = await Promise.all([
+    listListingsForSeller(session!),
+    listDealRoomsForUser(session),
+  ]);
   const buyerDemandByListingId =
     await getBuyerDemandSummaryForSellerListings(listings);
+
+  const dealRooms = dealRoomsRes.ok ? dealRoomsRes.data : [];
+  const twoFactorRequiredForDeals =
+    !dealRoomsRes.ok &&
+    (dealRoomsRes.code === "TWO_FACTOR_REQUIRED" ||
+      dealRoomsRes.code === "TWO_FACTOR_EXPIRED");
 
   return (
     <AppShell
@@ -64,12 +74,14 @@ export default async function SellerDashboardPage() {
         canTrustAnswer:
           "Only your own business listings and Admin reviewer notes appear here. Confidential fields remain hidden from public buyers.",
         nextStepAnswer:
-          "Submit saved drafts for Admin review or address reviewer notes on flagged listings.",
+          "Submit saved drafts for Admin review, respond to buyer deal rooms, or address reviewer notes on flagged listings.",
       }}
     >
       <SellerDashboardClient
         initialListings={listings}
         buyerDemandByListingId={buyerDemandByListingId}
+        dealRooms={dealRooms}
+        twoFactorRequiredForDeals={twoFactorRequiredForDeals}
       />
     </AppShell>
   );
