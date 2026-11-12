@@ -1,4 +1,5 @@
 import { getPrismaClient, isDatabaseConfigured } from "@/lib/db/prisma";
+import { sendEmail, EMAIL_EVENTS } from "@/lib/notifications/email";
 import {
   sanitizeListingForViewer,
   type RawBusinessRecord,
@@ -212,6 +213,13 @@ export async function evaluateAndSendThesisAlertsForListing(
         actionUrl: `/matches?thesisId=${encodeURIComponent(thesis.id)}`,
         readAt: null,
         createdAt: nowIso,
+      });
+      // Fire-and-forget email stub — never awaited in hot path
+      void sendEmail({
+        to: thesis.buyerUserId,
+        subject: `New match for "${thesis.title}"`,
+        body: `A new listing matches your acquisition thesis with a score of ${evaluation.score}/100.`,
+        eventType: EMAIL_EVENTS.THESIS_MATCH_ALERT,
       });
     }
   }

@@ -3,6 +3,7 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { CardStateError } from "@/components/ui/card";
+import { captureException } from "@/lib/monitoring/errors";
 
 export default function AppError({
   error,
@@ -11,6 +12,10 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  React.useEffect(() => {
+    captureException(error, { digest: error.digest, source: "app-error" });
+  }, [error]);
+
   return (
     <AppShell
       trustBanner={{

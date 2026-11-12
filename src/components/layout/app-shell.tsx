@@ -128,13 +128,42 @@ export function AppShell({
       </main>
 
       <footer className="mt-8 border-t border-mist bg-white">
-        <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-2 px-4 py-6 text-14 text-slate sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span>
-            Trust Marketplace — Phase 5: Licensed third-party escrow, two-sided transfer checklists, dispute resolution, and audit trail.
-          </span>
-          <span>
-            Legal templates and regulatory positions require qualified counsel review prior to launch.
-          </span>
+        <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-4 px-4 py-6 sm:px-8">
+          <div className="flex flex-wrap items-center gap-4 text-14">
+            <span className="text-slate">Legal</span>
+            <Link
+              href="/legal/terms"
+              className="text-trust-blue underline hover:text-deep-navy text-14"
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="/legal/privacy"
+              className="text-trust-blue underline hover:text-deep-navy text-14"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/legal/nda-template"
+              className="text-trust-blue underline hover:text-deep-navy text-14"
+            >
+              NDA Template
+            </Link>
+            <Link
+              href="/legal/purchase-agreement-template"
+              className="text-trust-blue underline hover:text-deep-navy text-14"
+            >
+              Purchase Agreement
+            </Link>
+          </div>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-14 text-slate">
+              Trust Marketplace — Phase 6: Accessibility, legal, notifications &amp; production readiness.
+            </span>
+            <span className="text-14 text-slate">
+              Legal templates require qualified counsel review prior to launch.
+            </span>
+          </div>
         </div>
       </footer>
     </div>

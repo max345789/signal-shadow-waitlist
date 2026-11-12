@@ -172,3 +172,32 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 2. **Empty, Loading, Error & Notification Polish**: Audit every screen and route for consistent loading/empty/error states, wire email/push notification dispatch hooks alongside in-app `Notification` records, and verify mobile (`360px`) + desktop (`1280px`) ergonomics.
 3. **Legal Placeholders & Regulatory Checklists**: Add `/legal/terms`, `/legal/privacy`, and regulatory/compliance disclosures clearly badged **`Needs legal review`** (Section 10).
 4. **Analytics, Error Monitoring & Production Readiness**: Wire privacy-respecting product analytics, live error monitoring boundaries, and CI verification gates.
+
+
+## Phase 6 Decisions
+
+### Decision 32 — Email Notifications Stubbed
+- **Decision**: Email dispatch is implemented in `src/lib/notifications/email.ts` as a fire-and-forget stub. It logs intent to `console.info`, writes an `AuditLog` entry with `action: "EMAIL_DISPATCH_ATTEMPTED"`, and returns early unless `ENABLE_LIVE_EMAIL=true`. Callers never `await` it in hot paths.
+- **Events covered**: `thesis_match_alert`, `verification_approved`, `verification_failed`, `deal_stage_changed`, `escrow_status_changed`, `nda_signed`, `deal_cancelled`.
+- **Wiring**: Called from `src/lib/matching/alerts.ts`, `src/lib/verification/store.ts`, `src/lib/deal-rooms/store.ts`, `src/lib/escrow/provider.ts`.
+- **Why**: No PII leaves the server without a live provider configured. Satisfies Section 10 notification requirements without introducing an external dependency that would fail in local-dev.
+- **To activate**: Install Resend/SendGrid/Postmark, set `ENABLE_LIVE_EMAIL=true` and the provider API key, implement the live branch in `sendEmail()`.
+
+### Decision 33 — Error Monitoring Stubbed via captureException
+- **Decision**: `src/lib/monitoring/errors.ts` exports `captureException(err, context?)`. It always logs to `console.error`. If `NEXT_PUBLIC_SENTRY_DSN` is set, the stub comments indicate where to wire `Sentry.captureException()`. `src/instrumentation.ts` contains the `register()` hook with commented-out `Sentry.init()` for both Node.js and Edge runtimes.
+- **Wiring**: Called from `src/app/error.tsx` and `src/app/global-error.tsx` via `useEffect`.
+- **Why**: Zero external calls in local-dev. Sentry can be activated with one env variable + one `npm install`. Global error boundary (`global-error.tsx`) uses only Section 4 inline styles because Tailwind CSS is unavailable at that render level.
+
+### Decision 34 — Analytics Stubbed; No PII Tracked
+- **Decision**: `src/lib/analytics/events.ts` exports `trackEvent(name, properties?)`. Gated on `NEXT_PUBLIC_ANALYTICS_ENABLED=true`; exits immediately when disabled. No PII (names, emails, company details) is passed in properties — only anonymised IDs (hashed user IDs, listing slugs) and funnel event names.
+- **Events**: `page_view`, `thesis_created`, `match_viewed`, `listing_viewed`, `deal_room_opened`, `nda_signed`, `deal_completed`.
+- **Why**: Privacy-by-default. PostHog or Plausible can be wired with one env variable + one SDK import.
+
+### Decision 35 — Legal Pages Are Skeletons; Qualified Counsel Required Before Go-Live
+- **Decision**: `/legal/terms`, `/legal/privacy`, `/legal/nda-template`, and `/legal/purchase-agreement-template` are skeleton pages with structural content only. Each displays a prominent amber `role="alert"` banner: **"Needs legal review — not yet reviewed by qualified counsel"**. Each includes a regulatory checklist note covering escrow licensing (DFPI/RBI/FCA), KYC/AML obligations, data protection (GDPR/DPDP/CCPA), securities law, and cross-border transaction requirements.
+- **Why**: Section 10 mandates that "all legal templates are marked as requiring review." Shipping skeleton content without review is safer than shipping no content; the disclaimer ensures no one treats these as valid legal agreements.
+
+### Decision 36 — Accessibility Target: Lighthouse ≥ 95; axe-core in E2E Suite
+- **Decision**: Accessibility is enforced through three layers: (1) Section 4 design token constraints (body text ≥ 16px; WCAG AA contrast for all text pairs); (2) `AppShell` skip-to-main-content link as first Tab stop; (3) axe-core `@axe-core/playwright` WCAG2A/2AA audit in `tests/e2e/phase6.spec.ts`, asserting zero critical/serious violations on `/`, `/listings`, `/legal/terms`, `/legal/privacy`. Color-contrast rule is excluded from axe because it is already enforced by the design token Vitest unit tests which validate computed contrast ratios against WCAG AA thresholds.
+- **Why**: Keyboard-only buy path and accessibility are explicitly listed as Phase 6 success criteria in the product spec.
+

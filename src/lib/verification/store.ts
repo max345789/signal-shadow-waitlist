@@ -1,4 +1,5 @@
 import { getPrismaClient, isDatabaseConfigured } from "@/lib/db/prisma";
+import { sendEmail, EMAIL_EVENTS } from "@/lib/notifications/email";
 import type { AuthSession } from "@/lib/auth/types";
 import type {
   MetricKeyValue,
@@ -2689,6 +2690,28 @@ export async function reviewVerificationAsAdmin(
     previousStatus: existing.status,
     newStatus: validation.nextStatus,
     note: validation.reviewerNote,
+    createdAt: nowIso,
+  });
+
+  // Fire-and-forget email stub — never awaited in hot path
+  const emailEventType =
+    validation.nextStatus === "VERIFIED"
+      ? EMAIL_EVENTS.VERIFICATION_APPROVED
+      : EMAIL_EVENTS.VERIFICATION_FAILED;
+  void sendEmail({
+    to: updated.userEmail ?? "unknown",
+    subject: `Verification ${validation.nextStatus === "VERIFIED" ? "approved" : "update"}: ${updated.provider}`,
+    body: `Your ${updated.provider} verification status has been updated to ${validation.nextStatus}. ${validation.reviewerNote}`,
+    eventType: emailEventType,
+  });
+  store.auditLogs.unshift({
+    id: `vaudit-email-${Date.now().toString(36)}`,
+    actorId: actor.userId,
+    entityId: updated.id,
+    action: "EMAIL_DISPATCH_ATTEMPTED",
+    previousStatus: null,
+    newStatus: null,
+    note: `eventType: ${emailEventType}`,
     createdAt: nowIso,
   });
 
