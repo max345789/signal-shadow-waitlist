@@ -294,12 +294,14 @@ test("Phase 3 acceptance: Buyer KYC & POF flow, Seller read-only Stripe & GA4 co
     .fill("rk_sandbox_fail_revoked_2026");
   await page.getByRole("button", { name: /Connect read-only source/i }).click();
   await expect(page.getByText("Connection failed").first()).toBeVisible();
+  await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
 
   await page.goto("/listings/sample-devtools-api-monitoring", {
     waitUntil: "networkidle",
   });
   await expect(page.getByText("1 active verification record")).toBeVisible();
   await expect(page.getByText("Connection failed").first()).toBeVisible();
+  await expect(page.getByText("Verified connection")).toHaveCount(0);
   await assertCleanDesignAudit(page, { enforceMaxThreeNonNeutrals: true });
 
   // 7. Reviewer expires the remaining GA4 connector -> listing loses ALL Verified marks automatically

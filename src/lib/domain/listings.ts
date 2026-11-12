@@ -382,6 +382,16 @@ export function sanitizeListingForViewer(
     }
   }
 
+  const revenueVerified = metrics.some(
+    (m) => m.key === "REVENUE" && m.trust.isVerified
+  );
+  const financialSeries = revenueVerified
+    ? raw.financialSeries
+    : raw.financialSeries.map((pt) => ({
+        ...pt,
+        source: "SELLER_REPORTED" as const,
+      }));
+
   const canSeeInternalNotes = isOwner || isStaff;
 
   return {
@@ -399,7 +409,7 @@ export function sanitizeListingForViewer(
     founderMediaUrl: sanitizeFounderMediaUrl(raw.founderMediaUrl),
     founderMediaType: raw.founderMediaType,
     financialNarrative: raw.financialNarrative,
-    financialSeries: raw.financialSeries,
+    financialSeries,
     risksSummary: raw.risksSummary,
     techStack: raw.techStack,
     assetsIncluded: raw.assetsIncluded,

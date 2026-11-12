@@ -343,6 +343,11 @@ export async function reconcileExpiredVerifications(
           row.type === PrismaVerificationType.PAYMENT_CONNECTOR &&
           row.business
         ) {
+          await tx.businessMetric.updateMany({
+            where: { verificationId: row.id },
+            data: { verifiedAt: null },
+          });
+
           const series = parseFinancialSeriesFromJson(row.business.financialSeriesJson);
           const profit = Number(row.business.metrics[0]?.value ?? 0);
           const reverted = updateSeriesSourceForPaymentVerification(
@@ -356,6 +361,14 @@ export async function reconcileExpiredVerifications(
             data: {
               financialSeriesJson: reverted as unknown as Prisma.InputJsonValue,
             },
+          });
+        } else if (
+          row.type === PrismaVerificationType.ANALYTICS_CONNECTOR &&
+          row.business
+        ) {
+          await tx.businessMetric.updateMany({
+            where: { verificationId: row.id },
+            data: { verifiedAt: null },
           });
         }
 
@@ -662,7 +675,10 @@ export async function getVerificationCentreState(
       (a) =>
         (a.action === "VERIFICATION_EXPIRED" ||
           a.action === "CONNECTOR_SYNC_FAILED" ||
-          a.action === "VERIFICATION_FAILED") &&
+          a.action === "CONNECTOR_CONNECTION_FAILED" ||
+          a.action === "VERIFICATION_FAILED" ||
+          a.action === "VERIFICATION_REVOKED" ||
+          a.action === "VERIFICATION_APPROVED") &&
         store.verifications.some(
           (v) => v.id === a.entityId && v.userId === session.userId
         )
@@ -1116,7 +1132,7 @@ export async function connectBusinessAccount(
                 provider: input.provider,
                 status: failStatus,
                 verifiedAt: null,
-                expiresAt: null,
+                expiresAt: fetchResult.code === "TOKEN_EXPIRED" ? now : null,
                 failureReason: fetchResult.reason,
                 metadataJson: failMeta as unknown as Prisma.InputJsonValue,
               },
@@ -1141,6 +1157,7 @@ export async function connectBusinessAccount(
           data: {
             source: spec.source as PrismaMetricSource,
             verificationId: ver.id,
+            verifiedAt: null,
           },
         });
 
@@ -1587,11 +1604,18 @@ export async function syncConnectorVerification(
         reason: "Only payment or analytics connectors can be refreshed.",
       };
     }
-    if (row.status === PrismaVerificationStatus.REVOKED && !options.readOnlyToken) {
+    if (
+      (row.status === PrismaVerificationStatus.REVOKED ||
+        row.status === PrismaVerificationStatus.FAILED) &&
+      !options.readOnlyToken
+    ) {
       return {
         ok: false,
         code: "INVALID_STATE",
-        reason: "Connector was revoked. Supply a new read-only token to reconnect.",
+        reason:
+          row.status === PrismaVerificationStatus.REVOKED
+            ? "Connector was revoked. Supply a new read-only token to reconnect."
+            : "Connector failed verification. Supply a new read-only token to reconnect.",
       };
     }
 
@@ -1603,8 +1627,8 @@ export async function syncConnectorVerification(
 
     if (
       !options.readOnlyToken &&
-      row.expiresAt &&
-      row.expiresAt.getTime() <= now.getTime()
+      (row.status === PrismaVerificationStatus.EXPIRED ||
+        (row.expiresAt && row.expiresAt.getTime() <= now.getTime()))
     ) {
       await reconcileExpiredVerifications(now);
       const refreshed = await prisma.verification.findUniqueOrThrow({
@@ -1676,6 +1700,11 @@ export async function syncConnectorVerification(
               },
             },
           },
+        });
+
+        await tx.businessMetric.updateMany({
+          where: { verificationId: row.id },
+          data: { verifiedAt: null },
         });
 
         if (kind === "PAYMENT" && row.business) {
@@ -1776,9 +1805,27 @@ export async function syncConnectorVerification(
             where: { id: existingMetric.id },
             data: {
               value: synced.value,
+              label: synced.label,
               source: synced.source as PrismaMetricSource,
               verificationId: ver.id,
               verifiedAt: now,
+            },
+          });
+        } else {
+          await tx.businessMetric.create({
+            data: {
+              businessId: row.business!.id,
+              key: synced.key as PrismaMetricKey,
+              label: synced.label,
+              value: synced.value,
+              unit: synced.unit as PrismaMetricUnit,
+              currency: synced.currency
+                ? (synced.currency as PrismaCurrencyCode)
+                : null,
+              source: synced.source as PrismaMetricSource,
+              verificationId: ver.id,
+              verifiedAt: now,
+              isSampleData: row.business!.isSampleData,
             },
           });
         }
@@ -1865,11 +1912,17 @@ export async function syncConnectorVerification(
       reason: "Only payment or analytics connectors can be refreshed.",
     };
   }
-  if (existing.status === "REVOKED" && !options.readOnlyToken) {
+  if (
+    (existing.status === "REVOKED" || existing.status === "FAILED") &&
+    !options.readOnlyToken
+  ) {
     return {
       ok: false,
       code: "INVALID_STATE",
-      reason: "Connector was revoked. Supply a new read-only token to reconnect.",
+      reason:
+        existing.status === "REVOKED"
+          ? "Connector was revoked. Supply a new read-only token to reconnect."
+          : "Connector failed verification. Supply a new read-only token to reconnect.",
     };
   }
 
@@ -1878,8 +1931,9 @@ export async function syncConnectorVerification(
 
   if (
     !options.readOnlyToken &&
-    existing.expiresAt &&
-    new Date(existing.expiresAt).getTime() <= now.getTime()
+    (existing.status === "EXPIRED" ||
+      (existing.expiresAt &&
+        new Date(existing.expiresAt).getTime() <= now.getTime()))
   ) {
     await reconcileExpiredVerifications(now);
     const updated = store.verifications[idx]!;
@@ -2084,6 +2138,11 @@ export async function revokeConnectorVerification(
             },
           },
         },
+      });
+
+      await tx.businessMetric.updateMany({
+        where: { verificationId: row.id },
+        data: { verifiedAt: null },
       });
 
       if (row.type === PrismaVerificationType.PAYMENT_CONNECTOR && row.business) {
@@ -2481,27 +2540,35 @@ export async function reviewVerificationAsAdmin(
           },
         });
       } else if (
-        existing.type === PrismaVerificationType.PAYMENT_CONNECTOR &&
+        (existing.type === PrismaVerificationType.PAYMENT_CONNECTOR ||
+          existing.type === PrismaVerificationType.ANALYTICS_CONNECTOR) &&
         existing.business
       ) {
-        const series = parseFinancialSeriesFromJson(
-          existing.business.financialSeriesJson
-        );
-        const profit = Number(
-          existing.business.metrics.find((m) => m.key === "PROFIT")?.value ?? 0
-        );
         const isActive = validation.nextStatus === "VERIFIED";
-        await tx.business.update({
-          where: { id: existing.business.id },
-          data: {
-            financialSeriesJson: updateSeriesSourceForPaymentVerification(
-              series,
-              null,
-              profit,
-              isActive
-            ) as unknown as Prisma.InputJsonValue,
-          },
+        await tx.businessMetric.updateMany({
+          where: { verificationId: existing.id },
+          data: { verifiedAt: isActive ? now : null },
         });
+
+        if (existing.type === PrismaVerificationType.PAYMENT_CONNECTOR) {
+          const series = parseFinancialSeriesFromJson(
+            existing.business.financialSeriesJson
+          );
+          const profit = Number(
+            existing.business.metrics.find((m) => m.key === "PROFIT")?.value ?? 0
+          );
+          await tx.business.update({
+            where: { id: existing.business.id },
+            data: {
+              financialSeriesJson: updateSeriesSourceForPaymentVerification(
+                series,
+                null,
+                profit,
+                isActive
+              ) as unknown as Prisma.InputJsonValue,
+            },
+          });
+        }
       }
 
       const recipientUserId =

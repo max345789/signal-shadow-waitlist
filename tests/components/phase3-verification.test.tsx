@@ -145,6 +145,87 @@ describe("Phase 3 UI components: VerificationCentreClient & AdminReviewClient ve
     // Because Verified Green is present, risk/caution chips must fall back to neutral border styling
     expect(container.querySelector('[data-status-tone="risk"]')).toBeNull();
     expect(container.querySelector('[data-status-tone="caution"]')).toBeNull();
+    // Failed connector disables tokenless Refresh now button
+    const refreshButtons = screen.getAllByRole("button", { name: /Refresh now/i });
+    expect(refreshButtons[1]).toBeDisabled();
+  });
+
+  it("renders VerificationCentreClient notifications and enforces <=3 non-neutrals when actionError coexists with Verified", async () => {
+    const user = userEvent.setup();
+    const nowIso = "2026-11-12T10:00:00.000Z";
+    const futureIso = "2026-12-12T10:00:00.000Z";
+    const stateWithNotif: VerificationCentreState = {
+      identity: {
+        record: {
+          id: "ver-id-active",
+          userId: BUYER_SESSION.userId,
+          businessId: null,
+          type: "IDENTITY",
+          provider: "Persona",
+          status: "VERIFIED",
+          verifiedAt: nowIso,
+          expiresAt: futureIso,
+          failureReason: null,
+          metadata: { documentType: "PAN", maskedReference: "****482F" },
+          isSampleData: false,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+        evaluated: {
+          isVerified: true,
+          effectiveState: "verified",
+          label: "Verified",
+          detail: "Read-only via Persona",
+          lastVerifiedLabel: "Last verified just now",
+        },
+      },
+      proofOfFunds: null,
+      buyerDataAccess: {
+        allowed: false,
+        identityEvaluated: {
+          isVerified: true,
+          effectiveState: "verified",
+          label: "Verified",
+          detail: "Read-only via Persona",
+          lastVerifiedLabel: "Last verified just now",
+        },
+        proofOfFundsEvaluated: {
+          isVerified: false,
+          effectiveState: "seller-reported",
+          label: "Seller-reported",
+          detail: "Not submitted",
+          lastVerifiedLabel: null,
+        },
+        reason: "Active Proof of Funds verification is required.",
+      },
+      sellerBusinesses: [],
+      notifications: [
+        {
+          id: "notif-1",
+          type: "VERIFICATION_APPROVED",
+          title: "VERIFICATION APPROVED",
+          body: "Persona KYC verified for 90 days.",
+          createdAt: nowIso,
+        },
+      ],
+    };
+
+    render(
+      <VerificationCentreClient
+        session={BUYER_SESSION}
+        initialState={stateWithNotif}
+        isSandboxMode={true}
+      />
+    );
+
+    expect(screen.getByText("Recent verification alerts")).toBeInTheDocument();
+    expect(screen.getByText("Persona KYC verified for 90 days.")).toBeInTheDocument();
+
+    // Triggering actionError while Verified Green is visible must NOT use brick-red
+    await user.type(screen.getByLabelText(/Last 4 characters of ID/i), "12");
+    await user.click(screen.getByRole("button", { name: /Submit identity check/i }));
+    const alert = screen.getByRole("alert");
+    expect(alert.className).not.toContain("brick-red");
   });
 
   it("validates Buyer KYC inputs and renders Deal Room Data Access status", async () => {

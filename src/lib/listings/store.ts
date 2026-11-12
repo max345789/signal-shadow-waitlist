@@ -765,19 +765,27 @@ export async function updateSellerListing(
         ? "DRAFT"
         : (existing.status as ListingStatusValue);
 
+    const activeVerifiedKeys = new Set(
+      existing.metrics
+        .filter(
+          (m) =>
+            m.source !== PrismaMetricSource.SELLER_REPORTED &&
+            m.verification !== null &&
+            evaluateVerification(m.verification, now).isVerified
+        )
+        .map((m) => m.key)
+    );
+
     const updated = await prisma.$transaction(async (tx) => {
       await tx.businessMetric.deleteMany({
-        where: { businessId: existing.id, source: PrismaMetricSource.SELLER_REPORTED },
+        where: {
+          businessId: existing.id,
+          key: { notIn: Array.from(activeVerifiedKeys) },
+        },
       });
 
-      const verifiedKeys = new Set(
-        existing.metrics
-          .filter((m) => m.source !== PrismaMetricSource.SELLER_REPORTED)
-          .map((m) => m.key)
-      );
-
       const newMetrics = buildSellerReportedMetrics(input, "m").filter(
-        (m) => !verifiedKeys.has(m.key as PrismaMetricKey)
+        (m) => !activeVerifiedKeys.has(m.key as PrismaMetricKey)
       );
 
       const biz = await tx.business.update({
@@ -900,7 +908,10 @@ export async function updateSellerListing(
       : existing.status;
 
   const preservedVerified = existing.metrics.filter(
-    (m) => m.source !== "SELLER_REPORTED"
+    (m) =>
+      m.source !== "SELLER_REPORTED" &&
+      m.verification !== null &&
+      evaluateVerification(m.verification, now).isVerified
   );
   const verifiedKeys = new Set(preservedVerified.map((m) => m.key));
   const freshSellerMetrics = buildSellerReportedMetrics(

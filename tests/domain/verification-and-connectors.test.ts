@@ -7,7 +7,9 @@ import {
   hasActiveBuyerDataAccessVerification,
   validateVerificationReviewTransition,
 } from "@/lib/domain/verification";
-import { resetLocalListingsStoreForTest } from "@/lib/listings/store";
+import { sanitizeListingForViewer } from "@/lib/domain/listings";
+import { resetLocalListingsStoreForTest, updateSellerListing } from "@/lib/listings/store";
+import { createSampleSeedListings } from "@/lib/listings/sample-data";
 import { fetchReadOnlyConnectorMetrics } from "@/lib/verification/connectors";
 import { reconcileExpiredVerifications } from "@/lib/verification/store";
 
@@ -551,5 +553,143 @@ describe("Phase 3 Verification Centre, Connector Sync, Expiry & Admin Review API
     );
     expect(revMetric.trust.isVerified).toBe(false);
     expect(revMetric.trust.label).toBe("Verification expired");
+    expect(listingAfterExpiry.listing.financialSeries[0].source).toBe("SELLER_REPORTED");
+  });
+
+  it("downgrades financialSeries on expired read, blocks tokenless sync after Admin FAIL, supports accountId/interval updates, and allows editing unverified metrics", async () => {
+    // 1. Expired payment connector must downgrade financialSeries even before sweeper runs
+    const sampleBiz = createSampleSeedListings()[0]!;
+    const futureNow = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    const sanitizedExpired = sanitizeListingForViewer(
+      sampleBiz,
+      { userId: null, roles: [], hasSignedNda: false },
+      futureNow
+    );
+    expect(sanitizedExpired.trustSummary.verifiedCount).toBe(0);
+    expect(sanitizedExpired.financialSeries.every((p) => p.source === "SELLER_REPORTED")).toBe(true);
+
+    // 2. Approve sample-biz-dev-03 and test initial connect fail (HTTP 200 with connected: false)
+    await setActiveSession(REVIEWER_SESSION);
+    await adminListingReviewPost(
+      new Request("http://127.0.0.1:3000/api/admin/listings/sample-biz-dev-03/review", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          decision: "APPROVE",
+          reviewerNote: "Approved for fail/edit regression test.",
+        }),
+      }),
+      { params: Promise.resolve({ id: "sample-biz-dev-03" }) }
+    );
+
+    await setActiveSession(SELLER_SESSION);
+    const initialFailRes = await connectPost(
+      new Request("http://127.0.0.1:3000/api/verification/connectors", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          businessId: "sample-biz-dev-03",
+          connectorKind: "PAYMENT",
+          provider: "Stripe",
+          accountIdentifier: "acct_initial_fail",
+          readOnlyToken: "rk_sandbox_fail_initial",
+          syncIntervalMinutes: 60,
+        }),
+      })
+    );
+    expect(initialFailRes.status).toBe(200);
+    const initialFailData = await initialFailRes.json();
+    expect(initialFailData.connected).toBe(false);
+    expect(initialFailData.verification.evaluated.isVerified).toBe(false);
+
+    // 3. Reconnect with new accountIdentifier + 15-min interval -> updates metadata cleanly
+    const connectOkRes = await connectPost(
+      new Request("http://127.0.0.1:3000/api/verification/connectors", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          businessId: "sample-biz-dev-03",
+          connectorKind: "PAYMENT",
+          provider: "Stripe",
+          accountIdentifier: "acct_rotated_999",
+          readOnlyToken: "rk_sandbox_valid_rotated",
+          syncIntervalMinutes: 15,
+        }),
+      })
+    );
+    expect(connectOkRes.status).toBe(201);
+    const connectOkData = await connectOkRes.json();
+    const stripeVerId = connectOkData.verification.record.id;
+    expect(connectOkData.verification.record.metadata.accountIdentifier).toBe("acct_rotated_999");
+    expect(connectOkData.verification.record.metadata.syncIntervalMinutes).toBe(15);
+
+    // 4. Admin marks connector FAILED -> Seller cannot bypass via tokenless sync
+    await setActiveSession(REVIEWER_SESSION);
+    const adminFail = await adminVerificationReviewPost(
+      new Request(
+        `http://127.0.0.1:3000/api/admin/verifications/${stripeVerId}/review`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            decision: "FAIL",
+            reviewerNote: "Mismatch against filed GST summary.",
+          }),
+        }
+      ),
+      { params: Promise.resolve({ id: stripeVerId }) }
+    );
+    expect(adminFail.status).toBe(200);
+
+    await setActiveSession(SELLER_SESSION);
+    const bypassAttempt = await syncPost(
+      new Request(
+        `http://127.0.0.1:3000/api/verification/connectors/${stripeVerId}/sync`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
+      ),
+      { params: Promise.resolve({ id: stripeVerId }) }
+    );
+    expect(bypassAttempt.status).toBe(400);
+
+    // 5. While connector is FAILED, Seller editing listing updates REVENUE as SELLER_REPORTED
+    const editRes = await updateSellerListing(
+      "sample-biz-dev-03",
+      {
+        teaserTitle: "Developer API Uptime & Latency Monitor (Remote India)",
+        teaserSummary:
+          "Lightweight multi-region synthetic API monitoring SaaS with 185 paying developer teams.",
+        redactedName: "PulseCheck Telemetry Labs (Confidential Sample)",
+        redactedDomain: "pulsecheck-sample.dev",
+        redactedCustomers: "185 engineering teams",
+        sector: "Developer Tools",
+        geography: "India (Remote)",
+        askingPrice: 10_200_000,
+        currency: "INR",
+        ownerHoursPerWeek: 8,
+        reasonForSelling: "Founder stepping back to focus on AI infrastructure.",
+        founderStory: "Runs across 6 probe regions with minimal support.",
+        founderMediaUrl: null,
+        founderMediaType: null,
+        financialNarrative: "Updated seller-reported baseline after connector failure.",
+        risksSummary: "Metrics currently seller-reported.",
+        techStack: ["TypeScript", "Node.js"],
+        assetsIncluded: ["Primary domain & DNS transfer"],
+        annualRevenue: 8_900_000,
+        annualProfit: 3_400_000,
+        growthPercent: 38,
+        churnPercent: 2.1,
+        monthlyTraffic: 20_000,
+        customerCount: 195,
+        submitForReview: true,
+      },
+      SELLER_SESSION
+    );
+    expect(editRes.ok).toBe(true);
+    if (editRes.ok) {
+      const rev = editRes.listing.metrics.find((m) => m.key === "REVENUE");
+      expect(rev?.value).toBe(8_900_000);
+      expect(rev?.source).toBe("SELLER_REPORTED");
+      expect(rev?.trust.isVerified).toBe(false);
+    }
   });
 });

@@ -260,6 +260,9 @@ export function AdminReviewClient({
     const inactiveHasRisk = items.some(
       (v) => v.record.status === "FAILED" || v.record.status === "REVOKED"
     );
+    const hasFieldValidationError = items.some((v) =>
+      Boolean(verErrorsById[v.record.id])
+    );
 
     return (
       <div className="flex flex-col gap-6">
@@ -274,10 +277,12 @@ export function AdminReviewClient({
             tabToneMode === "verified"
               ? "verified"
               : tabToneMode === "pending"
-                ? "pending"
+                ? hasFieldValidationError
+                  ? "seller-reported"
+                  : "pending"
                 : record.status === "FAILED" || record.status === "REVOKED"
                   ? "risk"
-                  : inactiveHasRisk
+                  : inactiveHasRisk || hasFieldValidationError
                     ? "seller-reported"
                     : "caution";
 

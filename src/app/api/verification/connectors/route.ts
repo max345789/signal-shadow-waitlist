@@ -49,6 +49,18 @@ export async function POST(request: Request) {
 
   const result = await connectBusinessAccount(parsed.data, session);
   if (!result.ok) {
+    if (result.code === "CONNECTION_FAILED" && result.data) {
+      return NextResponse.json(
+        {
+          connected: false,
+          error: result.reason,
+          code: result.code,
+          verification: result.data,
+          syncedMetrics: [],
+        },
+        { status: 200 }
+      );
+    }
     const status =
       result.code === "NOT_FOUND"
         ? 404
@@ -67,6 +79,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json(
     {
+      connected: true,
       verification: result.data,
       syncedMetrics: result.syncedMetrics,
     },

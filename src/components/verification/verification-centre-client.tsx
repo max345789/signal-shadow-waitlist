@@ -182,7 +182,7 @@ function ConnectorSlotPanel({
         <Button
           type="button"
           variant="secondary"
-          disabled={isBusy || record.status === "REVOKED"}
+          disabled={isBusy || record.status === "REVOKED" || record.status === "FAILED"}
           loading={isBusy}
           loadingLabel="Syncing..."
           onClick={() => onSync(record.id)}
@@ -542,52 +542,6 @@ export function VerificationCentreClient({
 
     setSubmittingConnector(true);
     try {
-      const targetBiz = businesses.find(
-        (b) => b.businessId === effectiveSelectedBusinessId
-      );
-      const existingSlot =
-        connectorKind === "PAYMENT"
-          ? targetBiz?.paymentConnector
-          : targetBiz?.analyticsConnector;
-
-      if (
-        existingSlot &&
-        existingSlot.record.provider === connectorProvider
-      ) {
-        const res = await fetch(
-          `/api/verification/connectors/${existingSlot.record.id}/sync`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              readOnlyToken: readOnlyToken.trim(),
-              force: true,
-            }),
-          }
-        );
-        const data = await res.json();
-        await reloadVerificationState();
-        if (!res.ok) {
-          setActionError(
-            data.error ?? "Unable to update read-only connector credentials."
-          );
-          return;
-        }
-        setReadOnlyToken("");
-        const ev: EvaluatedVerification | undefined =
-          data.verification?.evaluated;
-        if (ev && !ev.isVerified) {
-          setActionError(
-            `${connectorProvider} credential check returned "${ev.label}". Verified mark removed automatically.`
-          );
-        } else {
-          setStatusMessage(
-            `Updated and verified read-only ${connectorProvider} (${ev?.lastVerifiedLabel ?? "Last verified just now"}).`
-          );
-        }
-        return;
-      }
-
       const res = await fetch("/api/verification/connectors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -610,9 +564,19 @@ export function VerificationCentreClient({
         return;
       }
 
+      const ev: EvaluatedVerification | undefined =
+        data.verification?.evaluated;
+      if (data.connected === false || (ev && !ev.isVerified)) {
+        setActionError(
+          data.error ??
+            `${connectorProvider} credential check returned "${ev?.label ?? "Connection failed"}". Verified mark removed automatically.`
+        );
+        return;
+      }
+
       setReadOnlyToken("");
       setStatusMessage(
-        `Connected read-only ${connectorProvider}. Synced ${data.syncedMetrics?.length ?? 0} verified metrics.`
+        `Connected read-only ${connectorProvider} (${ev?.lastVerifiedLabel ?? "Last verified just now"}). Synced ${data.syncedMetrics?.length ?? 0} verified metrics.`
       );
     } catch {
       setActionError("Network error while connecting read-only account.");
@@ -761,6 +725,11 @@ export function VerificationCentreClient({
   const allowConnCaution = !connTabHasVerified && !connTabHasFailed;
   const allowConnRisk = !connTabHasVerified && !connTabHasPendingOrExpired;
 
+  const hasNonRedSemanticOnActiveTab =
+    activeTab === "identity"
+      ? identityTabHasVerified || identityTabHasPendingOrExpired
+      : connTabHasVerified || connTabHasPendingOrExpired;
+
   const activeSpec = CONNECTOR_PROVIDER_SPECS[connectorProvider];
 
   return (
@@ -801,11 +770,41 @@ export function VerificationCentreClient({
       {actionError ? (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded border border-brick-red bg-white p-4 text-16 font-medium text-brick-red"
+          className={
+            hasNonRedSemanticOnActiveTab
+              ? "flex items-start gap-2 rounded border border-deep-navy bg-white p-4 text-16 font-medium text-deep-navy"
+              : "flex items-start gap-2 rounded border border-brick-red bg-white p-4 text-16 font-medium text-brick-red"
+          }
         >
           <AlertTriangle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{actionError}</span>
         </div>
+      ) : null}
+
+      {state && state.notifications.length > 0 ? (
+        <Card className="bg-white">
+          <CardHeader>
+            <CardTitle as="h2">Recent verification alerts</CardTitle>
+            <CardDescription>
+              Status changes, expiry removals, and reviewer decisions for your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-2">
+              {state.notifications.slice(0, 5).map((n) => (
+                <li
+                  key={n.id}
+                  className="flex flex-col gap-1 rounded border border-mist bg-cloud p-4"
+                >
+                  <span className="text-14 font-semibold text-deep-navy">
+                    {n.title}
+                  </span>
+                  <span className="text-16 text-ink">{n.body}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
 
       {loading && !state ? (

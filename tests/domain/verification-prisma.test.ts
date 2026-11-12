@@ -279,6 +279,79 @@ describe("Phase 3 PostgreSQL/Prisma transaction & audit branches", () => {
     );
   });
 
+  it("connectBusinessAccount records TOKEN_EXPIRED with expiresAt, clears verifiedAt, and supports provider switch", async () => {
+    const now = new Date("2026-11-12T10:00:00.000Z");
+    mockBusinessFindUnique.mockResolvedValue({
+      id: "pg-biz-1",
+      slug: "pg-saas",
+      teaserTitle: "PG SaaS",
+      currency: "INR",
+      isSampleData: false,
+      sellerProfile: { userId: SELLER_SESSION.userId },
+      financialSeriesJson: [
+        { period: "Q1", revenue: 1_000_000, profit: 400_000, source: "VERIFIED" },
+      ],
+      metrics: [
+        { id: "pg-m-rev", key: "REVENUE", value: new Prisma.Decimal("4000000"), currency: "INR" },
+        { id: "pg-m-prof", key: "PROFIT", value: new Prisma.Decimal("1600000"), currency: "INR" },
+      ],
+    });
+    mockVerificationFindFirst.mockResolvedValue(null);
+    mockVerificationCreate.mockResolvedValue({
+      id: "pg-ver-rzp-exp",
+      userId: SELLER_SESSION.userId,
+      businessId: "pg-biz-1",
+      type: "PAYMENT_CONNECTOR",
+      provider: "Razorpay",
+      status: "EXPIRED",
+      verifiedAt: null,
+      expiresAt: now,
+      failureReason: "Razorpay read-only authorization expired; reconnect to restore Verified status.",
+      metadataJson: { connectorKind: "PAYMENT", sandboxTokenBehavior: "expired" },
+      createdAt: now,
+      updatedAt: now,
+      user: { id: SELLER_SESSION.userId, name: SELLER_SESSION.name, email: SELLER_SESSION.email },
+      business: { id: "pg-biz-1", teaserTitle: "PG SaaS", slug: "pg-saas", isSampleData: false },
+    });
+
+    const failRes = await connectBusinessAccount(
+      {
+        businessId: "pg-biz-1",
+        connectorKind: "PAYMENT",
+        provider: "Razorpay",
+        accountIdentifier: "rzp_pg_01",
+        readOnlyToken: "rzp_sandbox_expired_pg",
+        syncIntervalMinutes: 60,
+      },
+      SELLER_SESSION
+    );
+
+    expect(failRes.ok).toBe(false);
+    expect(mockVerificationCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          provider: "Razorpay",
+          status: "EXPIRED",
+          expiresAt: expect.any(Date),
+        }),
+      })
+    );
+    expect(mockBusinessMetricUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ verifiedAt: null }),
+      })
+    );
+    expect(mockBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          financialSeriesJson: expect.arrayContaining([
+            expect.objectContaining({ source: "SELLER_REPORTED" }),
+          ]),
+        }),
+      })
+    );
+  });
+
   it("reconcileExpiredVerifications marks expired records, reverts financialSeriesJson, notifies user, and writes AuditLog", async () => {
     const now = new Date("2026-11-12T10:00:00.000Z");
     mockVerificationFindMany.mockResolvedValue([

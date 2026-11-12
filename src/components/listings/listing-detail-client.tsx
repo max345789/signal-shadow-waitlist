@@ -41,6 +41,7 @@ export function ListingDetailClient({
   isAuthenticated: boolean;
 }) {
   const [listing, setListing] = React.useState<SanitizedListingView>(initialListing);
+  const [effectiveNow, setEffectiveNow] = React.useState<string>(referenceNow);
   const [questionText, setQuestionText] = React.useState("");
   const [questionError, setQuestionError] = React.useState<string | null>(null);
   const [questionSubmitting, setQuestionSubmitting] = React.useState(false);
@@ -86,6 +87,7 @@ export function ListingDetailClient({
         const listingData = await listingRes.json();
         if (listingData.listing) {
           setListing(listingData.listing);
+          setEffectiveNow(new Date().toISOString());
         }
       }
       setRefreshStatusMessage(
@@ -386,7 +388,7 @@ export function ListingDetailClient({
                   sourceLabel={m.sourceLabel}
                   verification={m.verification}
                   isSampleData={m.isSampleData}
-                  referenceNow={referenceNow}
+                  referenceNow={effectiveNow}
                   allowCautionAccent={allowCautionAccent}
                   allowRiskAccent={allowRiskAccent}
                 />
@@ -427,7 +429,7 @@ export function ListingDetailClient({
                   sourceLabel={m.sourceLabel}
                   verification={m.verification}
                   isSampleData={m.isSampleData}
-                  referenceNow={referenceNow}
+                  referenceNow={effectiveNow}
                   allowCautionAccent={allowCautionAccent}
                   allowRiskAccent={allowRiskAccent}
                 />
