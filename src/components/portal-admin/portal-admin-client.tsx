@@ -446,9 +446,9 @@ export function PortalAdminClient({
   return (
     <div className="min-h-screen bg-cloud text-ink flex flex-col">
       {/* ─── Sleek Admin Top Bar ─── */}
-      <header className="border-b border-mist/30 bg-deep-navy text-white px-4 sm:px-6 py-2.5 sticky top-0 z-40">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <header className="border-b border-mist/30 bg-deep-navy text-white px-4 sm:px-6 h-16 flex items-center sticky top-0 z-40">
+        <div className="w-full flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* Toggle Admin Side Panel Button */}
             <button
               type="button"
@@ -457,29 +457,29 @@ export function PortalAdminClient({
               aria-controls="admin-side-panel"
               aria-label={isAdminSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
               title={isAdminSidePanelOpen ? "Collapse side panel" : "Open side panel"}
-              className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white text-13 font-medium transition-colors cursor-pointer"
+              className="inline-flex h-10 items-center justify-center gap-2 px-3.5 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white text-14 font-medium transition-colors cursor-pointer leading-none"
             >
               {isAdminSidePanelOpen ? (
                 <>
-                  <PanelLeftClose className="w-4 h-4 text-mist" aria-hidden="true" />
+                  <PanelLeftClose className="w-4 h-4 text-mist shrink-0" aria-hidden="true" />
                   <span className="hidden sm:inline">Collapse</span>
                 </>
               ) : (
                 <>
-                  <PanelLeft className="w-4 h-4 text-trust-blue" aria-hidden="true" />
+                  <PanelLeft className="w-4 h-4 text-trust-blue shrink-0" aria-hidden="true" />
                   <span className="hidden sm:inline">Navigation</span>
                 </>
               )}
             </button>
 
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-trust-blue rounded text-white shrink-0">
+              <div className="h-9 w-9 bg-trust-blue rounded-md flex items-center justify-center text-white shrink-0">
                 <Shield className="w-4 h-4" aria-hidden="true" />
               </div>
-              <span className="font-serif text-18 sm:text-20 font-semibold tracking-wide text-white">
+              <span className="font-serif text-18 sm:text-20 font-bold tracking-wide text-white leading-none">
                 Baton Control Console
               </span>
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-11 font-medium bg-brick-red text-white uppercase tracking-wider">
+              <span className="hidden md:inline-flex items-center px-2.5 py-1 rounded text-11 font-bold bg-brick-red text-white uppercase tracking-wider leading-none">
                 Internal Air-Gapped
               </span>
             </div>
@@ -492,9 +492,9 @@ export function PortalAdminClient({
             </div>
             <Link
               href="/"
-              className="inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-12 font-medium transition-colors no-underline whitespace-nowrap shrink-0"
+              className="inline-flex h-10 items-center justify-center gap-2 px-4 rounded-md border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-13 sm:text-14 font-medium transition-colors no-underline whitespace-nowrap leading-none shrink-0"
             >
-              <Building className="w-3.5 h-3.5 shrink-0" />
+              <Building className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Marketplace</span>
             </Link>
             <button
@@ -507,9 +507,9 @@ export function PortalAdminClient({
                   window.location.href = "/";
                 }
               }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded border border-white/25 bg-white/10 text-white hover:bg-white/20 text-12 font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex h-10 items-center justify-center gap-2 px-4 rounded-md border border-white/25 bg-white/10 text-white hover:bg-white/20 text-13 sm:text-14 font-medium transition-colors cursor-pointer whitespace-nowrap leading-none shrink-0"
             >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>Sign out</span>
             </button>
           </div>
@@ -517,12 +517,12 @@ export function PortalAdminClient({
       </header>
 
       {/* ─── Admin Split View (Side Panel + Workspace) ─── */}
-      <div className="flex-1 flex min-h-[calc(100vh-53px)] bg-cloud">
+      <div className="flex-1 flex min-h-[calc(100vh-64px)] bg-cloud">
         {/* Closeable & Openable Admin Side Panel */}
         <aside
           id="admin-side-panel"
           aria-label="Admin Navigation Panel"
-          className={`shrink-0 bg-deep-navy text-white border-r border-mist/20 flex flex-col justify-between sticky top-[53px] h-[calc(100vh-53px)] overflow-y-auto z-20 transition-all duration-200 ease-in-out ${
+          className={`shrink-0 bg-deep-navy text-white border-r border-mist/20 flex flex-col justify-between sticky top-16 h-[calc(100vh-64px)] overflow-y-auto z-20 transition-all duration-200 ease-in-out ${
             isAdminSidePanelOpen
               ? "w-64 lg:w-72"
               : "w-0 -translate-x-full overflow-hidden border-none"

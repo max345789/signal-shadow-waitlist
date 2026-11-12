@@ -156,7 +156,7 @@ export function AppShell({
         )}
       >
         {/* Side Panel Header */}
-        <div className="flex items-center justify-between p-4 border-b border-mist/70">
+        <div className="flex items-center justify-between h-16 sm:h-18 px-4 sm:px-5 border-b border-mist/70">
           <Link
             href="/"
             className="font-serif text-24 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors flex items-center gap-2"
@@ -168,25 +168,25 @@ export function AppShell({
             onClick={() => setIsSidePanelOpen(false)}
             aria-label="Close navigation side panel"
             title="Collapse side panel"
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
           >
             <PanelLeftClose className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Side Panel Scrollable Navigation Body */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+        <div className="flex-1 overflow-y-auto px-3.5 py-3 flex flex-col gap-2">
           {renderNavGroup("marketplace", "Marketplace")}
           {renderNavGroup("deals", "Deals & Due Diligence")}
           {renderNavGroup("resources", "Platform & Resources")}
         </div>
 
         {/* Side Panel Footer */}
-        <div className="p-3 border-t border-mist/70 flex flex-col gap-2 bg-white">
+        <div className="p-4 border-t border-mist/70 flex flex-col gap-2.5 bg-white">
           <Link
             href="/sell"
             className={cn(
-              "inline-flex h-10 w-full items-center justify-center rounded border px-3.5 text-14 font-medium transition-colors no-underline",
+              "inline-flex h-11 w-full items-center justify-center rounded-md border px-4 text-14 font-semibold transition-colors no-underline leading-none",
               activeNav === "sell"
                 ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                 : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
@@ -198,7 +198,7 @@ export function AppShell({
           <Link
             href="/auth/signin"
             className={cn(
-              "inline-flex h-10 w-full items-center justify-center rounded border px-3.5 text-14 font-medium transition-colors no-underline",
+              "inline-flex h-11 w-full items-center justify-center rounded-md border px-4 text-14 font-semibold transition-colors no-underline leading-none",
               activeNav === "signin"
                 ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                 : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
@@ -227,7 +227,7 @@ export function AppShell({
             className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white border-r border-mist z-50 flex flex-col justify-between transition-transform"
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between p-4 border-b border-mist">
+            <div className="flex items-center justify-between h-16 px-4 border-b border-mist">
               <Link
                 href="/"
                 onClick={() => setIsMobileDrawerOpen(false)}
@@ -239,25 +239,25 @@ export function AppShell({
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
                 aria-label="Close navigation drawer"
-                className="inline-flex items-center justify-center h-8 w-8 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
             {/* Drawer Body */}
-            <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+            <div className="flex-1 overflow-y-auto px-3.5 py-3 flex flex-col gap-2">
               {renderNavGroup("marketplace", "Marketplace", true)}
               {renderNavGroup("deals", "Deals & Due Diligence", true)}
               {renderNavGroup("resources", "Platform & Resources", true)}
             </div>
 
             {/* Drawer Footer */}
-            <div className="p-3 border-t border-mist flex flex-col gap-2 bg-white">
+            <div className="p-4 border-t border-mist flex flex-col gap-2.5 bg-white">
               <Link
                 href="/sell"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="inline-flex h-10 w-full items-center justify-center rounded border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud text-14 font-medium transition-colors no-underline"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud text-14 font-semibold transition-colors no-underline leading-none"
               >
                 <PlusCircle className="w-4 h-4 mr-2 text-trust-blue" />
                 <span>List a business</span>
@@ -265,7 +265,7 @@ export function AppShell({
               <Link
                 href="/auth/signin"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="inline-flex h-10 w-full items-center justify-center rounded border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue text-14 font-medium transition-colors no-underline"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue text-14 font-semibold transition-colors no-underline leading-none"
               >
                 <User className="w-4 h-4 mr-2" />
                 <span>Sign in</span>
@@ -279,10 +279,10 @@ export function AppShell({
       <div className="flex-1 min-w-0 flex flex-col justify-between min-h-screen">
         <div>
           {/* Top Header Bar */}
-          <header className="border-b border-mist bg-white sticky top-0 z-30">
-            <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+          <header className="border-b border-mist bg-white sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center">
+            <div className="w-full flex items-center justify-between gap-4">
               {/* Left Side: Toggle Panel Button + Brand Wordmark */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 sm:gap-4">
                 {/* Desktop Toggle Button */}
                 <button
                   type="button"
@@ -290,36 +290,36 @@ export function AppShell({
                   aria-expanded={isSidePanelOpen}
                   aria-controls="desktop-side-panel"
                   aria-label={isSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
-                  className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-mist bg-white hover:bg-cloud text-deep-navy text-13 font-medium transition-colors cursor-pointer"
+                  className="hidden lg:inline-flex h-10 items-center justify-center gap-2 px-3.5 rounded-md border border-mist bg-cloud hover:bg-white text-deep-navy text-14 font-medium transition-colors cursor-pointer leading-none"
                 >
                   {isSidePanelOpen ? (
                     <>
-                      <PanelLeftClose className="w-4 h-4 text-slate" aria-hidden="true" />
+                      <PanelLeftClose className="w-4 h-4 text-slate shrink-0" aria-hidden="true" />
                       <span>Collapse</span>
                     </>
                   ) : (
                     <>
-                      <PanelLeft className="w-4 h-4 text-trust-blue" aria-hidden="true" />
+                      <PanelLeft className="w-4 h-4 text-trust-blue shrink-0" aria-hidden="true" />
                       <span>Navigation</span>
                     </>
                   )}
                 </button>
 
-                {/* Mobile Toggle Button */}
+                {/* Mobile / Tablet Toggle Button */}
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(true)}
                   aria-label="Open navigation menu"
-                  className="inline-flex lg:hidden items-center justify-center h-9 w-9 rounded-md border border-mist bg-cloud text-deep-navy hover:bg-white transition-colors cursor-pointer"
+                  className="inline-flex lg:hidden h-10 w-10 items-center justify-center rounded-md border border-mist bg-cloud text-deep-navy hover:bg-white transition-colors cursor-pointer shrink-0"
                 >
                   <Menu className="w-5 h-5" aria-hidden="true" />
                 </button>
 
-                {/* Wordmark (visible in top bar when desktop sidebar is collapsed or on mobile) */}
+                {/* Brand Wordmark */}
                 <Link
                   href="/"
                   className={cn(
-                    "font-serif text-22 sm:text-24 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors",
+                    "font-serif text-24 sm:text-26 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors items-center tracking-tight",
                     isSidePanelOpen ? "lg:hidden" : "inline-flex"
                   )}
                 >
@@ -328,12 +328,12 @@ export function AppShell({
               </div>
 
               {/* Right Side: Quick Action Buttons */}
-              <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <Link
                   href="/sell"
                   aria-current={activeNav === "sell" ? "page" : undefined}
                   className={cn(
-                    "hidden sm:inline-flex h-9 items-center justify-center rounded border px-3.5 text-13 font-medium transition-colors whitespace-nowrap",
+                    "hidden sm:inline-flex h-10 items-center justify-center px-4 rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy text-14 font-medium transition-colors whitespace-nowrap leading-none",
                     activeNav === "sell"
                       ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                       : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
@@ -346,7 +346,7 @@ export function AppShell({
                   href="/auth/signin"
                   aria-current={activeNav === "signin" ? "page" : undefined}
                   className={cn(
-                    "inline-flex h-9 items-center justify-center rounded border px-3.5 text-13 font-medium transition-colors whitespace-nowrap",
+                    "inline-flex h-10 items-center justify-center px-4 sm:px-5 rounded-md border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue text-14 font-medium transition-colors whitespace-nowrap leading-none",
                     activeNav === "signin"
                       ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                       : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
