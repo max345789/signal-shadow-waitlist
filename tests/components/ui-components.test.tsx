@@ -11,6 +11,7 @@ import {
   CardStateLoading,
 } from "@/components/ui/card";
 import { StatusChip, type StatusChipTone } from "@/components/ui/status-chip";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import {
   StageTracker,
   type StageTrackerItem,
@@ -250,5 +251,51 @@ describe("Phase 0 UI Component Library", () => {
     );
     expect(screen.queryByText("Verified")).not.toBeInTheDocument();
     expect(screen.getByText("Connection failed")).toBeInTheDocument();
+  });
+
+  it("supports click toggle and Escape dismissal on InfoTooltip for touch and keyboard users", async () => {
+    const user = userEvent.setup();
+    render(
+      <InfoTooltip
+        label="Verification info"
+        explanation="Only active third-party records earn a Verified mark."
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: "Verification info" });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Only active third-party records earn a Verified mark."
+    );
+
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("focuses the ACTIVE stage when StageTracker transitions from loading/empty to ready", () => {
+    const { rerender } = render(<StageTracker stages={[]} state="loading" />);
+    expect(screen.getByText("Loading deal stages")).toBeInTheDocument();
+
+    rerender(<StageTracker stages={STAGES_FIXTURE} state="ready" />);
+    const ndaBtn = screen.getByRole("button", { name: /02.*NDA/i });
+    expect(ndaBtn).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Sign NDA and complete KYC")).toBeInTheDocument();
+  });
+
+  it("falls back to non-empty label in StatusChip and guards Button asChild+loading", () => {
+    render(
+      <div>
+        <StatusChip tone="verified" label="   " />
+        <Button asChild loading loadingLabel="Working...">
+          <a href="/test">Should show working label safely</a>
+        </Button>
+      </div>
+    );
+
+    expect(screen.getByText("Verified")).toBeInTheDocument();
+    const loadingBtn = screen.getByRole("button", { name: "Working..." });
+    expect(loadingBtn).toBeDisabled();
   });
 });

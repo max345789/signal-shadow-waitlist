@@ -76,7 +76,8 @@ describe("Section 4 design tokens, palette restrictions, and WCAG AA contrast", 
 
     const hexRegex = /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b/g;
     const gradientRegex = /(linear-gradient|radial-gradient|conic-gradient|bg-gradient-to-)/i;
-    const glowOrShadowRegex = /(box-shadow:\s*(?!none\b)[^;]+|shadow-(sm|md|lg|xl|2xl))/i;
+    const glowOrShadowRegex = /(box-shadow:\s*(?!none\b)[^;]+|shadow-(sm|md|lg|xl|2xl)|drop-shadow-|backdrop-blur-)/i;
+    const opacityClassRegex = /\bopacity-(?:0|5|10|20|25|30|40|50|60|70|75|80|90|95)\b/;
     const bannedAnimationRegex = /(animate-pulse|animate-bounce|animate-ping)/;
 
     for (const file of srcFiles) {
@@ -102,6 +103,11 @@ describe("Section 4 design tokens, palette restrictions, and WCAG AA contrast", 
       expect(
         glowOrShadowRegex.test(content),
         `Found shadow/glow syntax in ${path.relative(projectRoot, file)}`
+      ).toBe(false);
+
+      expect(
+        opacityClassRegex.test(content),
+        `Found translucent opacity class in ${path.relative(projectRoot, file)}`
       ).toBe(false);
 
       expect(

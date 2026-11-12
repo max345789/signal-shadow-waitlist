@@ -166,6 +166,22 @@ describe("RBAC & Mandatory 2FA Deal Room permissions", () => {
         { now: freshNow }
       )
     ).toMatchObject({ allowed: false, code: "FORBIDDEN" });
+
+    expect(
+      canEnterDealRoom(
+        { ...baseSession, roles: [] },
+        { buyerUserId: "user-buyer", sellerUserId: "user-seller" },
+        { now: freshNow }
+      )
+    ).toMatchObject({ allowed: false, code: "FORBIDDEN" });
+
+    expect(
+      canEnterDealRoom(
+        { ...baseSession, twoFactorEnabled: false },
+        { buyerUserId: "user-buyer", sellerUserId: "user-seller" },
+        { now: freshNow }
+      )
+    ).toMatchObject({ allowed: false, code: "TWO_FACTOR_REQUIRED" });
   });
 
   it("allows deal room entry for participant or Reviewer with fresh 2FA", () => {
@@ -260,6 +276,19 @@ describe("Auth crypto, JWT sessions, rate limiting, verification freshness, and 
     );
     expect(expired.isVerified).toBe(false);
     expect(expired.effectiveState).toBe("expired");
+
+    const blankProvider = evaluateVerification(
+      {
+        id: "ver-2",
+        provider: "   ",
+        status: "VERIFIED",
+        verifiedAt: "2026-11-12T08:00:00.000Z",
+        expiresAt: "2026-11-13T08:00:00.000Z",
+      },
+      now
+    );
+    expect(blankProvider.isVerified).toBe(false);
+    expect(blankProvider.effectiveState).toBe("seller-reported");
   });
 
   it("formats INR by default with locale-aware grouping and handles edge inputs", () => {
