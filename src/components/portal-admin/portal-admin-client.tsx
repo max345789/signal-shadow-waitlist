@@ -466,14 +466,14 @@ export function PortalAdminClient({
 
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col text-right">
-              <span className="text-14 font-semibold text-white">{session.name}</span>
-              <span className="text-12 text-mist font-mono">{currentAdminEmail}</span>
+              <span className="text-14 font-semibold text-white leading-tight">{session.name}</span>
+              <span className="text-12 text-mist font-mono leading-tight">{currentAdminEmail}</span>
             </div>
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-13 font-medium transition-colors no-underline"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-3.5 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-13 font-medium transition-colors no-underline whitespace-nowrap shrink-0"
             >
-              <Building className="w-3.5 h-3.5" />
+              <Building className="w-4 h-4 shrink-0" />
               <span>Marketplace</span>
             </Link>
             <button
@@ -486,9 +486,9 @@ export function PortalAdminClient({
                   window.location.href = "/";
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded border border-white/20 bg-white/10 text-white hover:bg-white/20 text-13 font-medium transition-colors cursor-pointer"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-3.5 rounded border border-white/25 bg-white/10 text-white hover:bg-white/20 text-13 font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>Sign out</span>
             </button>
           </div>
