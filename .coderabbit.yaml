@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+tone_instructions: "Concise, technical, and actionable. Enforce Section 4 solid color tokens and security standards."
+early_access: false
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+  path_instructions:
+    - path: "src/styles/**"
+      instructions: "Ensure strict adherence to Section 4 design tokens. No gradients, neon, or glow."
+    - path: "src/lib/auth/**"
+      instructions: "Verify zero credential leaks, constant-time comparisons, and strict rate-limiting."
+    - path: "src/lib/escrow/**"
+      instructions: "Verify platform never holds funds (platformHoldsFunds: false)."
+chat:
+  auto_reply: true

@@ -201,3 +201,12 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 - **Decision**: Accessibility is enforced through three layers: (1) Section 4 design token constraints (body text ≥ 16px; WCAG AA contrast for all text pairs); (2) `AppShell` skip-to-main-content link as first Tab stop; (3) axe-core `@axe-core/playwright` WCAG2A/2AA audit in `tests/e2e/phase6.spec.ts`, asserting zero critical/serious violations on `/`, `/listings`, `/legal/terms`, `/legal/privacy`. Color-contrast rule is excluded from axe because it is already enforced by the design token Vitest unit tests which validate computed contrast ratios against WCAG AA thresholds.
 - **Why**: Keyboard-only buy path and accessibility are explicitly listed as Phase 6 success criteria in the product spec.
 
+
+### Decision 37 — Managed Identity & SSO via Auth0 (@auth0/nextjs-auth0)
+- **Decision**: Integrated `@auth0/nextjs-auth0` into Next.js App Router via `src/lib/auth0.ts` and `src/middleware.ts`. When `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `AUTH0_SECRET` are configured, authentication automatically delegates to Auth0 Universal Login (`/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/profile`) with enterprise SSO, passkeys, and multi-factor authentication (MFA). When unconfigured, the system operates seamlessly in zero-dependency local-dev mode using scrypt password hashes and RFC 6238 TOTP authenticator tokens.
+- **Why**: Satisfies Section 7 ("Auth: managed auth provider with email and OAuth, mandatory 2FA for anyone entering a deal room") while preserving local zero-credential testability.
+
+### Decision 38 — CodeRabbit Review & Quality Gate (.coderabbit.yaml)
+- **Decision**: Added official CodeRabbit v2 configuration (`.coderabbit.yaml`) to the repository root. Configured `chill` profile review with automated PR reviews on `main`, summarization, and path-specific instructions enforcing Section 4 solid color tokens, constant-time cryptography checks, and the escrow invariant (`platformHoldsFunds: false`).
+- **Why**: Enables autonomous and automated pull request code reviews, vulnerability detection, and design token compliance.
+

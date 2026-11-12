@@ -24,10 +24,12 @@ export function SignInClient({
   initialSession,
   sampleAccounts,
   databaseConfigured,
+  auth0Configured = false,
 }: {
   initialSession: AuthSession | null;
   sampleAccounts: SampleAccountHint[];
   databaseConfigured: boolean;
+  auth0Configured?: boolean;
 }) {
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
   const [email, setEmail] = React.useState(sampleAccounts[0]?.email ?? "");
@@ -191,14 +193,20 @@ export function SignInClient({
                 <Button type="submit" variant="primary" loading={loading}>
                   Sign in with Email
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled
-                  title="Configure OIDC/OAuth environment credentials to enable OAuth sign-in"
-                >
-                  OAuth (requires provider keys)
-                </Button>
+                {auth0Configured ? (
+                  <Button asChild variant="secondary">
+                    <a href="/auth/login">Sign in with Auth0 (SSO &amp; 2FA)</a>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled
+                    title="Configure AUTH0_* environment credentials to enable Auth0 Universal Login & SSO"
+                  >
+                    Auth0 (Configure credentials)
+                  </Button>
+                )}
               </div>
             </form>
           ) : (
