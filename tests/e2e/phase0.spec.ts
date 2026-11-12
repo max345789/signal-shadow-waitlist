@@ -152,7 +152,7 @@ for (const route of ROUTES) {
   }
 }
 
-test("Home thesis prompt validates empty submit and passes prompt to Style Guide", async ({
+test("Home thesis prompt validates empty submit and passes prompt to Thesis Builder (while Style Guide preview param still works)", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
@@ -160,7 +160,7 @@ test("Home thesis prompt validates empty submit and passes prompt to Style Guide
 
   await expect(page.getByText("No saved acquisition theses yet")).toBeVisible();
 
-  await page.getByRole("button", { name: /Preview system/i }).click();
+  await page.getByRole("button", { name: /Build thesis & match/i }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: /Describe the kind of business/i })
   ).toBeVisible();
@@ -168,9 +168,17 @@ test("Home thesis prompt validates empty submit and passes prompt to Style Guide
   await page
     .getByLabel(/Acquisition thesis/i)
     .fill("B2B SaaS in India with verified Stripe revenue");
-  await page.getByRole("button", { name: /Preview system/i }).click();
+  await page.getByRole("button", { name: /Build thesis & match/i }).click();
 
-  await page.waitForURL(/\/style-guide\?thesisPrompt=/);
+  await page.waitForURL(/\/thesis\/new\?prompt=/);
+  await expect(
+    page.getByLabel(/Free-text thesis/i)
+  ).toHaveValue(/B2B SaaS in India with verified Stripe revenue/i);
+
+  await page.goto(
+    "/style-guide?thesisPrompt=B2B%20SaaS%20in%20India%20with%20verified%20Stripe%20revenue",
+    { waitUntil: "networkidle" }
+  );
   await expect(
     page.getByText(/B2B SaaS in India with verified Stripe revenue/i)
   ).toBeVisible();
