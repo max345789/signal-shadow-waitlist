@@ -176,7 +176,34 @@ const VERIFICATION_CONNECTOR_TERMS = new Set([
   "plausible",
 ]);
 
-function normalizeTextTokens(text: string): string[] {
+const FUNCTION_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "in",
+  "into",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "per",
+  "that",
+  "the",
+  "their",
+  "this",
+  "to",
+  "with",
+]);
+
+function normalizeTextTokens(text: string, allowBroadDomainTerms = false): string[] {
   const raw = text
     .toLowerCase()
     .replace(/[₹$€£,+]/g, " ")
@@ -187,7 +214,9 @@ function normalizeTextTokens(text: string): string[] {
   for (const token of raw) {
     if (token.length < 2) continue;
     if (/^\d+$/.test(token)) continue;
-    if (STOP_WORDS.has(token)) continue;
+    if (allowBroadDomainTerms ? FUNCTION_WORDS.has(token) : STOP_WORDS.has(token)) {
+      continue;
+    }
     tokens.push(token);
   }
   return Array.from(new Set(tokens));
@@ -624,7 +653,13 @@ export function scoreListingAgainstThesis(
 
   // 7. Free-text soft criteria (weight 10 when hard criteria exist; 100 when free-text only)
   const cleanFreeText = thesis.freeText.trim();
-  const freeTextTokens = normalizeTextTokens(cleanFreeText);
+  const primaryTokens = normalizeTextTokens(cleanFreeText);
+  const freeTextTokens =
+    primaryTokens.length > 0
+      ? primaryTokens
+      : hardWeightSum === 0 && cleanFreeText.length > 0
+        ? normalizeTextTokens(cleanFreeText, true)
+        : [];
   if (freeTextTokens.length > 0) {
     const weight = hardWeightSum > 0 ? 10 : 100;
     softWeightSum += weight;
@@ -859,7 +894,7 @@ export function extractThesisHintsFromPrompt(prompt: string): {
 
   let maxPrice: number | null = null;
   const budgetMatch = lower.match(
-    /(?:under|below|max|budget|price(?:\s*up\s*to)?)\s*(?:₹|inr\s*)?(\d+(?:\.\d+)?)\s*(l|lac|lakh|lakhs|cr|crore|crores)/
+    /(?:under|below|max|budget|price(?:\s*up\s*to)?)\s*(?:₹|inr\s*)?(\d+(?:\.\d+)?)\s*(l|lac|lakh|lakhs|cr|crore|crores)(?!\s*(?:\+?\s*)?(?:revenue|arr|mrr|profit|ebitda|sales))/
   );
   if (budgetMatch && budgetMatch[1] && budgetMatch[2]) {
     maxPrice = parseIndianAmount(budgetMatch[1], budgetMatch[2]);

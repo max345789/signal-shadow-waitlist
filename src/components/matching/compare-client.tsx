@@ -63,13 +63,27 @@ function MetricCompareCell({
   listing,
   metricKey,
   label,
+  allowCautionAccent,
+  allowRiskAccent,
 }: {
   listing: SanitizedListingView;
   metricKey: MetricKeyValue;
   label: string;
+  allowCautionAccent: boolean;
+  allowRiskAccent: boolean;
 }) {
   const metric = listing.metrics.find((m) => m.key === metricKey);
   const formatted = formatMetricByUnit(metric, listing.currency);
+
+  const chipTone = !metric
+    ? "seller-reported"
+    : metric.trust.isVerified
+      ? "verified"
+      : metric.trust.effectiveState === "expired" && allowCautionAccent
+        ? "caution"
+        : metric.trust.effectiveState === "failed" && allowRiskAccent
+          ? "risk"
+          : "seller-reported";
 
   return (
     <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
@@ -82,22 +96,14 @@ function MetricCompareCell({
       {metric ? (
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip
-            tone={
-              metric.trust.isVerified
-                ? "verified"
-                : metric.trust.effectiveState === "expired"
-                  ? "caution"
-                  : metric.trust.effectiveState === "failed"
-                    ? "risk"
-                    : "seller-reported"
-            }
+            tone={chipTone}
             emphasis={metric.trust.isVerified ? "solid" : "outline"}
             label={metric.trust.label}
           />
           <span className="text-14 text-slate">
             {metric.trust.isVerified
               ? `${metric.sourceLabel} · ${metric.trust.lastVerifiedLabel ?? "Verified"}`
-              : "Seller-reported"}
+              : metric.trust.detail}
           </span>
         </div>
       ) : (
@@ -114,6 +120,7 @@ export function CompareClient({
   initialEvaluationsByBusinessId,
   savedTheses,
   initialTooManyError,
+  initialExcludedCount = 0,
 }: {
   initialListings: SanitizedListingView[];
   availableListings: SanitizedListingView[];
@@ -121,8 +128,12 @@ export function CompareClient({
   initialEvaluationsByBusinessId: Record<string, MatchEvaluationResult>;
   savedTheses: SavedThesisRecord[];
   initialTooManyError?: string | null;
+  initialExcludedCount?: number;
 }) {
   const router = useRouter();
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(() =>
+    initialListings.map((l) => l.id)
+  );
   const [selectedListings, setSelectedListings] =
     React.useState<SanitizedListingView[]>(initialListings);
   const [selectedThesisId, setSelectedThesisId] = React.useState<string>(
@@ -134,18 +145,41 @@ export function CompareClient({
   const [evaluations, setEvaluations] = React.useState<
     Record<string, MatchEvaluationResult>
   >(initialEvaluationsByBusinessId);
+  const [excludedCount, setExcludedCount] = React.useState<number>(initialExcludedCount);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(
     initialTooManyError ?? null
   );
+  const requestSeqRef = React.useRef(0);
 
-  const selectedIds = selectedListings.map((l) => l.id);
+  const hasAnyVerified = selectedListings.some(
+    (l) => l.trustSummary.verifiedCount > 0
+  );
+  const hasExpired = selectedListings.some((l) =>
+    l.metrics.some((m) => m.trust.effectiveState === "expired")
+  );
+  const hasFailed = selectedListings.some((l) =>
+    l.metrics.some((m) => m.trust.effectiveState === "failed")
+  );
+  const allowCautionAccent = !hasAnyVerified && !hasFailed;
+  const allowRiskAccent = !hasAnyVerified && !hasExpired;
 
   async function syncSelection(nextIds: string[], nextThesisId: string) {
     if (nextIds.length > 3) {
       setError("You can compare up to 3 businesses side by side.");
       return;
     }
+
+    const reqSeq = ++requestSeqRef.current;
+    setSelectedIds(nextIds);
+    setExcludedCount(0);
+
+    // Optimistically reflect selection immediately from availableListings
+    const availableById = new Map(availableListings.map((l) => [l.id, l]));
+    const optimisticListings = nextIds
+      .map((id) => availableById.get(id))
+      .filter((x): x is SanitizedListingView => Boolean(x));
+    setSelectedListings(optimisticListings);
 
     const params = new URLSearchParams();
     if (nextIds.length > 0) params.set("ids", nextIds.join(","));
@@ -156,7 +190,11 @@ export function CompareClient({
     if (nextIds.length === 0) {
       setSelectedListings([]);
       setEvaluations({});
+      setActiveThesis(
+        nextThesisId ? savedTheses.find((t) => t.id === nextThesisId) ?? null : null
+      );
       setError(null);
+      setLoading(false);
       return;
     }
 
@@ -165,17 +203,24 @@ export function CompareClient({
     try {
       const res = await fetch(`/api/compare?${params.toString()}`);
       const data = await res.json();
+      if (reqSeq !== requestSeqRef.current) return;
       if (!res.ok) {
         setError(data.error ?? "Could not load businesses for comparison.");
         return;
       }
-      setSelectedListings(data.listings ?? []);
+      const nextListings: SanitizedListingView[] = data.listings ?? [];
+      setSelectedListings(nextListings);
+      setSelectedIds(nextListings.map((l) => l.id));
+      setExcludedCount(Number(data.excludedCount ?? 0));
       setActiveThesis(data.thesis ?? null);
       setEvaluations(data.evaluationsByBusinessId ?? {});
     } catch {
+      if (reqSeq !== requestSeqRef.current) return;
       setError("Network error while refreshing comparison.");
     } finally {
-      setLoading(false);
+      if (reqSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -227,6 +272,18 @@ export function CompareClient({
       </div>
 
       {/* Selector Panel */}
+      {excludedCount > 0 ? (
+        <div
+          role="status"
+          className="rounded border border-mist bg-white p-4 text-16 text-deep-navy"
+        >
+          {excludedCount}{" "}
+          {excludedCount === 1
+            ? "requested listing was excluded because only Admin-approved listings can be compared."
+            : "requested listings were excluded because only Admin-approved listings can be compared."}
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -477,7 +534,7 @@ export function CompareClient({
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <CheckCircle2
-                              className="h-4 w-4 shrink-0 text-verified-green"
+                              className="h-4 w-4 shrink-0 text-trust-blue"
                               aria-hidden="true"
                             />
                             <span className="text-16 font-semibold text-deep-navy">
@@ -552,6 +609,8 @@ export function CompareClient({
                         listing={listing}
                         metricKey="REVENUE"
                         label="Revenue"
+                        allowCautionAccent={allowCautionAccent}
+                        allowRiskAccent={allowRiskAccent}
                       />
                     ))}
                   </div>
@@ -568,6 +627,8 @@ export function CompareClient({
                         listing={listing}
                         metricKey="PROFIT"
                         label="Net profit"
+                        allowCautionAccent={allowCautionAccent}
+                        allowRiskAccent={allowRiskAccent}
                       />
                     ))}
                   </div>
@@ -584,11 +645,15 @@ export function CompareClient({
                           listing={listing}
                           metricKey="GROWTH"
                           label="Annual growth"
+                          allowCautionAccent={allowCautionAccent}
+                          allowRiskAccent={allowRiskAccent}
                         />
                         <MetricCompareCell
                           listing={listing}
                           metricKey="CHURN"
                           label="Monthly churn"
+                          allowCautionAccent={allowCautionAccent}
+                          allowRiskAccent={allowRiskAccent}
                         />
                       </div>
                     ))}
@@ -606,11 +671,15 @@ export function CompareClient({
                           listing={listing}
                           metricKey="TRAFFIC"
                           label="Monthly visitors"
+                          allowCautionAccent={allowCautionAccent}
+                          allowRiskAccent={allowRiskAccent}
                         />
                         <MetricCompareCell
                           listing={listing}
                           metricKey="CUSTOMERS"
                           label="Active customers"
+                          allowCautionAccent={allowCautionAccent}
+                          allowRiskAccent={allowRiskAccent}
                         />
                       </div>
                     ))}

@@ -4,6 +4,7 @@ import type { SanitizedListingView } from "@/lib/domain/listings";
 import {
   rankListingsForThesis,
   scoreListingAgainstThesis,
+  THESIS_ALERT_MIN_SCORE,
   type MatchEvaluationResult,
   type RankedThesisMatch,
   type SavedThesisRecord,
@@ -192,11 +193,33 @@ export async function previewMatchesForDraftThesis(
   return rankListingsForThesis(approvedListings, criteria);
 }
 
-export async function listThesesWithMatchesForBuyer(
-  session: AuthSession
-): Promise<ThesisWithMatches[]> {
-  const approvedListings = await listApprovedListings();
+function hasAnyThesisCriteria(t: {
+  sector: string | null;
+  geography: string | null;
+  minRevenue: number | null;
+  maxRevenue: number | null;
+  minProfit: number | null;
+  maxOwnerHours: number | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  freeText: string;
+}): boolean {
+  return (
+    t.sector !== null ||
+    t.geography !== null ||
+    t.minRevenue !== null ||
+    t.maxRevenue !== null ||
+    t.minProfit !== null ||
+    t.maxOwnerHours !== null ||
+    t.minPrice !== null ||
+    t.maxPrice !== null ||
+    t.freeText.trim().length >= 3
+  );
+}
 
+export async function listSavedThesesForBuyer(
+  session: AuthSession
+): Promise<SavedThesisRecord[]> {
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
     const rows = await prisma.thesis.findMany({
@@ -204,26 +227,84 @@ export async function listThesesWithMatchesForBuyer(
       include: { buyerProfile: { select: { userId: true } } },
       orderBy: [{ isSampleData: "asc" }, { updatedAt: "desc" }],
     });
-
-    const out: ThesisWithMatches[] = [];
-    for (const row of rows) {
-      const thesis = mapPrismaThesis(row);
-      const matches = await syncPrismaMatchesForThesis(thesis, approvedListings);
-      out.push({ thesis, matches });
-    }
-    return out;
+    return rows.map(mapPrismaThesis);
   }
 
   const store = getLocalMatchingStore();
-  const mine = store.theses
+  return store.theses
     .filter((t) => t.buyerUserId === session.userId)
     .sort(
       (a, b) =>
         Number(a.isSampleData) - Number(b.isSampleData) ||
         b.updatedAt.localeCompare(a.updatedAt)
     );
+}
 
-  return mine.map((thesis) => ({
+export async function getSavedThesisForViewer(
+  thesisId: string,
+  session: AuthSession
+): Promise<
+  | { ok: true; thesis: SavedThesisRecord }
+  | { ok: false; code: "NOT_FOUND" | "FORBIDDEN"; reason: string }
+> {
+  if (isDatabaseConfigured()) {
+    const prisma = getPrismaClient();
+    const row = await prisma.thesis.findUnique({
+      where: { id: thesisId },
+      include: { buyerProfile: { select: { userId: true } } },
+    });
+    if (!row) {
+      return { ok: false, code: "NOT_FOUND", reason: "Thesis not found." };
+    }
+    if (
+      row.buyerProfile.userId !== session.userId &&
+      !session.roles.includes("ADMIN")
+    ) {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        reason: "You do not have permission to view this acquisition thesis.",
+      };
+    }
+    return { ok: true, thesis: mapPrismaThesis(row) };
+  }
+
+  const store = getLocalMatchingStore();
+  const thesis = store.theses.find((t) => t.id === thesisId);
+  if (!thesis) {
+    return { ok: false, code: "NOT_FOUND", reason: "Thesis not found." };
+  }
+  if (
+    thesis.buyerUserId !== session.userId &&
+    !session.roles.includes("ADMIN")
+  ) {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      reason: "You do not have permission to view this acquisition thesis.",
+    };
+  }
+  return { ok: true, thesis };
+}
+
+export async function listThesesWithMatchesForBuyer(
+  session: AuthSession
+): Promise<ThesisWithMatches[]> {
+  const [approvedListings, theses] = await Promise.all([
+    listApprovedListings(),
+    listSavedThesesForBuyer(session),
+  ]);
+
+  if (isDatabaseConfigured()) {
+    const out: ThesisWithMatches[] = [];
+    for (const thesis of theses) {
+      const matches = await syncPrismaMatchesForThesis(thesis, approvedListings);
+      out.push({ thesis, matches });
+    }
+    return out;
+  }
+
+  return theses.map((thesis) => ({
     thesis,
     matches: syncLocalMatchesForThesis(thesis, approvedListings),
   }));
@@ -451,28 +532,50 @@ export async function updateThesisForBuyer(
       };
     }
 
+    const nextCandidate = {
+      sector: patch.sector !== undefined ? patch.sector : existing.sector,
+      geography: patch.geography !== undefined ? patch.geography : existing.geography,
+      minRevenue: nextMinRev,
+      maxRevenue: nextMaxRev,
+      minProfit:
+        patch.minProfit !== undefined
+          ? patch.minProfit
+          : existing.minProfit !== null
+            ? Number(existing.minProfit)
+            : null,
+      maxOwnerHours:
+        patch.maxOwnerHours !== undefined ? patch.maxOwnerHours : existing.maxOwnerHours,
+      minPrice: nextMinPrice,
+      maxPrice: nextMaxPrice,
+      freeText: patch.freeText !== undefined ? patch.freeText.trim() : existing.freeText,
+    };
+    if (!hasAnyThesisCriteria(nextCandidate)) {
+      return {
+        ok: false,
+        code: "INVALID_STATE",
+        reason:
+          "Provide at least one structured filter or 3+ characters of free-text thesis criteria.",
+      };
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.thesis.update({
         where: { id: existing.id },
         data: {
           title: patch.title !== undefined ? patch.title.trim() : existing.title,
-          sector: patch.sector !== undefined ? patch.sector : existing.sector,
-          minRevenue: patch.minRevenue !== undefined ? patch.minRevenue : existing.minRevenue,
-          maxRevenue: patch.maxRevenue !== undefined ? patch.maxRevenue : existing.maxRevenue,
-          minProfit: patch.minProfit !== undefined ? patch.minProfit : existing.minProfit,
-          maxOwnerHours:
-            patch.maxOwnerHours !== undefined
-              ? patch.maxOwnerHours
-              : existing.maxOwnerHours,
-          geography: patch.geography !== undefined ? patch.geography : existing.geography,
-          minPrice: patch.minPrice !== undefined ? patch.minPrice : existing.minPrice,
-          maxPrice: patch.maxPrice !== undefined ? patch.maxPrice : existing.maxPrice,
+          sector: nextCandidate.sector,
+          minRevenue: nextCandidate.minRevenue,
+          maxRevenue: nextCandidate.maxRevenue,
+          minProfit: nextCandidate.minProfit,
+          maxOwnerHours: nextCandidate.maxOwnerHours,
+          geography: nextCandidate.geography,
+          minPrice: nextCandidate.minPrice,
+          maxPrice: nextCandidate.maxPrice,
           currency:
             patch.currency !== undefined
               ? (patch.currency as PrismaCurrencyCode)
               : existing.currency,
-          freeText:
-            patch.freeText !== undefined ? patch.freeText.trim() : existing.freeText,
+          freeText: nextCandidate.freeText,
           alertsEnabled:
             patch.alertsEnabled !== undefined
               ? patch.alertsEnabled
@@ -567,6 +670,15 @@ export async function updateThesisForBuyer(
         : existing.alertsEnabled,
     updatedAt: nowIso,
   };
+
+  if (!hasAnyThesisCriteria(updated)) {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      reason:
+        "Provide at least one structured filter or 3+ characters of free-text thesis criteria.",
+    };
+  }
 
   store.theses[idx] = updated;
   const matches = syncLocalMatchesForThesis(updated, approvedListings);
@@ -761,6 +873,57 @@ export async function markAllNotificationsRead(
   return { updatedCount };
 }
 
+export interface SellerListingBuyerDemand {
+  strongMatchCount: number;
+  sampleMatchCount: number;
+  topScore: number | null;
+}
+
+export async function getBuyerDemandSummaryForSellerListings(
+  listings: SanitizedListingView[]
+): Promise<Record<string, SellerListingBuyerDemand>> {
+  const approved = listings.filter((l) => l.status === "APPROVED");
+  const summary: Record<string, SellerListingBuyerDemand> = {};
+  for (const item of approved) {
+    summary[item.id] = { strongMatchCount: 0, sampleMatchCount: 0, topScore: null };
+  }
+  if (approved.length === 0) {
+    return summary;
+  }
+
+  let allTheses: SavedThesisRecord[];
+  if (isDatabaseConfigured()) {
+    const prisma = getPrismaClient();
+    const rows = await prisma.thesis.findMany({
+      include: { buyerProfile: { select: { userId: true } } },
+    });
+    allTheses = rows.map(mapPrismaThesis);
+  } else {
+    allTheses = getLocalMatchingStore().theses;
+  }
+
+  for (const listing of approved) {
+    let strongMatchCount = 0;
+    let sampleMatchCount = 0;
+    let topScore: number | null = null;
+    for (const thesis of allTheses) {
+      const ev = scoreListingAgainstThesis(listing, thesis);
+      if (topScore === null || ev.score > topScore) {
+        topScore = ev.score;
+      }
+      if (ev.score >= THESIS_ALERT_MIN_SCORE) {
+        strongMatchCount += 1;
+        if (thesis.isSampleData) {
+          sampleMatchCount += 1;
+        }
+      }
+    }
+    summary[listing.id] = { strongMatchCount, sampleMatchCount, topScore };
+  }
+
+  return summary;
+}
+
 export async function getListingsForCompare(params: {
   ids: string[];
   thesisId?: string | null;
@@ -770,6 +933,7 @@ export async function getListingsForCompare(params: {
       ok: true;
       listings: SanitizedListingView[];
       availableListings: SanitizedListingView[];
+      excludedCount: number;
       thesis: SavedThesisRecord | null;
       evaluationsByBusinessId: Record<string, MatchEvaluationResult>;
     }
@@ -786,10 +950,13 @@ export async function getListingsForCompare(params: {
   const approvedListings = await listApprovedListings();
   const byId = new Map(approvedListings.map((l) => [l.id, l]));
   const selectedListings: SanitizedListingView[] = [];
+  let excludedCount = 0;
   for (const id of params.ids) {
     const found = byId.get(id);
     if (found) {
       selectedListings.push(found);
+    } else {
+      excludedCount += 1;
     }
   }
 
@@ -797,12 +964,12 @@ export async function getListingsForCompare(params: {
   const evaluationsByBusinessId: Record<string, MatchEvaluationResult> = {};
 
   if (params.thesisId && params.session) {
-    const thesisRes = await getThesisWithMatchesForViewer(
+    const thesisRes = await getSavedThesisForViewer(
       params.thesisId,
       params.session
     );
     if (thesisRes.ok) {
-      activeThesis = thesisRes.data.thesis;
+      activeThesis = thesisRes.thesis;
       for (const item of selectedListings) {
         evaluationsByBusinessId[item.id] = scoreListingAgainstThesis(
           item,
@@ -816,6 +983,7 @@ export async function getListingsForCompare(params: {
     ok: true,
     listings: selectedListings,
     availableListings: approvedListings,
+    excludedCount,
     thesis: activeThesis,
     evaluationsByBusinessId,
   };

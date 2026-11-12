@@ -26,9 +26,11 @@ export function HomeSavedThesesFeed({
 }) {
   const [notifications, setNotifications] =
     React.useState<ThesisNotificationRecord[]>(initialNotifications);
+  const [alertNotice, setAlertNotice] = React.useState<string | null>(null);
   const unread = notifications.filter((n) => n.readAt === null);
 
   async function markAllRead() {
+    setAlertNotice(null);
     try {
       const res = await fetch("/api/notifications", { method: "POST" });
       if (res.ok) {
@@ -36,9 +38,11 @@ export function HomeSavedThesesFeed({
         setNotifications((prev) =>
           prev.map((n) => (n.readAt === null ? { ...n, readAt: nowIso } : n))
         );
+      } else {
+        setAlertNotice("Could not mark alerts read. Refresh the page and try again.");
       }
     } catch {
-      // ignore transient error
+      setAlertNotice("Network error while updating alerts. Try again.");
     }
   }
 
@@ -64,6 +68,11 @@ export function HomeSavedThesesFeed({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            {alertNotice ? (
+              <p role="status" className="text-14 font-medium text-deep-navy">
+                {alertNotice}
+              </p>
+            ) : null}
             {unread.slice(0, 3).map((alert) => (
               <div
                 key={alert.id}
@@ -100,7 +109,7 @@ export function HomeSavedThesesFeed({
                     ) : null}
                   </div>
                   <StatusChip
-                    tone={thesis.alertsEnabled ? "verified" : "seller-reported"}
+                    tone={thesis.alertsEnabled ? "neutral" : "seller-reported"}
                     label={thesis.alertsEnabled ? "Alerts active" : "Alerts paused"}
                   />
                 </div>
@@ -160,7 +169,7 @@ export function HomeSavedThesesFeed({
 
                           <div className="flex items-start gap-2 text-16 text-ink">
                             <CheckCircle2
-                              className="mt-1 h-4 w-4 shrink-0 text-verified-green"
+                              className="mt-1 h-4 w-4 shrink-0 text-trust-blue"
                               aria-hidden="true"
                             />
                             <span>

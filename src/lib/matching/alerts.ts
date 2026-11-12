@@ -88,19 +88,19 @@ export async function evaluateAndSendThesisAlertsForListing(
       const qualifiesForAlert =
         evaluation.score >= THESIS_ALERT_MIN_SCORE && !sectorMismatchGate;
 
-      const existingMatch = await prisma.match.findUnique({
-        where: {
-          thesisId_businessId: {
-            thesisId: thesis.id,
-            businessId: publicSanitizedListing.id,
+      const sent = await prisma.$transaction(async (tx) => {
+        const existingMatch = await tx.match.findUnique({
+          where: {
+            thesisId_businessId: {
+              thesisId: thesis.id,
+              businessId: publicSanitizedListing.id,
+            },
           },
-        },
-      });
+        });
 
-      const shouldSendAlert =
-        qualifiesForAlert && (!existingMatch || existingMatch.alertSentAt === null);
+        const shouldSendAlert =
+          qualifiesForAlert && (!existingMatch || existingMatch.alertSentAt === null);
 
-      await prisma.$transaction(async (tx) => {
         await tx.match.upsert({
           where: {
             thesisId_businessId: {
@@ -149,9 +149,11 @@ export async function evaluateAndSendThesisAlertsForListing(
             },
           });
         }
+
+        return shouldSendAlert;
       });
 
-      if (shouldSendAlert) {
+      if (sent) {
         alertsCreated += 1;
       }
     }

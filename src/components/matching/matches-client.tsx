@@ -173,9 +173,11 @@ export function MatchesClient({
         setNotifications((prev) =>
           prev.map((n) => (n.id === notificationId ? data.notification : n))
         );
+      } else {
+        setStatusMessage("Could not update notification status. Refresh to retry.");
       }
     } catch {
-      // keep UI calm
+      setStatusMessage("Network error while updating notification status.");
     }
   }
 
@@ -187,9 +189,11 @@ export function MatchesClient({
         setNotifications((prev) =>
           prev.map((n) => (n.readAt === null ? { ...n, readAt: nowIso } : n))
         );
+      } else {
+        setStatusMessage("Could not mark alerts read. Refresh to retry.");
       }
     } catch {
-      // keep UI calm
+      setStatusMessage("Network error while updating alerts.");
     }
   }
 
@@ -326,6 +330,27 @@ export function MatchesClient({
                     <p className="text-16 text-ink">{notif.body}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {notif.actionUrl && notif.actionUrl.includes("thesisId=") ? (
+                      <Button
+                        type="button"
+                        variant="action"
+                        onClick={() => {
+                          const match = notif.actionUrl?.match(/thesisId=([^&]+)/);
+                          const targetThesisId = match?.[1]
+                            ? decodeURIComponent(match[1])
+                            : null;
+                          if (
+                            targetThesisId &&
+                            thesesWithMatches.some((t) => t.thesis.id === targetThesisId)
+                          ) {
+                            setSelectedThesisId(targetThesisId);
+                            setSelectedCompareIds([]);
+                          }
+                        }}
+                      >
+                        Inspect match
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="secondary"
@@ -374,10 +399,12 @@ export function MatchesClient({
                 return (
                   <button
                     key={entry.thesis.id}
+                    id={`thesis-tab-${entry.thesis.id}`}
                     type="button"
                     role="tab"
                     tabIndex={isSelected ? 0 : -1}
                     aria-selected={isSelected}
+                    aria-controls={`thesis-panel-${entry.thesis.id}`}
                     onClick={() => {
                       setSelectedThesisId(entry.thesis.id);
                       setSelectedCompareIds([]);
@@ -418,7 +445,14 @@ export function MatchesClient({
                 );
               })}
             </div>
+          </section>
 
+          <div
+            role="tabpanel"
+            id={`thesis-panel-${activeEntry.thesis.id}`}
+            aria-labelledby={`thesis-tab-${activeEntry.thesis.id}`}
+            className="flex flex-col gap-8"
+          >
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -429,7 +463,7 @@ export function MatchesClient({
                     ) : null}
                   </div>
                   <StatusChip
-                    tone={activeEntry.thesis.alertsEnabled ? "verified" : "seller-reported"}
+                    tone={activeEntry.thesis.alertsEnabled ? "neutral" : "seller-reported"}
                     label={
                       activeEntry.thesis.alertsEnabled
                         ? "Alerts active"
@@ -575,9 +609,8 @@ export function MatchesClient({
                 </div>
               </CardFooter>
             </Card>
-          </section>
 
-          {/* Ranked Match Results */}
+            {/* Ranked Match Results */}
           <section aria-labelledby="ranked-matches-heading" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2
@@ -618,6 +651,7 @@ export function MatchesClient({
               </div>
             )}
           </section>
+            </div>
         </>
       ) : null}
     </div>

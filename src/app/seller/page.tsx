@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { canCreateListing } from "@/lib/auth/permissions";
 import { getServerSession } from "@/lib/auth/session-server";
 import { listListingsForSeller } from "@/lib/listings/store";
+import { getBuyerDemandSummaryForSellerListings } from "@/lib/matching/store";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export default async function SellerDashboardPage() {
   }
 
   const listings = await listListingsForSeller(session!);
+  const buyerDemandByListingId =
+    await getBuyerDemandSummaryForSellerListings(listings);
 
   return (
     <AppShell
@@ -64,7 +67,10 @@ export default async function SellerDashboardPage() {
           "Submit saved drafts for Admin review or address reviewer notes on flagged listings.",
       }}
     >
-      <SellerDashboardClient initialListings={listings} />
+      <SellerDashboardClient
+        initialListings={listings}
+        buyerDemandByListingId={buyerDemandByListingId}
+      />
     </AppShell>
   );
 }

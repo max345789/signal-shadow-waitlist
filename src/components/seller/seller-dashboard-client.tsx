@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Edit3, PlusCircle, RefreshCw } from "lucide-react";
+import { ArrowRight, Edit3, PlusCircle, RefreshCw, Users } from "lucide-react";
 import type { SanitizedListingView } from "@/lib/domain/listings";
+import type { SellerListingBuyerDemand } from "@/lib/matching/store";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,8 +54,10 @@ function statusLabel(status: SanitizedListingView["status"]): string {
 
 export function SellerDashboardClient({
   initialListings,
+  buyerDemandByListingId = {},
 }: {
   initialListings: SanitizedListingView[];
+  buyerDemandByListingId?: Record<string, SellerListingBuyerDemand>;
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
@@ -281,16 +284,68 @@ export function SellerDashboardClient({
         </TabsContent>
       </Tabs>
 
-      {/* Phase 2 / 4 clear roadmap empty states */}
+      {/* Phase 2 Buyer Demand Summary & Phase 4 Deal Room Roadmap */}
       <section aria-labelledby="upcoming-modules-heading" className="flex flex-col gap-4">
         <h2 id="upcoming-modules-heading" className="font-serif text-20 font-semibold text-deep-navy">
-          Upcoming seller modules
+          Matched buyer demand &amp; deal rooms
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <CardStateEmpty
-            title="Matched buyers (Phase 2)"
-            description="Ranked buyer matches with fit reasons and mismatches unlock once Phase 2 thesis matching is active."
-          />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-trust-blue" aria-hidden="true" />
+                  <CardTitle as="h3">Matched buyer theses (Phase 2)</CardTitle>
+                </div>
+                <StatusChip tone="neutral" label="Anonymized fit" />
+              </div>
+              <CardDescription>
+                Active saved buyer theses scoring 70+ fit against your approved listings. Buyer
+                identities stay private until a deal room opens.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {approved.length === 0 ? (
+                <p className="text-16 text-slate">
+                  No approved listings yet — matching buyer thesis demand will appear once a
+                  listing passes Admin review.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {approved.map((item) => {
+                    const demand = buyerDemandByListingId[item.id] ?? {
+                      strongMatchCount: 0,
+                      sampleMatchCount: 0,
+                      topScore: null,
+                    };
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex flex-col gap-1 rounded border border-mist bg-cloud p-4"
+                      >
+                        <span className="text-16 font-semibold text-deep-navy">
+                          {item.teaserTitle}
+                        </span>
+                        <span className="text-14 text-slate tabular-figures">
+                          {demand.strongMatchCount}{" "}
+                          {demand.strongMatchCount === 1
+                            ? "matching buyer thesis (70+ fit)"
+                            : "matching buyer theses (70+ fit)"}
+                          {demand.sampleMatchCount > 0
+                            ? ` (includes ${demand.sampleMatchCount} sample)`
+                            : ""}
+                          {demand.topScore !== null
+                            ? ` · Top fit score: ${demand.topScore} / 100`
+                            : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
           <CardStateEmpty
             title="Active deal rooms (Phase 4)"
             description="NDA execution, watermarked documents, and buyer offers unlock in Phase 4 deal rooms."

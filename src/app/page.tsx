@@ -145,9 +145,11 @@ export default async function HomePage() {
               <CardStateEmpty
                 title="No saved acquisition theses yet"
                 description={
-                  session
+                  buyerPerm.allowed
                     ? "Create a thesis in the Thesis Builder to rank approved listings and receive alerts on new approvals."
-                    : "Sign in as a Buyer to save acquisition theses and receive alerts, or open the Thesis Builder to preview matches right now."
+                    : session
+                      ? `Signed in as ${session.name} (${session.roles.join(", ")}). Switch to a Buyer account to save acquisition theses and alerts, or use Thesis Builder to preview matches right now.`
+                      : "Sign in as a Buyer to save acquisition theses and receive alerts, or open the Thesis Builder to preview matches right now."
                 }
               />
               <div className="flex flex-wrap gap-4">

@@ -72,8 +72,9 @@ async function main() {
       },
     ];
 
+    const userIdByKey = new Map<string, string>();
     for (const u of sampleUsers) {
-      await prisma.user.upsert({
+      const savedUser = await prisma.user.upsert({
         where: { email: u.email },
         update: { name: u.name },
         create: {
@@ -88,37 +89,47 @@ async function main() {
           },
         },
       });
+      userIdByKey.set(u.id, savedUser.id);
     }
 
-    await prisma.buyerProfile.upsert({
-      where: { userId: "sample-buyer-01" },
+    const buyerUserId = userIdByKey.get("sample-buyer-01") ?? "sample-buyer-01";
+    const seller1UserId = userIdByKey.get("sample-seller-01") ?? "sample-seller-01";
+    const seller2UserId = userIdByKey.get("sample-seller-02") ?? "sample-seller-02";
+
+    const sampleBuyerProfile = await prisma.buyerProfile.upsert({
+      where: { userId: buyerUserId },
       update: {},
       create: {
         id: "sample-buyer-profile-01",
-        userId: "sample-buyer-01",
+        userId: buyerUserId,
         preferredCurrency: CurrencyCode.INR,
       },
     });
 
-    await prisma.sellerProfile.upsert({
-      where: { userId: "sample-seller-01" },
+    const sampleSellerProfile1 = await prisma.sellerProfile.upsert({
+      where: { userId: seller1UserId },
       update: {},
       create: {
         id: "sample-seller-profile-01",
-        userId: "sample-seller-01",
+        userId: seller1UserId,
         payoutCountry: "IN",
       },
     });
 
-    await prisma.sellerProfile.upsert({
-      where: { userId: "sample-seller-02" },
+    const sampleSellerProfile2 = await prisma.sellerProfile.upsert({
+      where: { userId: seller2UserId },
       update: {},
       create: {
         id: "sample-seller-profile-02",
-        userId: "sample-seller-02",
+        userId: seller2UserId,
         payoutCountry: "IN",
       },
     });
+
+    const sellerProfileIdMap: Record<string, string> = {
+      "sample-seller-profile-01": sampleSellerProfile1.id,
+      "sample-seller-profile-02": sampleSellerProfile2.id,
+    };
 
     const sampleListings = createSampleSeedListings();
     for (const biz of sampleListings) {
@@ -144,7 +155,7 @@ async function main() {
         },
         create: {
           id: biz.id,
-          sellerProfileId: biz.sellerProfileId,
+          sellerProfileId: sellerProfileIdMap[biz.sellerProfileId] ?? biz.sellerProfileId,
           slug: biz.slug,
           teaserTitle: biz.teaserTitle,
           teaserSummary: biz.teaserSummary,
@@ -291,7 +302,7 @@ async function main() {
         },
         create: {
           id: thesis.id,
-          buyerProfileId: thesis.buyerProfileId,
+          buyerProfileId: sampleBuyerProfile.id,
           title: thesis.title,
           sector: thesis.sector,
           minRevenue: thesis.minRevenue,

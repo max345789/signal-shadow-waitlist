@@ -6,7 +6,7 @@ import { getServerSession } from "@/lib/auth/session-server";
 import { listApprovedListings } from "@/lib/listings/store";
 import {
   getListingsForCompare,
-  listThesesWithMatchesForBuyer,
+  listSavedThesesForBuyer,
 } from "@/lib/matching/store";
 import { parseCompareBusinessIds } from "@/lib/matching/validation";
 
@@ -25,9 +25,7 @@ export default async function ComparePage({
   const parsedIds = parseCompareBusinessIds(rawIds);
   const perm = canManageBuyerThesis(session);
   const savedTheses =
-    perm.allowed && session
-      ? (await listThesesWithMatchesForBuyer(session)).map((x) => x.thesis)
-      : [];
+    perm.allowed && session ? await listSavedThesesForBuyer(session) : [];
 
   if (!parsedIds.ok) {
     const availableListings = await listApprovedListings();
@@ -93,6 +91,7 @@ export default async function ComparePage({
         initialThesis={compareResult.thesis}
         initialEvaluationsByBusinessId={compareResult.evaluationsByBusinessId}
         savedTheses={savedTheses}
+        initialExcludedCount={compareResult.excludedCount}
       />
     </AppShell>
   );

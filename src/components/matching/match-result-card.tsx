@@ -57,7 +57,7 @@ export function MatchResultCard({
             <span
               className={
                 strongFit
-                  ? "inline-flex items-center rounded border border-verified-green bg-white px-2 py-2 text-14 font-semibold text-verified-green tabular-figures"
+                  ? "inline-flex items-center rounded border border-trust-blue bg-white px-2 py-2 text-14 font-semibold text-deep-navy tabular-figures"
                   : "inline-flex items-center rounded border border-mist bg-cloud px-2 py-2 text-14 font-semibold text-deep-navy tabular-figures"
               }
             >
@@ -164,7 +164,7 @@ export function MatchResultCard({
               <CheckCircle2
                 className={
                   match.reasons.length > 0
-                    ? "h-4 w-4 shrink-0 text-verified-green"
+                    ? "h-4 w-4 shrink-0 text-trust-blue"
                     : "h-4 w-4 shrink-0 text-slate"
                 }
                 aria-hidden="true"

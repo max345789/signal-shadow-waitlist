@@ -39,10 +39,12 @@ export function ThesisBuilderClient({
   session,
   initialPrompt,
   editingThesis,
+  editingLoadError,
 }: {
   session: AuthSession | null;
   initialPrompt?: string;
   editingThesis: SavedThesisRecord | null;
+  editingLoadError?: string | null;
 }) {
   const router = useRouter();
   const hints = React.useMemo(
@@ -114,8 +116,26 @@ export function ThesisBuilderClient({
   >("idle");
   const [previewError, setPreviewError] = React.useState<string | null>(null);
   const [previewMatches, setPreviewMatches] = React.useState<RankedThesisMatch[]>([]);
+  const [previewedKey, setPreviewedKey] = React.useState<string | null>(null);
   const [selectedCompareIds, setSelectedCompareIds] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState<boolean>(false);
+
+  const currentCriteriaKey = JSON.stringify({
+    sector,
+    currency,
+    geography,
+    minRevenue,
+    maxRevenue,
+    minProfit,
+    maxOwnerHours,
+    minPrice,
+    maxPrice,
+    freeText,
+  });
+  const previewIsStale =
+    previewState === "ready" &&
+    previewedKey !== null &&
+    previewedKey !== currentCriteriaKey;
 
   const currencySymbol =
     currency === "INR" ? "₹" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "£";
@@ -153,6 +173,8 @@ export function ThesisBuilderClient({
 
     if (requireTitle && derivedTitle.trim().length < 3) {
       errors.title = "Enter a thesis title of at least 3 characters.";
+    } else if (derivedTitle.trim().length > 120) {
+      errors.title = "Thesis title cannot exceed 120 characters.";
     }
     if (minRevenue.trim() && parsedMinRev === null) {
       errors.minRevenue = "Enter a valid minimum annual revenue.";
@@ -161,6 +183,8 @@ export function ThesisBuilderClient({
     }
     if (maxRevenue.trim() && parsedMaxRev === null) {
       errors.maxRevenue = "Enter a valid maximum annual revenue.";
+    } else if (parsedMaxRev !== null && parsedMaxRev < 0) {
+      errors.maxRevenue = "Maximum revenue cannot be negative.";
     } else if (
       parsedMinRev !== null &&
       parsedMaxRev !== null &&
@@ -181,6 +205,8 @@ export function ThesisBuilderClient({
     }
     if (maxPrice.trim() && parsedMaxPrice === null) {
       errors.maxPrice = "Enter a valid maximum asking price.";
+    } else if (parsedMaxPrice !== null && parsedMaxPrice < 0) {
+      errors.maxPrice = "Maximum price cannot be negative.";
     } else if (
       parsedMinPrice !== null &&
       parsedMaxPrice !== null &&
@@ -207,6 +233,10 @@ export function ThesisBuilderClient({
     if (Object.values(errors).some(Boolean)) {
       setFieldErrors(errors);
       setFormError("Check the highlighted thesis fields below.");
+      // Clear previous preview results so Brick Red validation errors never coexist with Verified Green cards
+      setPreviewState("idle");
+      setPreviewMatches([]);
+      setPreviewedKey(null);
       return { ok: false };
     }
 
@@ -251,6 +281,7 @@ export function ThesisBuilderClient({
         return;
       }
       setPreviewMatches(data.matches ?? []);
+      setPreviewedKey(currentCriteriaKey);
       setPreviewState("ready");
     } catch {
       setPreviewError("Network error while scoring approved listings.");
@@ -261,6 +292,9 @@ export function ThesisBuilderClient({
   async function handleSaveThesis(event: React.FormEvent) {
     event.preventDefault();
     if (!canSaveThesis) {
+      setPreviewState("idle");
+      setPreviewMatches([]);
+      setPreviewedKey(null);
       setFormError(
         "Sign in with a Buyer account to save your thesis and enable new-listing alerts. You can still preview ranked matches below."
       );
@@ -282,6 +316,9 @@ export function ThesisBuilderClient({
       });
       const data = await res.json();
       if (!res.ok) {
+        setPreviewState("idle");
+        setPreviewMatches([]);
+        setPreviewedKey(null);
         setFormError(data.error ?? "Could not save your acquisition thesis.");
         return;
       }
@@ -289,8 +326,10 @@ export function ThesisBuilderClient({
       router.push(
         savedId ? `/matches?thesisId=${encodeURIComponent(savedId)}` : "/matches"
       );
-      router.refresh();
     } catch {
+      setPreviewState("idle");
+      setPreviewMatches([]);
+      setPreviewedKey(null);
       setFormError("Network error while saving acquisition thesis.");
     } finally {
       setSaving(false);
@@ -307,6 +346,31 @@ export function ThesisBuilderClient({
       }
       return [...prev, listingId];
     });
+  }
+
+  if (editingLoadError) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <StatusChip tone="neutral" label="Phase 2: Thesis Builder" className="w-fit" />
+          <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
+            Thesis unavailable
+          </h1>
+        </div>
+        <CardStateError
+          title="Could not open acquisition thesis for editing"
+          message={editingLoadError}
+        />
+        <div className="flex flex-wrap gap-4">
+          <Button asChild variant="primary">
+            <Link href="/thesis/new">Create a new thesis</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/matches">Back to saved matches</Link>
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -592,6 +656,16 @@ export function ThesisBuilderClient({
               </Button>
             ) : null}
           </div>
+
+          {previewIsStale ? (
+            <div
+              role="status"
+              className="rounded border border-mist bg-white p-4 text-16 text-deep-navy"
+            >
+              Criteria changed since your last preview — select{" "}
+              <strong>Preview ranked matches</strong> above to refresh fit scores.
+            </div>
+          ) : null}
 
           {previewMatches.length === 0 ? (
             <CardStateEmpty

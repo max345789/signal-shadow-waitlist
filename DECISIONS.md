@@ -105,6 +105,10 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 - **Decision**: Added two additional `APPROVED` sample listings (`sample-biz-media-04` Content & Media at ₹48 L and `sample-biz-mkt-05` Marketplace at ₹88 L) and one `Sample data`-labelled thesis (`sample-thesis-01`) for `sample-buyer-01`, keeping existing indices `[0..2]` unchanged. `/compare` caps selection strictly at `<= 3` businesses on both client and server (`GET /api/compare`) and renders each dimension in a responsive `grid-cols-1 md:grid-cols-3` comparison layout.
 - **Why**: Provides 4 distinct approved sample listings across different sectors, budgets, and workloads so three distinct buyer theses produce three distinct top-ranked results out of the box, while avoiding wide `<table>` horizontal overflow at `360px` mobile width.
 
+### 20. Anonymized Seller Demand Summary & Strict Trust-Color Isolation
+- **Decision**: `/seller` computes aggregate Phase 2 buyer-thesis match counts (`>= 70` fit) and top score per approved listing (`getBuyerDemandSummaryForSellerListings()`) without exposing buyer identities or private thesis criteria. Across `MatchResultCard`, `HomeSavedThesesFeed`, `MatchesClient`, `ThesisBuilderClient`, and `CompareClient`, `Verified Green` renders exclusively for real active verification records (never for high fit scores, match reasons, or alert toggles), and mixed-trust comparisons keep `<= 3` non-neutral colors by using neutral-bordered status chips with explicit labels (`Verification expired`, `Connection failed`) when `Verified Green` is already present.
+- **Why**: Keeps `Verified Green` strictly tied to active third-party verification records and enforces Section 4's `<= 3` non-neutral colors rule across every interactive state.
+
 ---
 
 ## Next: Phase 3 Plan (Verification and Connectors)

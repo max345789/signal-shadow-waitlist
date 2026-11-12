@@ -19,10 +19,17 @@ export default async function ThesisBuilderPage({
       : undefined;
 
   let editingThesis = null;
-  if (typeof params.thesisId === "string" && params.thesisId.trim() && session) {
-    const res = await getThesisWithMatchesForViewer(params.thesisId.trim(), session);
-    if (res.ok) {
-      editingThesis = res.data.thesis;
+  let editingLoadError: string | null = null;
+  if (typeof params.thesisId === "string" && params.thesisId.trim()) {
+    if (!session) {
+      editingLoadError = "Sign in with the owning Buyer account to edit this acquisition thesis.";
+    } else {
+      const res = await getThesisWithMatchesForViewer(params.thesisId.trim(), session);
+      if (res.ok) {
+        editingThesis = res.data.thesis;
+      } else {
+        editingLoadError = res.reason;
+      }
     }
   }
 
@@ -41,6 +48,7 @@ export default async function ThesisBuilderPage({
         session={session}
         initialPrompt={initialPrompt}
         editingThesis={editingThesis}
+        editingLoadError={editingLoadError}
       />
     </AppShell>
   );

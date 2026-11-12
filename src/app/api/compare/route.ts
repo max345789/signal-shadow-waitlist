@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       listings: result.listings,
+      excludedCount: result.excludedCount,
       thesis: result.thesis,
       evaluationsByBusinessId: result.evaluationsByBusinessId,
     },

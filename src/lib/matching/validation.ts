@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { currencySchema } from "@/lib/listings/validation";
 
-const optionalCleanString = z
+const cleanStringValue = z
   .string()
   .trim()
   .max(80)
-  .optional()
   .nullable()
   .transform((val) => {
     if (!val) return null;
@@ -13,6 +12,10 @@ const optionalCleanString = z
     if (!trimmed || trimmed === "ALL" || trimmed === "ANY") return null;
     return trimmed;
   });
+
+const optionalCleanString = cleanStringValue
+  .optional()
+  .transform((val) => (val === undefined ? null : val));
 
 const optionalNonNegativeNumber = z
   .number()
@@ -38,6 +41,27 @@ const optionalOwnerHours = z
   .optional()
   .nullable()
   .transform((val) => (val === undefined ? null : val));
+
+const patchCleanString = cleanStringValue.optional();
+const patchNonNegativeNumber = z
+  .number()
+  .finite("Enter a valid number.")
+  .min(0, "Value cannot be negative.")
+  .nullable()
+  .optional();
+const patchFiniteNumber = z
+  .number()
+  .finite("Enter a valid number.")
+  .nullable()
+  .optional();
+const patchOwnerHours = z
+  .number()
+  .finite("Enter a valid hour count.")
+  .int("Owner hours must be a whole number.")
+  .min(0, "Owner hours cannot be negative.")
+  .max(168, "Owner hours cannot exceed 168 per week.")
+  .nullable()
+  .optional();
 
 const thesisCoreShape = z.object({
   title: z
@@ -130,21 +154,49 @@ export const upsertThesisSchema = thesisCoreShape.superRefine((data, ctx) => {
 
 export const patchThesisSchema = z
   .object({
-    title: z.string().trim().min(3).max(120).optional(),
-    sector: optionalCleanString,
-    minRevenue: optionalNonNegativeNumber,
-    maxRevenue: optionalNonNegativeNumber,
-    minProfit: optionalFiniteNumber,
-    maxOwnerHours: optionalOwnerHours,
-    geography: optionalCleanString,
-    minPrice: optionalNonNegativeNumber,
-    maxPrice: optionalNonNegativeNumber,
+    title: z.string().trim().min(3, "Enter a thesis title of at least 3 characters.").max(120).optional(),
+    sector: patchCleanString,
+    minRevenue: patchNonNegativeNumber,
+    maxRevenue: patchNonNegativeNumber,
+    minProfit: patchFiniteNumber,
+    maxOwnerHours: patchOwnerHours,
+    geography: patchCleanString,
+    minPrice: patchNonNegativeNumber,
+    maxPrice: patchNonNegativeNumber,
     currency: currencySchema.optional(),
     freeText: z.string().trim().max(2000).optional(),
     alertsEnabled: z.boolean().optional(),
   })
-  .refine((obj) => Object.keys(obj).length > 0, {
+  .refine((obj) => Object.values(obj).some((value) => value !== undefined), {
     message: "Provide at least one thesis field to update.",
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.minRevenue !== undefined &&
+      data.minRevenue !== null &&
+      data.maxRevenue !== undefined &&
+      data.maxRevenue !== null &&
+      data.minRevenue > data.maxRevenue
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxRevenue"],
+        message: "Maximum revenue must be greater than or equal to minimum revenue.",
+      });
+    }
+    if (
+      data.minPrice !== undefined &&
+      data.minPrice !== null &&
+      data.maxPrice !== undefined &&
+      data.maxPrice !== null &&
+      data.minPrice > data.maxPrice
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxPrice"],
+        message: "Maximum price must be greater than or equal to minimum price.",
+      });
+    }
   });
 
 export function parseCompareBusinessIds(rawIdsParam: string | null): {
