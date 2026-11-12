@@ -455,6 +455,11 @@ test("Phase 5 acceptance: full INTRO to TRANSFER sandbox deal, third-party escro
     await expect(buyerPage.getByText("Paused: Dispute under review")).toBeVisible();
     await assertCleanDesignAudit(buyerPage, { enforceMaxThreeNonNeutrals: true });
 
+    // /deals index enforces <=3 non-neutrals even when a COMPLETED NDA-signed room and a DISPUTED room coexist
+    await buyerPage.goto("/deals", { waitUntil: "networkidle" });
+    await expect(buyerPage.getByText("Disputed")).toBeVisible();
+    await assertCleanDesignAudit(buyerPage, { enforceMaxThreeNonNeutrals: true });
+
     // Reviewer opens /admin/review -> Dispute queue -> resolves to Resume to In Review
     await reviewerPage.goto("/admin/review", { waitUntil: "networkidle" });
     await reviewerPage.getByRole("tab", { name: /Dispute queue/i }).click();

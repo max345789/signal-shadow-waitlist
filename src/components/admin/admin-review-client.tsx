@@ -130,12 +130,16 @@ export function AdminReviewClient({
         return;
       }
       setListings(listingsData.listings ?? []);
-      if (verRes.ok) {
-        setVerifications(verData.verifications ?? []);
+      if (!verRes.ok) {
+        setFetchError(verData.error ?? "Could not load verification queue.");
+        return;
       }
-      if (disputesRes.ok) {
-        setDisputes(disputesData.disputes ?? []);
+      setVerifications(verData.verifications ?? []);
+      if (!disputesRes.ok) {
+        setFetchError(disputesData.error ?? "Could not load dispute queue.");
+        return;
       }
+      setDisputes(disputesData.disputes ?? []);
     } catch {
       setFetchError("Network error while refreshing review queue.");
     } finally {
@@ -169,9 +173,14 @@ export function AdminReviewClient({
       });
       const data = await res.json();
       if (!res.ok) {
+        const twoFactorHint =
+          data.code === "TWO_FACTOR_REQUIRED" ||
+          data.code === "TWO_FACTOR_EXPIRED"
+            ? " Complete 2FA verification at Sign in & 2FA before resolving disputes."
+            : "";
         setDisputeErrorsById((prev) => ({
           ...prev,
-          [dealRoomId]: data.error ?? "Dispute resolution failed.",
+          [dealRoomId]: `${data.error ?? "Dispute resolution failed."}${twoFactorHint}`,
         }));
         return;
       }
@@ -335,6 +344,14 @@ export function AdminReviewClient({
         <CardStateLoading
           title="Loading dispute queue"
           description="Checking flagged deal room escrow transactions and audit records."
+        />
+      );
+    }
+    if (fetchError) {
+      return (
+        <CardStateError
+          message={fetchError}
+          onRetry={() => void refreshQueue()}
         />
       );
     }
@@ -555,6 +572,14 @@ export function AdminReviewClient({
         <CardStateLoading
           title="Loading verification records"
           description="Checking KYC, Proof of Funds, and connector expirations."
+        />
+      );
+    }
+    if (fetchError) {
+      return (
+        <CardStateError
+          message={fetchError}
+          onRetry={() => void refreshQueue()}
         />
       );
     }

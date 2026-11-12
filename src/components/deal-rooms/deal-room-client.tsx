@@ -127,9 +127,14 @@ export function DealRoomClient({
     Record<string, { amount: string; terms: string }>
   >({});
 
+  const initialAcceptedOffer =
+    initialDealRoom.offers.find((o) => o.status === "ACCEPTED") ?? null;
+
   // Escrow & dispute state
   const [escrowProvider, setEscrowProvider] = React.useState<EscrowProviderName>(
-    initialDealRoom.currency === "INR" ? "Castler Escrow" : "Escrow.com"
+    (initialAcceptedOffer?.currency ?? initialDealRoom.currency) === "INR"
+      ? "Castler Escrow"
+      : "Escrow.com"
   );
   const [fundingRefInput, setFundingRefInput] = React.useState("");
   const [disputeReasonInput, setDisputeReasonInput] = React.useState("");
@@ -190,11 +195,20 @@ export function DealRoomClient({
   }, [dealRoom.id, refreshDealRoom]);
 
   const activeEscrow = dealRoom.escrowTransactions?.[0] ?? null;
+  const acceptedOffer =
+    dealRoom.offers.find((o) => o.status === "ACCEPTED") ?? null;
   const isDisputed =
     dealRoom.status === "DISPUTED" || activeEscrow?.status === "DISPUTED";
   const hasActiveError = Boolean(actionError);
   const allowRisk = hasActiveError || isDisputed;
   const allowGreen = !allowRisk;
+
+  const effectiveEscrowProvider: EscrowProviderName =
+    acceptedOffer &&
+    acceptedOffer.currency !== "INR" &&
+    escrowProvider === "Castler Escrow"
+      ? "Escrow.com"
+      : escrowProvider;
 
   function verifiedTone(isPositive: boolean): StatusChipTone {
     if (isPositive) {
@@ -694,9 +708,6 @@ export function DealRoomClient({
   const canSignNdaNow =
     (dealRoom.viewerRole === "BUYER" && !dealRoom.nda.buyerSigned) ||
     (dealRoom.viewerRole === "SELLER" && !dealRoom.nda.sellerSigned);
-
-  const acceptedOffer =
-    dealRoom.offers.find((o) => o.status === "ACCEPTED") ?? null;
 
   const canSignPaNow =
     Boolean(acceptedOffer) &&
@@ -2009,7 +2020,9 @@ export function DealRoomClient({
                   </div>
                 ) : null}
 
-                {!activeEscrow || activeEscrow.status === "REFUNDED" ? (
+                {!activeEscrow ||
+                (activeEscrow.status === "REFUNDED" &&
+                  dealRoom.status === "ACTIVE") ? (
                   dealRoom.currentStage === "ESCROW" &&
                   acceptedOffer &&
                   dealRoom.status === "ACTIVE" &&
@@ -2019,18 +2032,23 @@ export function DealRoomClient({
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <Select
                           label="Licensed third-party escrow provider"
-                          value={escrowProvider}
+                          value={effectiveEscrowProvider}
                           onChange={(e) =>
                             setEscrowProvider(
                               e.target.value as EscrowProviderName
                             )
                           }
                         >
-                          {ESCROW_PROVIDERS.map((prov) => (
-                            <option key={prov} value={prov}>
-                              {prov}
-                            </option>
-                          ))}
+                          {ESCROW_PROVIDERS.map((prov) => {
+                            const unsupported =
+                              prov === "Castler Escrow" &&
+                              acceptedOffer.currency !== "INR";
+                            return (
+                              <option key={prov} value={prov} disabled={unsupported}>
+                                {unsupported ? `${prov} (INR only)` : prov}
+                              </option>
+                            );
+                          })}
                         </Select>
 
                         <div className="flex flex-col justify-center gap-1 rounded border border-mist bg-white p-4">
@@ -2046,7 +2064,10 @@ export function DealRoomClient({
                       </div>
 
                       <p className="text-14 text-slate">
-                        {ESCROW_PROVIDER_SPECS[escrowProvider].regulatorySummary}
+                        {
+                          ESCROW_PROVIDER_SPECS[effectiveEscrowProvider]
+                            .regulatorySummary
+                        }
                       </p>
 
                       <div className="flex justify-end">
@@ -2058,7 +2079,7 @@ export function DealRoomClient({
                           onClick={() =>
                             void handleEscrowAction({
                               action: "INITIATE",
-                              provider: escrowProvider,
+                              provider: effectiveEscrowProvider,
                             })
                           }
                         >
@@ -2162,15 +2183,20 @@ export function DealRoomClient({
                       </div>
                     ) : null}
 
-                    {activeEscrow.status === "FUNDED" &&
+                    {(activeEscrow.status === "FUNDED" ||
+                      (activeEscrow.status === "IN_REVIEW" &&
+                        dealRoom.currentStage === "ESCROW")) &&
                     dealRoom.status === "ACTIVE" ? (
                       <div className="flex flex-col gap-3 rounded border border-mist bg-cloud p-4 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-16 text-ink">
                           {dealRoom.currentStage === "ESCROW"
-                            ? "Escrow is funded. Use the stage controls above to move to Transfer and generate the 7-category asset handover checklist."
+                            ? activeEscrow.status === "IN_REVIEW"
+                              ? "Escrow is in review following dispute resolution. Use the stage controls above to move to Transfer and generate the 7-category asset handover checklist."
+                              : "Escrow is funded. Use the stage controls above to move to Transfer and generate the 7-category asset handover checklist."
                             : "Escrow is funded in the Transfer stage. Put escrow into review while both parties verify asset handover."}
                         </p>
                         {dealRoom.currentStage === "TRANSFER" &&
+                        activeEscrow.status === "FUNDED" &&
                         (dealRoom.viewerRole === "BUYER" ||
                           dealRoom.viewerRole === "SELLER") ? (
                           <Button
@@ -2243,6 +2269,19 @@ export function DealRoomClient({
                         <p className="pt-2 text-16 text-ink">
                           {activeEscrow.disputeReason}
                         </p>
+                      </div>
+                    ) : null}
+
+                    {activeEscrow.status === "REFUNDED" ? (
+                      <div className="rounded border border-mist bg-cloud p-4">
+                        <span className="text-16 font-semibold text-deep-navy">
+                          Escrow refunded to Buyer following dispute arbitration
+                        </span>
+                        {activeEscrow.disputeReason ? (
+                          <p className="pt-2 text-16 text-ink">
+                            Original dispute reason: {activeEscrow.disputeReason}
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
 

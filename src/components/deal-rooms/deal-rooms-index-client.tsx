@@ -241,7 +241,7 @@ export function DealRoomsIndexClient({
                 <div className="flex items-center gap-2 text-14 text-slate">
                   <ShieldCheck
                     className={
-                      room.ndaCompleted
+                      allowGreen && room.ndaCompleted
                         ? "h-4 w-4 text-verified-green"
                         : "h-4 w-4 text-trust-blue"
                     }

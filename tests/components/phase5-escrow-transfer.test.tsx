@@ -10,13 +10,16 @@ import {
 } from "@/lib/domain/deal-room";
 import { DEAL_STAGES_ORDER, DEAL_STAGE_DEFINITIONS } from "@/lib/domain/deal-stages";
 import { DealRoomClient } from "@/components/deal-rooms/deal-room-client";
+import { DealRoomsIndexClient } from "@/components/deal-rooms/deal-rooms-index-client";
 import { AdminReviewClient } from "@/components/admin/admin-review-client";
 
 const NOW_ISO = "2026-11-12T10:00:00.000Z";
 
 function makeEscrowRoom(options: {
-  escrowStatus: "IN_REVIEW" | "DISPUTED" | "RELEASED";
+  escrowStatus: "IN_REVIEW" | "DISPUTED" | "RELEASED" | "REFUNDED";
   disputeReason?: string;
+  currentStage?: "ESCROW" | "TRANSFER";
+  offerCurrency?: "INR" | "USD";
 }): RawDealRoomRecord {
   const transferItems = generateTransferChecklistItems().map((item, idx) => ({
     id: `xfer-${idx}`,
@@ -53,13 +56,15 @@ function makeEscrowRoom(options: {
     sellerProfileId: "sp-1",
     sellerUserId: "sample-seller-01",
     sellerName: "Rohan Mehta (Sample Seller)",
-    currentStage: "TRANSFER",
+    currentStage: options.currentStage ?? "TRANSFER",
     status:
       options.escrowStatus === "DISPUTED"
         ? "DISPUTED"
         : options.escrowStatus === "RELEASED"
           ? "COMPLETED"
-          : "ACTIVE",
+          : options.escrowStatus === "REFUNDED"
+            ? "CANCELLED"
+            : "ACTIVE",
     ndaSignedAt: NOW_ISO,
     ndaDocumentId: "doc-nda-1",
     stages: DEAL_STAGES_ORDER.map((stage, idx) => ({
@@ -89,7 +94,7 @@ function makeEscrowRoom(options: {
         proposerName: "Ananya Rao (Sample Buyer)",
         proposerRole: "BUYER",
         amount: 12_000_000,
-        currency: "INR",
+        currency: options.offerCurrency ?? "INR",
         termsSummary: "1.20 Cr via third-party escrow.",
         status: "ACCEPTED",
         parentOfferId: null,
@@ -253,5 +258,137 @@ describe("Phase 5 Escrow & Transfer UI Components", () => {
     expect(
       screen.getByRole("button", { name: /Refund to Buyer/i })
     ).toBeInTheDocument();
+  });
+
+  it("renders REFUNDED escrow details on cancelled rooms, IN_REVIEW guidance in ESCROW stage, and suppresses green on /deals when disputed", async () => {
+    const user = userEvent.setup();
+
+    const refundedView = sanitizeDealRoomForViewer(
+      makeEscrowRoom({
+        escrowStatus: "REFUNDED",
+        disputeReason: "Vendor contract non-assignable.",
+      }),
+      "BUYER",
+      {
+        identityVerified: true,
+        proofOfFundsVerified: true,
+        dataAccessReady: true,
+        reason: "Verified.",
+      }
+    );
+
+    const { unmount } = render(<DealRoomClient initialDealRoom={refundedView} />);
+    await user.click(screen.getByRole("tab", { name: /Escrow & transfer/i }));
+    expect(screen.getByText("ESC-ESCCOM-P5")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Escrow refunded to Buyer following dispute arbitration/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Original dispute reason: Vendor contract non-assignable\./i)
+    ).toBeInTheDocument();
+    unmount();
+
+    const resumedInEscrowView = sanitizeDealRoomForViewer(
+      makeEscrowRoom({
+        escrowStatus: "IN_REVIEW",
+        currentStage: "ESCROW",
+      }),
+      "BUYER",
+      {
+        identityVerified: true,
+        proofOfFundsVerified: true,
+        dataAccessReady: true,
+        reason: "Verified.",
+      }
+    );
+    const { unmount: unmountResumed } = render(
+      <DealRoomClient initialDealRoom={resumedInEscrowView} />
+    );
+    await user.click(screen.getByRole("tab", { name: /Escrow & transfer/i }));
+    expect(
+      screen.getByText(/Escrow is in review following dispute resolution/i)
+    ).toBeInTheDocument();
+    unmountResumed();
+
+    // USD offer disables Castler Escrow and defaults to Escrow.com
+    const usdRaw = makeEscrowRoom({
+      escrowStatus: "IN_REVIEW",
+      currentStage: "ESCROW",
+      offerCurrency: "USD",
+    });
+    usdRaw.escrowTransactions = [];
+    const usdView = sanitizeDealRoomForViewer(usdRaw, "BUYER", {
+      identityVerified: true,
+      proofOfFundsVerified: true,
+      dataAccessReady: true,
+      reason: "Verified.",
+    });
+    const { unmount: unmountUsd } = render(
+      <DealRoomClient initialDealRoom={usdView} />
+    );
+    await user.click(screen.getByRole("tab", { name: /Escrow & transfer/i }));
+    const providerSelect = screen.getByLabelText(
+      /Licensed third-party escrow provider/i
+    ) as HTMLSelectElement;
+    expect(providerSelect.value).toBe("Escrow.com");
+    expect(
+      screen.getByRole("option", { name: /Castler Escrow \(INR only\)/i })
+    ).toBeDisabled();
+    unmountUsd();
+
+    // /deals suppresses text-verified-green when a DISPUTED room coexists with an NDA-signed room
+    const { container: dealsContainer } = render(
+      <DealRoomsIndexClient
+        gateStatus="ready"
+        initialRooms={[
+          {
+            id: "deal-ok",
+            businessId: "b1",
+            businessSlug: "b1",
+            teaserTitle: "Clean SaaS",
+            sector: "B2B SaaS",
+            geography: "India",
+            askingPrice: 10_000_000,
+            currency: "INR",
+            isSampleData: true,
+            buyerUserId: "buyer-1",
+            buyerName: "Ananya",
+            sellerUserId: "seller-1",
+            sellerName: "Rohan",
+            currentStage: "TRANSFER",
+            status: "ACTIVE",
+            latestEscrowStatus: "FUNDED",
+            ndaCompleted: true,
+            ndaSignedAt: NOW_ISO,
+            updatedAt: NOW_ISO,
+            createdAt: NOW_ISO,
+          },
+          {
+            id: "deal-disp",
+            businessId: "b2",
+            businessSlug: "b2",
+            teaserTitle: "Disputed SaaS",
+            sector: "B2B SaaS",
+            geography: "India",
+            askingPrice: 12_000_000,
+            currency: "INR",
+            isSampleData: true,
+            buyerUserId: "buyer-1",
+            buyerName: "Ananya",
+            sellerUserId: "seller-2",
+            sellerName: "Kiran",
+            currentStage: "ESCROW",
+            status: "DISPUTED",
+            latestEscrowStatus: "DISPUTED",
+            ndaCompleted: true,
+            ndaSignedAt: NOW_ISO,
+            updatedAt: NOW_ISO,
+            createdAt: NOW_ISO,
+          },
+        ]}
+      />
+    );
+    expect(dealsContainer.innerHTML).not.toContain("text-verified-green");
+    expect(dealsContainer.innerHTML).not.toContain("bg-verified-green");
   });
 });

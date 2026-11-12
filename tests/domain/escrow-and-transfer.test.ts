@@ -548,7 +548,7 @@ describe("Phase 5 Escrow & Transfer", () => {
     expect(resumedJson.dealRoom.status).toBe("ACTIVE");
     expect(resumedJson.dealRoom.escrowTransactions[0].status).toBe("IN_REVIEW");
 
-    // Flag again and test REFUND_TO_BUYER resolution
+    // Flag again and verify open dispute clears stale prior resolutionNote/resolvedAt
     activeMockSession = SELLER_SESSION;
     await escrowPost(
       new Request(`http://localhost/api/deal-rooms/${roomId}/escrow`, {
@@ -565,6 +565,13 @@ describe("Phase 5 Escrow & Transfer", () => {
     );
 
     activeMockSession = REVIEWER_SESSION;
+    const secondQueueRes = await adminDisputesGet();
+    expect(secondQueueRes.status).toBe(200);
+    const secondQueueJson = await secondQueueRes.json();
+    expect(secondQueueJson.disputes[0].escrow.status).toBe("DISPUTED");
+    expect(secondQueueJson.disputes[0].resolutionNote).toBeNull();
+    expect(secondQueueJson.disputes[0].resolvedAt).toBeNull();
+
     const refundRes = await adminDisputeResolvePost(
       new Request(`http://localhost/api/admin/disputes/${roomId}/resolve`, {
         method: "POST",

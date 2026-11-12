@@ -188,6 +188,7 @@ describe("Phase 5 Escrow & Transfer PostgreSQL/Prisma branch", () => {
         dealStage: { updateMany: mockDealStageUpdateMany },
         checklistItem: { createMany: mockChecklistItemCreateMany },
         escrowTransaction: {
+          findFirst: mockEscrowFindFirst,
           create: mockEscrowCreate,
           update: mockEscrowUpdate,
         },
@@ -234,6 +235,7 @@ describe("Phase 5 Escrow & Transfer PostgreSQL/Prisma branch", () => {
 
   it("initiates and funds EscrowTransaction in Prisma without holding platform funds", async () => {
     mockDealRoomFindUnique.mockResolvedValue(makePrismaRoom());
+    mockEscrowFindFirst.mockResolvedValue(null);
     mockUserFindMany.mockResolvedValue([
       { id: "pg-buyer-1", email: "pg.buyer@example.com" },
       { id: "pg-seller-1", email: "pg.seller@example.com" },
@@ -433,5 +435,57 @@ describe("Phase 5 Escrow & Transfer PostgreSQL/Prisma branch", () => {
         data: expect.objectContaining({ action: "DISPUTE_RESOLVED" }),
       })
     );
+  });
+
+  it("blocks concurrent duplicate INITIATE and handles P2025 optimistic lock conflicts in Prisma", async () => {
+    mockDealRoomFindUnique.mockResolvedValue(makePrismaRoom());
+    mockUserFindMany.mockResolvedValue([
+      { id: "pg-buyer-1", email: "pg.buyer@example.com" },
+      { id: "pg-seller-1", email: "pg.seller@example.com" },
+    ]);
+    mockEscrowFindFirst.mockResolvedValue({ id: "already-created" });
+
+    const dupInit = await handleDealRoomEscrowAction(
+      "pg-deal-1",
+      { action: "INITIATE", provider: "Escrow.com" },
+      BUYER_SESSION
+    );
+    expect(dupInit.ok).toBe(false);
+    if (!dupInit.ok) {
+      expect(dupInit.code).toBe("INVALID_STATE");
+    }
+
+    const now = new Date();
+    mockDealRoomFindUnique.mockResolvedValue(
+      makePrismaRoom({
+        escrowTransactions: [
+          {
+            id: "pg-esc-1",
+            dealRoomId: "pg-deal-1",
+            provider: "Escrow.com",
+            externalRef: "ESC-ESCCOM-RACE",
+            amount: 12_000_000,
+            currency: "INR",
+            status: "INITIATED",
+            fundedAt: null,
+            releasedAt: null,
+            disputeReason: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      })
+    );
+    mockEscrowUpdate.mockRejectedValueOnce({ code: "P2025" });
+
+    const conflictFund = await handleDealRoomEscrowAction(
+      "pg-deal-1",
+      { action: "FUND", escrowId: "pg-esc-1" },
+      BUYER_SESSION
+    );
+    expect(conflictFund.ok).toBe(false);
+    if (!conflictFund.ok) {
+      expect(conflictFund.code).toBe("INVALID_STATE");
+    }
   });
 });
