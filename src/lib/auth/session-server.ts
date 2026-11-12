@@ -5,13 +5,17 @@ import { auth0 } from "@/lib/auth0";
 import { getSupabaseAuthSession } from "@/lib/supabase/auth";
 
 export async function getServerSession(): Promise<AuthSession | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (token) {
-    const session = await verifySessionToken(token);
-    if (session) {
-      return session;
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    if (token) {
+      const session = await verifySessionToken(token);
+      if (session) {
+        return session;
+      }
     }
+  } catch {
+    // Outside of request scope or cookies inaccessible
   }
 
   // If Supabase Auth is active, check for Supabase session

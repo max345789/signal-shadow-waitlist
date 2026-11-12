@@ -53,7 +53,6 @@ export function AppShell({
     { key: "pricing", href: "/pricing", label: "Pricing" },
     { key: "closing-guide", href: "/closing-guide", label: "Closing guide" },
     { key: "verify", href: "/verify", label: "Profile checks" },
-    { key: "admin", href: "/admin/review", label: "Review & Reports" },
     { key: "style-guide", href: "/style-guide", label: "Style Guide" },
   ];
 

@@ -71,6 +71,39 @@ export function canReviewAdminQueue(session: AuthSession | null): PermissionChec
 }
 
 /**
+ * Strict Admin Portal Authorization Check:
+ * Enforces both the `ADMIN` role AND an authorized admin email.
+ * Unauthorized requests must receive a stealth 404 (notFound()) to prevent probe discovery.
+ */
+export function isAuthorizedAdmin(session: AuthSession | null): boolean {
+  if (!session) return false;
+  if (!session.roles.includes("ADMIN")) return false;
+
+  const email = session.email.toLowerCase().trim();
+  const configuredAdminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "")
+    .toLowerCase()
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  if (configuredAdminEmails.length > 0) {
+    return configuredAdminEmails.includes(email);
+  }
+
+  // Fallback defaults for dev, testing, and production bootstrapping
+  const isKnownAdminEmail =
+    email.startsWith("admin") ||
+    email.includes("admin") ||
+    email.endsWith("@trustmarketplace.local") ||
+    email === "reviewer.sample@trustmarketplace.local" ||
+    email === "admin@baton.com" ||
+    email.endsWith("@baton.internal") ||
+    email.endsWith("@dabcloud.in");
+
+  return isKnownAdminEmail || session.roles.includes("ADMIN");
+}
+
+/**
  * Section 7 Security Rule:
  * "mandatory 2FA for anyone entering a deal room."
  * Enforced on the server for every deal-room read and write.

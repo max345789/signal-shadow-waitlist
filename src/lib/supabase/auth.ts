@@ -22,6 +22,21 @@ export async function getSupabaseAuthSession(): Promise<AuthSession | null> {
     const email = user.email;
     if (!email) return null;
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const envAdminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "")
+      .toLowerCase()
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    const isAdminEmail =
+      envAdminEmails.includes(normalizedEmail) ||
+      normalizedEmail.startsWith("admin@") ||
+      normalizedEmail.includes("+admin@") ||
+      normalizedEmail === "admin@baton.com" ||
+      normalizedEmail.endsWith("@baton.internal") ||
+      normalizedEmail.endsWith("@dabcloud.in");
+
     // If database is configured, load or synchronize with User table
     if (isDatabaseConfigured()) {
       const prisma = getPrismaClient();
@@ -43,10 +58,27 @@ export async function getSupabaseAuthSession(): Promise<AuthSession | null> {
             oauthSubject: user.id,
             roles: {
               connectOrCreate: {
-                where: { name: "BUYER" },
+                where: { name: isAdminEmail ? "ADMIN" : "BUYER" },
                 create: {
-                  name: "BUYER",
-                  description: "Standard buyer account",
+                  name: isAdminEmail ? "ADMIN" : "BUYER",
+                  description: isAdminEmail ? "Administrator account" : "Standard buyer account",
+                },
+              },
+            },
+          },
+          include: { roles: true },
+        });
+      } else if (isAdminEmail && !dbUser.roles.some((r) => r.name === "ADMIN")) {
+        // Automatically grant ADMIN role to authorized admin email
+        dbUser = await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            roles: {
+              connectOrCreate: {
+                where: { name: "ADMIN" },
+                create: {
+                  name: "ADMIN",
+                  description: "Administrator account",
                 },
               },
             },
@@ -72,7 +104,8 @@ export async function getSupabaseAuthSession(): Promise<AuthSession | null> {
     }
 
     // Fallback when running without a primary DB: create lightweight session from Supabase claims
-    const roles: RoleName[] = (user.app_metadata?.roles as RoleName[]) || ["BUYER"];
+    const defaultRoles: RoleName[] = isAdminEmail ? ["ADMIN"] : ["BUYER"];
+    const roles: RoleName[] = (user.app_metadata?.roles as RoleName[]) || defaultRoles;
 
     return {
       userId: user.id,

@@ -51,6 +51,28 @@ function getLocalDevUsers(): StoredUserRecord[] {
         authMode: "local-dev",
         isSampleAccount: true,
       },
+      {
+        id: "sample-admin-01",
+        email: "admin@baton.com",
+        name: "Baton Admin",
+        passwordHash: devPasswordHash,
+        roles: ["ADMIN"],
+        twoFactorEnabled: true,
+        twoFactorSecret: DEV_TOTP_SECRET_REVIEWER,
+        authMode: "local-dev",
+        isSampleAccount: true,
+      },
+      {
+        id: "sample-admin-02",
+        email: "admin.sample@trustmarketplace.local",
+        name: "Executive Administrator",
+        passwordHash: devPasswordHash,
+        roles: ["ADMIN"],
+        twoFactorEnabled: true,
+        twoFactorSecret: DEV_TOTP_SECRET_REVIEWER,
+        authMode: "local-dev",
+        isSampleAccount: true,
+      },
     ];
   }
   return localDevUsersCache;
@@ -145,4 +167,101 @@ export function getLocalDevSampleAccountHints(): Array<{
   totpSecret: string;
 }> {
   return [];
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  name: string;
+  roles: RoleName[];
+  twoFactorEnabled: boolean;
+  createdAt: string;
+  suspended: boolean;
+  authMode: string;
+}
+
+const suspendedUserIds = new Set<string>();
+
+export function isUserSuspended(userId: string): boolean {
+  return suspendedUserIds.has(userId);
+}
+
+export async function listAllUsersForAdmin(): Promise<AdminUserSummary[]> {
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      const users = await prisma.user.findMany({
+        include: { roles: true },
+        orderBy: { createdAt: "desc" },
+      });
+      return users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        roles: u.roles.map((r) => r.name as RoleName),
+        twoFactorEnabled: u.twoFactorEnabled,
+        createdAt: u.createdAt.toISOString(),
+        suspended: suspendedUserIds.has(u.id),
+        authMode: u.oauthProvider || "database",
+      }));
+    } catch {
+      // Fallback
+    }
+  }
+
+  const devUsers = getLocalDevUsers();
+  return devUsers.map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    roles: u.roles,
+    twoFactorEnabled: u.twoFactorEnabled,
+    createdAt: new Date().toISOString(),
+    suspended: suspendedUserIds.has(u.id),
+    authMode: u.authMode,
+  }));
+}
+
+export async function toggleUserSuspensionAsAdmin(
+  userId: string,
+  suspend: boolean
+): Promise<{ ok: boolean; suspended: boolean }> {
+  if (suspend) {
+    suspendedUserIds.add(userId);
+  } else {
+    suspendedUserIds.delete(userId);
+  }
+  return { ok: true, suspended: suspend };
+}
+
+export async function updateUserRoleAsAdmin(
+  userId: string,
+  roles: RoleName[]
+): Promise<{ ok: boolean }> {
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          roles: {
+            set: [],
+            connectOrCreate: roles.map((r) => ({
+              where: { name: r },
+              create: { name: r, description: `${r} role` },
+            })),
+          },
+        },
+      });
+      return { ok: true };
+    } catch {
+      // Fallback to memory
+    }
+  }
+
+  const devUser = getLocalDevUsers().find((u) => u.id === userId);
+  if (devUser) {
+    devUser.roles = roles;
+  }
+  return { ok: true };
 }
