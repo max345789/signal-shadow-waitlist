@@ -47,7 +47,7 @@ export function evaluateVerification(
   record: VerificationRecord | null | undefined,
   now: Date = new Date()
 ): EvaluatedVerification {
-  if (!record) {
+  if (!record || !record.provider || record.provider.trim().length === 0) {
     return {
       isVerified: false,
       effectiveState: "seller-reported",

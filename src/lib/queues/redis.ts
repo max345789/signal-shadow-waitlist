@@ -25,8 +25,14 @@ export function getRedisClient(): Redis | null {
   }
   if (!redisClient) {
     redisClient = new Redis(process.env.REDIS_URL!, {
-      maxRetriesPerRequest: 2,
+      maxRetriesPerRequest: 1,
+      connectTimeout: 1000,
       lazyConnect: true,
+      retryStrategy: (times) => (times > 1 ? null : 200),
+    });
+    redisClient.on("error", () => {
+      // Prevent unhandled 'error' events from crashing when Redis is unreachable;
+      // callers fall back gracefully or report connectivity errors cleanly.
     });
   }
   return redisClient;

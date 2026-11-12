@@ -15,7 +15,7 @@ export interface StoredUserRecord {
   id: string;
   email: string;
   name: string;
-  passwordHash: string;
+  passwordHash: string | null;
   roles: RoleName[];
   twoFactorEnabled: boolean;
   twoFactorSecret: string | null;

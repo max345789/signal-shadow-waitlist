@@ -7,8 +7,11 @@ import { findUserByEmail } from "@/lib/auth/store";
 import type { AuthSession } from "@/lib/auth/types";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  email: z.string().trim().email("Enter a valid email address.").max(254),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .max(256, "Password exceeds maximum allowed length."),
 });
 
 export async function POST(request: Request) {
@@ -44,8 +47,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = await findUserByEmail(parsed.data.email);
-  if (!user || !verifyPassword(parsed.data.password, user.passwordHash)) {
+  const normalizedEmail = parsed.data.email.toLowerCase();
+  const emailRateLimit = await checkRateLimit(`login:email:${normalizedEmail}`, 10, 60_000);
+  if (!emailRateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: "Too many sign-in attempts for this account. Wait before trying again.",
+        retryAfterSeconds: emailRateLimit.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(emailRateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
+  const user = await findUserByEmail(normalizedEmail);
+  if (!user || !user.passwordHash || !verifyPassword(parsed.data.password, user.passwordHash)) {
     return NextResponse.json(
       { error: "Email or password did not match." },
       { status: 401 }

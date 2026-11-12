@@ -4,11 +4,14 @@ import { verifyTotpCode } from "@/lib/auth/crypto";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { SESSION_COOKIE_NAME, signSessionToken } from "@/lib/auth/session";
 import { getServerSession } from "@/lib/auth/session-server";
-import { findUserById } from "@/lib/auth/store";
+import { findUserById, recordTwoFactorVerification } from "@/lib/auth/store";
 import type { AuthSession } from "@/lib/auth/types";
 
 const verifySchema = z.object({
-  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit authenticator code."),
+  code: z
+    .string()
+    .transform((v) => v.replace(/\s+/g, ""))
+    .pipe(z.string().regex(/^\d{6}$/, "Enter the 6-digit authenticator code.")),
 });
 
 export async function POST(request: Request) {
@@ -65,10 +68,13 @@ export async function POST(request: Request) {
     );
   }
 
+  const verifiedAt = new Date();
+  await recordTwoFactorVerification(user.id, verifiedAt);
+
   const updatedSession: AuthSession = {
     ...existingSession,
     twoFactorEnabled: true,
-    twoFactorVerifiedAt: new Date().toISOString(),
+    twoFactorVerifiedAt: verifiedAt.toISOString(),
   };
 
   const token = await signSessionToken(updatedSession);

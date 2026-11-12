@@ -70,12 +70,13 @@ export function canEnterDealRoom(
     };
   }
 
-  const isParticipant =
-    session.userId === participants.buyerUserId ||
-    session.userId === participants.sellerUserId;
+  const isBuyerParticipant =
+    session.userId === participants.buyerUserId && hasRole(session, "BUYER");
+  const isSellerParticipant =
+    session.userId === participants.sellerUserId && hasRole(session, "SELLER");
   const isStaff = hasRole(session, "ADMIN") || hasRole(session, "REVIEWER");
 
-  if (!isParticipant && !isStaff) {
+  if (!isBuyerParticipant && !isSellerParticipant && !isStaff) {
     return {
       allowed: false,
       code: "FORBIDDEN",
@@ -83,7 +84,7 @@ export function canEnterDealRoom(
     };
   }
 
-  if (!session.twoFactorVerifiedAt) {
+  if (!session.twoFactorEnabled || !session.twoFactorVerifiedAt) {
     return {
       allowed: false,
       code: "TWO_FACTOR_REQUIRED",

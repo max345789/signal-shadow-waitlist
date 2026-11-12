@@ -8,6 +8,7 @@ import type { RoleName, StoredUserRecord } from "@/lib/auth/types";
  */
 const DEV_TOTP_SECRET_BUYER = "JBSWY3DPEHPK3PXP";
 const DEV_TOTP_SECRET_SELLER = "KRSXG5CTMVRXEZLU";
+const DEV_TOTP_SECRET_REVIEWER = "MFRGGZDFMZTWQ2LK";
 
 let localDevUsersCache: StoredUserRecord[] | null = null;
 
@@ -46,7 +47,7 @@ function getLocalDevUsers(): StoredUserRecord[] {
         passwordHash: devPasswordHash,
         roles: ["REVIEWER", "ADMIN"],
         twoFactorEnabled: true,
-        twoFactorSecret: DEV_TOTP_SECRET_BUYER,
+        twoFactorSecret: DEV_TOTP_SECRET_REVIEWER,
         authMode: "local-dev",
         isSampleAccount: true,
       },
@@ -98,7 +99,7 @@ export async function findUserById(userId: string): Promise<StoredUserRecord | n
       where: { id: userId },
       include: { roles: true },
     });
-    if (!user || !user.passwordHash) {
+    if (!user) {
       return null;
     }
     return {
@@ -119,6 +120,23 @@ export async function findUserById(userId: string): Promise<StoredUserRecord | n
   }
 
   return getLocalDevUsers().find((u) => u.id === userId) ?? null;
+}
+
+export async function recordTwoFactorVerification(
+  userId: string,
+  verifiedAt: Date
+): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+  const prisma = getPrismaClient();
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      twoFactorEnabled: true,
+      twoFactorVerifiedAt: verifiedAt,
+    },
+  });
 }
 
 export function getLocalDevSampleAccountHints(): Array<{
