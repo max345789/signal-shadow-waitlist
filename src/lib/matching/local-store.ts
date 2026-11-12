@@ -36,7 +36,7 @@ export function getLocalMatchingStore(): LocalMatchingState {
   }
   if (!globalForMatchingStore.__trustMarketplaceLocalMatching) {
     globalForMatchingStore.__trustMarketplaceLocalMatching = {
-      theses: createSampleSeedTheses(),
+      theses: [],
       matches: [],
       notifications: [],
     };
@@ -46,7 +46,7 @@ export function getLocalMatchingStore(): LocalMatchingState {
 
 export function resetLocalMatchingStoreForTest(): void {
   globalForMatchingStore.__trustMarketplaceLocalMatching = {
-    theses: createSampleSeedTheses(),
+    theses: [],
     matches: [],
     notifications: [],
   };

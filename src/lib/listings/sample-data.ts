@@ -194,21 +194,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
           verification: null,
         },
       ],
-      questions: [
-        {
-          id: "sample-q-01",
-          businessId: "sample-biz-gst-01",
-          askerId: "sample-buyer-01",
-          askerLabel: "Prospective Buyer (Sample)",
-          question:
-            "Are the 312 active subscriptions mostly annual plans or monthly billing?",
-          answer:
-            "72% of customers are on annual prepaid plans via Stripe invoicing; the remainder pay monthly. Exact cohort breakdown unlocks after NDA.",
-          answeredAt: oneDayAgoIso,
-          isSampleData: true,
-          createdAt: threeDaysAgoIso,
-        },
-      ],
+      questions: [],
       auditLogs: [
         {
           id: "sample-audit-01",

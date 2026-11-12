@@ -28,23 +28,7 @@ export interface ReportRecord {
 }
 
 // In-memory reports store
-const memoryReports: ReportRecord[] = [
-  {
-    id: "rep-sample-01",
-    listingId: "sample-biz-edtech-02",
-    listingTitle: "Regional K-12 Live Tutoring (Sample)",
-    listingSlug: "sample-biz-edtech-02",
-    reporterId: "sample-buyer-01",
-    reporterEmail: "buyer.sample@trustmarketplace.local",
-    reason: "fake_figures",
-    details: "Discrepancy noted between student counts mentioned in Q&A vs narrative.",
-    status: "NEW",
-    actionTaken: null,
-    adminNote: null,
-    resolvedAt: null,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  },
-];
+const memoryReports: ReportRecord[] = [];
 
 export async function createListingReport(params: {
   listingId: string;

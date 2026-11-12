@@ -75,20 +75,11 @@ export interface InvoiceItem {
 }
 
 // In-memory fallback
-const inMemoryPaidListings = new Set<string>(["sample-biz-gst-01", "sample-biz-edtech-02"]);
+const inMemoryPaidListings = new Set<string>();
 const inMemorySubscriptions = new Map<
   string,
   { id: string; userId: string; planId: string; status: string; currentPeriodEnd: string }
 >();
-
-// Default demo subscription for sample buyer
-inMemorySubscriptions.set("sub-buyer-sample", {
-  id: "sub-buyer-sample",
-  userId: "sample-buyer-01",
-  planId: "buyer_alerts",
-  status: "ACTIVE",
-  currentPeriodEnd: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString(),
-});
 
 export async function hasEarlyAlertsSubscription(userId: string): Promise<boolean> {
   if (isDatabaseConfigured()) {
@@ -145,21 +136,7 @@ export async function getUserBillingState(userId: string) {
     }
   }
 
-  const invoices: InvoiceItem[] = [
-    {
-      id: "inv-2026-001",
-      invoiceNumber: "BATON-2026-8812",
-      planName: "Early Match Alerts (Monthly)",
-      amount: 999,
-      currency: "INR",
-      status: "PAID",
-      date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      }),
-    },
-  ];
+  const invoices: InvoiceItem[] = [];
 
   return {
     activeSubscriptions: activeSubs,

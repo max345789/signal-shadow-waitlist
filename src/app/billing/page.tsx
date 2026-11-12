@@ -16,8 +16,10 @@ export const metadata = {
 
 export default async function BillingPage() {
   const session = await getServerSession();
-  const userId = session?.userId || "sample-buyer-01";
-  const billingState = await getUserBillingState(userId);
+  const userId = session?.userId;
+  const billingState = userId
+    ? await getUserBillingState(userId)
+    : { activeSubscriptions: [], invoices: [], plans: [] };
 
   return (
     <AppShell
@@ -109,39 +111,45 @@ export default async function BillingPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-14 border-collapse">
-                  <thead>
-                    <tr className="border-b border-mist text-slate font-medium">
-                      <th className="pb-3 pr-4">Invoice</th>
-                      <th className="pb-3 pr-4">Plan</th>
-                      <th className="pb-3 pr-4">Date</th>
-                      <th className="pb-3 pr-4">Amount</th>
-                      <th className="pb-3 pr-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billingState.invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-mist last:border-b-0">
-                        <td className="py-3 pr-4 font-mono text-deep-navy font-medium">
-                          {inv.invoiceNumber}
-                        </td>
-                        <td className="py-3 pr-4 text-ink">{inv.planName}</td>
-                        <td className="py-3 pr-4 text-slate">{inv.date}</td>
-                        <td className="py-3 pr-4 font-semibold text-deep-navy tabular-figures">
-                          ₹{inv.amount.toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="inline-flex items-center gap-1 text-verified-green font-medium">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            {inv.status}
-                          </span>
-                        </td>
+              {billingState.invoices.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-14 border-collapse">
+                    <thead>
+                      <tr className="border-b border-mist text-slate font-medium">
+                        <th className="pb-3 pr-4">Invoice</th>
+                        <th className="pb-3 pr-4">Plan</th>
+                        <th className="pb-3 pr-4">Date</th>
+                        <th className="pb-3 pr-4">Amount</th>
+                        <th className="pb-3 pr-4">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {billingState.invoices.map((inv) => (
+                        <tr key={inv.id} className="border-b border-mist last:border-b-0">
+                          <td className="py-3 pr-4 font-mono text-deep-navy font-medium">
+                            {inv.invoiceNumber}
+                          </td>
+                          <td className="py-3 pr-4 text-ink">{inv.planName}</td>
+                          <td className="py-3 pr-4 text-slate">{inv.date}</td>
+                          <td className="py-3 pr-4 font-semibold text-deep-navy tabular-figures">
+                            ₹{inv.amount.toLocaleString("en-IN")}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className="inline-flex items-center gap-1 text-verified-green font-medium">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {inv.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-slate">
+                  <p className="text-14">No past invoices found.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

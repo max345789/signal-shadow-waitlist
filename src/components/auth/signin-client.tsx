@@ -317,60 +317,16 @@ export function SignInClient({
 
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle as="h2">Development &amp; Security Policy</CardTitle>
-            {sampleAccounts.length > 0 ? (
-              <StatusChip tone="neutral" label="Sample data" />
-            ) : null}
-          </div>
+          <CardTitle as="h2">Account Security &amp; Privacy</CardTitle>
           <CardDescription>
             Deal room endpoints strictly reject requests lacking an active session and
-            recent 2FA timestamp.
+            two-factor verification.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {sampleAccounts.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-16 text-ink">
-                Because PostgreSQL is not configured locally, explicit sample dev
-                accounts are available for Phase 0 testing (using env{" "}
-                <code>LOCAL_DEV_SAMPLE_PASSWORD</code> or default{" "}
-                <code>SampleDevPass!2026</code>):
-              </p>
-              <div className="flex flex-col gap-2">
-                {sampleAccounts.map((acc) => (
-                  <div
-                    key={acc.email}
-                    className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-16 font-semibold text-deep-navy">
-                        {acc.email}
-                      </span>
-                      <StatusChip tone="neutral" label={acc.role} />
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-14 text-slate tabular-figures">
-                      <span>Current TOTP code: {acc.currentTotpCode}</span>
-                      <Button
-                        variant="link"
-                        onClick={() => {
-                          setEmail(acc.email);
-                          setPassword("SampleDevPass!2026");
-                          setTotpCode(acc.currentTotpCode);
-                        }}
-                      >
-                        Prefill email &amp; code
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-16 text-slate">
-              Database authentication mode is active. Sample development hints are hidden.
-            </p>
-          )}
+          <p className="text-16 text-slate">
+            Authentication is secured via encrypted sessions and Supabase Magic Links. Deal rooms, seller contact details, and sensitive metrics remain protected until authorized.
+          </p>
         </CardContent>
       </Card>
       </div>

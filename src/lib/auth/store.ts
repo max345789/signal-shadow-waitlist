@@ -144,12 +144,5 @@ export function getLocalDevSampleAccountHints(): Array<{
   role: string;
   totpSecret: string;
 }> {
-  if (isDatabaseConfigured() || !isLocalDevAuthAllowed()) {
-    return [];
-  }
-  return getLocalDevUsers().map((u) => ({
-    email: u.email,
-    role: u.roles.join(", "),
-    totpSecret: u.twoFactorSecret ?? "",
-  }));
+  return [];
 }
