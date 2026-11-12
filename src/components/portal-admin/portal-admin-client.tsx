@@ -17,6 +17,8 @@ import {
   Check,
   FileText,
   KeyRound,
+  PanelLeft,
+  PanelLeftClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,7 @@ export function PortalAdminClient({
   initialAuditLogs,
 }: PortalAdminClientProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [isAdminSidePanelOpen, setIsAdminSidePanelOpen] = useState(true);
   const [listings, setListings] = useState(initialListings);
   const [users, setUsers] = useState(initialUsers);
   const [verifications, setVerifications] = useState(initialVerifications);
@@ -442,39 +445,57 @@ export function PortalAdminClient({
 
   return (
     <div className="min-h-screen bg-cloud text-ink flex flex-col">
-      {/* Isolated Admin Navigation Bar */}
-      <header className="border-b border-mist bg-deep-navy text-white px-6 py-4 sticky top-0 z-30 shadow-none">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* ─── Sleek Admin Top Bar ─── */}
+      <header className="border-b border-mist/30 bg-deep-navy text-white px-4 sm:px-6 py-2.5 sticky top-0 z-40">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-trust-blue rounded text-white">
-              <Shield className="w-5 h-5" aria-hidden="true" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-serif text-20 font-semibold tracking-wide">
-                  Baton Control Console
-                </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-14 font-medium bg-brick-red text-white">
-                  INTERNAL AIR-GAPPED
-                </span>
+            {/* Toggle Admin Side Panel Button */}
+            <button
+              type="button"
+              onClick={() => setIsAdminSidePanelOpen((prev) => !prev)}
+              aria-expanded={isAdminSidePanelOpen}
+              aria-controls="admin-side-panel"
+              aria-label={isAdminSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
+              title={isAdminSidePanelOpen ? "Collapse side panel" : "Open side panel"}
+              className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white text-13 font-medium transition-colors cursor-pointer"
+            >
+              {isAdminSidePanelOpen ? (
+                <>
+                  <PanelLeftClose className="w-4 h-4 text-mist" aria-hidden="true" />
+                  <span className="hidden sm:inline">Collapse</span>
+                </>
+              ) : (
+                <>
+                  <PanelLeft className="w-4 h-4 text-trust-blue" aria-hidden="true" />
+                  <span className="hidden sm:inline">Navigation</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-trust-blue rounded text-white shrink-0">
+                <Shield className="w-4 h-4" aria-hidden="true" />
               </div>
-              <p className="text-14 text-mist m-0">
-                Authorized Executive Administration &bull; Disconnected from consumer surface
-              </p>
+              <span className="font-serif text-18 sm:text-20 font-semibold tracking-wide text-white">
+                Baton Control Console
+              </span>
+              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-11 font-medium bg-brick-red text-white uppercase tracking-wider">
+                Internal Air-Gapped
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-14 font-semibold text-white leading-tight">{session.name}</span>
-              <span className="text-12 text-mist font-mono leading-tight">{currentAdminEmail}</span>
+            <div className="hidden lg:flex flex-col text-right">
+              <span className="text-13 font-semibold text-white leading-tight">{session.name}</span>
+              <span className="text-11 text-mist font-mono leading-tight">{currentAdminEmail}</span>
             </div>
             <Link
               href="/"
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-3.5 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-13 font-medium transition-colors no-underline whitespace-nowrap shrink-0"
+              className="inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-12 font-medium transition-colors no-underline whitespace-nowrap shrink-0"
             >
-              <Building className="w-4 h-4 shrink-0" />
-              <span>Marketplace</span>
+              <Building className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Marketplace</span>
             </Link>
             <button
               type="button"
@@ -486,49 +507,96 @@ export function PortalAdminClient({
                   window.location.href = "/";
                 }
               }}
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-3.5 rounded border border-white/25 bg-white/10 text-white hover:bg-white/20 text-13 font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded border border-white/25 bg-white/10 text-white hover:bg-white/20 text-12 font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <LogOut className="w-4 h-4 shrink-0" />
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
               <span>Sign out</span>
             </button>
           </div>
         </div>
-
-        {/* Console Navigation Tabs */}
-        <div className="max-w-7xl mx-auto mt-4 pt-2 border-t border-mist/20 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
-          {[
-            { id: "overview", label: "Executive Overview", icon: Activity },
-            { id: "listings", label: `Listings Moderation (${listings.length})`, icon: Building },
-            { id: "users", label: `User Accounts (${users.length})`, icon: Users },
-            { id: "verifications", label: `Verification Queue (${verifications.length})`, icon: CheckCircle2 },
-            { id: "reports", label: `Abuse Reports (${reports.length})`, icon: AlertTriangle },
-            { id: "billing", label: "Financials & Billing", icon: CreditCard },
-            { id: "audit", label: `Audit Trail (${auditLogs.length})`, icon: FileText },
-            { id: "security", label: "Admin Credentials", icon: KeyRound },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded text-14 font-medium transition-colors shrink-0 whitespace-nowrap cursor-pointer ${
-                  isActive
-                    ? "bg-white text-deep-navy font-semibold"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto w-full p-6 flex-1 flex flex-col gap-6">
+      {/* ─── Admin Split View (Side Panel + Workspace) ─── */}
+      <div className="flex-1 flex min-h-[calc(100vh-53px)] bg-cloud">
+        {/* Closeable & Openable Admin Side Panel */}
+        <aside
+          id="admin-side-panel"
+          aria-label="Admin Navigation Panel"
+          className={`shrink-0 bg-deep-navy text-white border-r border-mist/20 flex flex-col justify-between sticky top-[53px] h-[calc(100vh-53px)] overflow-y-auto z-20 transition-all duration-200 ease-in-out ${
+            isAdminSidePanelOpen
+              ? "w-64 lg:w-72"
+              : "w-0 -translate-x-full overflow-hidden border-none"
+          }`}
+        >
+          {/* Side Panel Header */}
+          <div className="p-4 border-b border-mist/20 flex items-center justify-between">
+            <span className="text-12 font-bold uppercase tracking-wider text-mist">
+              Executive Modules
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsAdminSidePanelOpen(false)}
+              aria-label="Collapse side panel"
+              className="text-mist hover:text-white p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Navigation Items */}
+          <div className="flex-1 px-3 py-3 flex flex-col gap-1.5">
+            {[
+              { id: "overview", label: "Executive Overview", icon: Activity, count: null },
+              { id: "listings", label: "Listings Moderation", icon: Building, count: listings.length },
+              { id: "users", label: "User Accounts", icon: Users, count: users.length },
+              { id: "verifications", label: "Verification Queue", icon: CheckCircle2, count: verifications.length },
+              { id: "reports", label: "Abuse Reports", icon: AlertTriangle, count: reports.length },
+              { id: "billing", label: "Financials & Billing", icon: CreditCard, count: null },
+              { id: "audit", label: "Audit Trail", icon: FileText, count: auditLogs.length },
+              { id: "security", label: "Admin Credentials", icon: KeyRound, count: null },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded text-13 font-medium transition-colors cursor-pointer ${
+                    isActive
+                      ? "bg-white text-deep-navy font-semibold"
+                      : "text-white/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-deep-navy" : "text-mist"}`} />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+                  {tab.count !== null && (
+                    <span
+                      className={`text-11 px-1.5 py-0.5 rounded font-mono font-semibold ${
+                        isActive
+                          ? "bg-deep-navy/10 text-deep-navy"
+                          : "bg-white/15 text-white"
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Side Panel Footer */}
+          <div className="p-3 border-t border-mist/20 text-11 text-mist/80 bg-deep-navy">
+            <p className="m-0 leading-tight">Stealth Perimeter Active</p>
+            <p className="m-0 text-mist/60 text-10">Air-gapped administrative portal</p>
+          </div>
+        </aside>
+
+        {/* Main Console Content Area */}
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         {/* Alerts / Feedback Banner */}
         {actionSuccess && (
           <div className="rounded border border-verified-green bg-white p-4 text-verified-green font-medium flex items-center gap-2">
@@ -1549,5 +1617,6 @@ export function PortalAdminClient({
         )}
       </main>
     </div>
+  </div>
   );
 }

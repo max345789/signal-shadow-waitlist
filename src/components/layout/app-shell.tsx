@@ -2,7 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import {
+  Menu,
+  X,
+  PanelLeft,
+  PanelLeftClose,
+  Building,
+  Target,
+  Compass,
+  ArrowLeftRight,
+  MessageSquare,
+  PlusCircle,
+  CreditCard,
+  BookOpen,
+  ShieldCheck,
+  Palette,
+  Home,
+  User,
+  ExternalLink,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PageContainer } from "@/components/layout/page-container";
 import { SITE_CONFIG } from "@/lib/config/site";
@@ -31,93 +49,291 @@ export interface AppShellProps {
   };
 }
 
+interface NavItem {
+  key: NonNullable<AppShellProps["activeNav"]>;
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  group: "marketplace" | "deals" | "resources";
+  badge?: string;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  // Marketplace Group
+  { key: "home", href: "/", label: "Home", icon: Home, group: "marketplace" },
+  { key: "listings", href: "/listings", label: "Listings Directory", icon: Building, group: "marketplace" },
+  { key: "matches", href: "/matches", label: "Matches & Alerts", icon: Target, group: "marketplace" },
+  { key: "thesis", href: "/thesis/new", label: "Thesis Builder", icon: Compass, group: "marketplace" },
+  { key: "compare", href: "/compare", label: "Compare Listings", icon: ArrowLeftRight, group: "marketplace" },
+
+  // Deals Group
+  { key: "deals", href: "/deals", label: "Connect Rooms", icon: MessageSquare, group: "deals" },
+  { key: "verify", href: "/verify", label: "Profile Checks", icon: ShieldCheck, group: "deals" },
+
+  // Resources Group
+  { key: "sell", href: "/sell", label: "List a Business", icon: PlusCircle, group: "resources" },
+  { key: "pricing", href: "/pricing", label: "Pricing", icon: CreditCard, group: "resources" },
+  { key: "closing-guide", href: "/closing-guide", label: "Closing Guide", icon: BookOpen, group: "resources" },
+  { key: "style-guide", href: "/style-guide", label: "Style Guide", icon: Palette, group: "resources" },
+];
+
 export function AppShell({
   children,
   activeNav,
   trustBanner,
 }: AppShellProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  // Desktop side panel open state (default open on wide screens)
+  const [isSidePanelOpen, setIsSidePanelOpen] = React.useState(true);
+  // Mobile drawer open state
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState(false);
 
-  const navItems: Array<{
-    key: NonNullable<AppShellProps["activeNav"]>;
-    href: string;
-    label: string;
-  }> = [
-    { key: "home", href: "/", label: "Home" },
-    { key: "listings", href: "/listings", label: "Listings" },
-    { key: "thesis", href: "/thesis/new", label: "Thesis builder" },
-    { key: "matches", href: "/matches", label: "Matches" },
-    { key: "compare", href: "/compare", label: "Compare" },
-    { key: "deals", href: "/deals", label: "Connect rooms" },
-    { key: "sell", href: "/sell", label: "List a business" },
-    { key: "pricing", href: "/pricing", label: "Pricing" },
-    { key: "closing-guide", href: "/closing-guide", label: "Closing guide" },
-    { key: "verify", href: "/verify", label: "Profile checks" },
-    { key: "style-guide", href: "/style-guide", label: "Style Guide" },
-  ];
+  // Close mobile drawer on Escape key
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setIsMobileDrawerOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const renderNavGroup = (group: "marketplace" | "deals" | "resources", title: string, isMobile = false) => {
+    const items = NAV_ITEMS.filter((item) => item.group === group);
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="px-3 pt-3 pb-1 text-11 font-bold text-slate uppercase tracking-wider">
+          {title}
+        </span>
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeNav === item.key;
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              onClick={() => {
+                if (isMobile) setIsMobileDrawerOpen(false);
+              }}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-md border text-14 font-medium transition-colors no-underline",
+                isActive
+                  ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                  : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
+              )}
+            >
+              <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-deep-navy" : "text-slate")} />
+              <span className="truncate">{item.label}</span>
+              {item.badge ? (
+                <span className="ml-auto text-11 px-1.5 py-0.5 rounded bg-pale-blue text-trust-blue font-semibold">
+                  {item.badge}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-cloud text-ink flex flex-col justify-between">
-      <div>
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-deep-navy focus:px-4 focus:py-2 focus:text-16 focus:text-white"
-        >
-          Skip to main content
-        </a>
+    <div className="min-h-screen bg-cloud text-ink flex">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-deep-navy focus:px-4 focus:py-2 focus:text-16 focus:text-white"
+      >
+        Skip to main content
+      </a>
 
-        <header className="border-b border-mist bg-white sticky top-0 z-40">
-          <PageContainer className="py-3 sm:py-3.5">
-            <div className="flex items-center justify-between gap-4">
-              {/* C11: Wordmark: Baton (Source Serif 4, Deep Navy). No logo icon. */}
-              <div className="flex items-center gap-5 xl:gap-7">
+      {/* ─── DESKTOP CLOSEABLE SIDE PANEL (>= 1024px) ─── */}
+      <aside
+        id="desktop-side-panel"
+        aria-label="Marketplace Navigation Side Panel"
+        className={cn(
+          "hidden lg:flex flex-col justify-between shrink-0 bg-white border-r border-mist h-screen sticky top-0 z-40 transition-all duration-200 ease-in-out",
+          isSidePanelOpen ? "w-64 xl:w-72" : "w-0 -translate-x-full overflow-hidden border-none"
+        )}
+      >
+        {/* Side Panel Header */}
+        <div className="flex items-center justify-between p-4 border-b border-mist/70">
+          <Link
+            href="/"
+            className="font-serif text-24 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors flex items-center gap-2"
+          >
+            <span>Baton</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIsSidePanelOpen(false)}
+            aria-label="Close navigation side panel"
+            title="Collapse side panel"
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
+          >
+            <PanelLeftClose className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Side Panel Scrollable Navigation Body */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+          {renderNavGroup("marketplace", "Marketplace")}
+          {renderNavGroup("deals", "Deals & Due Diligence")}
+          {renderNavGroup("resources", "Platform & Resources")}
+        </div>
+
+        {/* Side Panel Footer */}
+        <div className="p-3 border-t border-mist/70 flex flex-col gap-2 bg-white">
+          <Link
+            href="/sell"
+            className={cn(
+              "inline-flex h-10 w-full items-center justify-center rounded border px-3.5 text-14 font-medium transition-colors no-underline",
+              activeNav === "sell"
+                ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
+            )}
+          >
+            <PlusCircle className="w-4 h-4 mr-2 text-trust-blue" />
+            <span>List a business</span>
+          </Link>
+          <Link
+            href="/auth/signin"
+            className={cn(
+              "inline-flex h-10 w-full items-center justify-center rounded border px-3.5 text-14 font-medium transition-colors no-underline",
+              activeNav === "signin"
+                ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
+            )}
+          >
+            <User className="w-4 h-4 mr-2" />
+            <span>Sign in</span>
+          </Link>
+        </div>
+      </aside>
+
+      {/* ─── MOBILE SLIDE-OUT DRAWER (< 1024px) ─── */}
+      {isMobileDrawerOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Dimmed Backdrop */}
+          <div
+            className="fixed inset-0 bg-deep-navy/40 transition-opacity"
+            onClick={() => setIsMobileDrawerOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Sidebar */}
+          <aside
+            id="mobile-side-panel"
+            aria-label="Mobile Navigation Drawer"
+            className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white border-r border-mist z-50 flex flex-col justify-between transition-transform"
+          >
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between p-4 border-b border-mist">
+              <Link
+                href="/"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="font-serif text-24 font-bold text-deep-navy no-underline"
+              >
+                Baton
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                aria-label="Close navigation drawer"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-md text-slate hover:text-deep-navy hover:bg-cloud transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Drawer Body */}
+            <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+              {renderNavGroup("marketplace", "Marketplace", true)}
+              {renderNavGroup("deals", "Deals & Due Diligence", true)}
+              {renderNavGroup("resources", "Platform & Resources", true)}
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-3 border-t border-mist flex flex-col gap-2 bg-white">
+              <Link
+                href="/sell"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="inline-flex h-10 w-full items-center justify-center rounded border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud text-14 font-medium transition-colors no-underline"
+              >
+                <PlusCircle className="w-4 h-4 mr-2 text-trust-blue" />
+                <span>List a business</span>
+              </Link>
+              <Link
+                href="/auth/signin"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="inline-flex h-10 w-full items-center justify-center rounded border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue text-14 font-medium transition-colors no-underline"
+              >
+                <User className="w-4 h-4 mr-2" />
+                <span>Sign in</span>
+              </Link>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {/* ─── MAIN CONTENT AREA ─── */}
+      <div className="flex-1 min-w-0 flex flex-col justify-between min-h-screen">
+        <div>
+          {/* Top Header Bar */}
+          <header className="border-b border-mist bg-white sticky top-0 z-30">
+            <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+              {/* Left Side: Toggle Panel Button + Brand Wordmark */}
+              <div className="flex items-center gap-3">
+                {/* Desktop Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsSidePanelOpen((prev) => !prev)}
+                  aria-expanded={isSidePanelOpen}
+                  aria-controls="desktop-side-panel"
+                  aria-label={isSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
+                  className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-mist bg-white hover:bg-cloud text-deep-navy text-13 font-medium transition-colors cursor-pointer"
+                >
+                  {isSidePanelOpen ? (
+                    <>
+                      <PanelLeftClose className="w-4 h-4 text-slate" aria-hidden="true" />
+                      <span>Collapse</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelLeft className="w-4 h-4 text-trust-blue" aria-hidden="true" />
+                      <span>Navigation</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Mobile Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDrawerOpen(true)}
+                  aria-label="Open navigation menu"
+                  className="inline-flex lg:hidden items-center justify-center h-9 w-9 rounded-md border border-mist bg-cloud text-deep-navy hover:bg-white transition-colors cursor-pointer"
+                >
+                  <Menu className="w-5 h-5" aria-hidden="true" />
+                </button>
+
+                {/* Wordmark (visible in top bar when desktop sidebar is collapsed or on mobile) */}
                 <Link
                   href="/"
-                  className="font-serif text-26 sm:text-28 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue rounded py-0.5 inline-flex items-center"
+                  className={cn(
+                    "font-serif text-22 sm:text-24 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors",
+                    isSidePanelOpen ? "lg:hidden" : "inline-flex"
+                  )}
                 >
                   Baton
                 </Link>
-
-                {/* Desktop Primary Navigation (>= 1024px) */}
-                <nav
-                  aria-label="Primary navigation"
-                  className="hidden lg:flex items-center gap-1"
-                >
-                  {navItems
-                    .filter(
-                      (item) =>
-                        item.key !== "home" &&
-                        item.key !== "compare" &&
-                        item.key !== "style-guide" &&
-                        item.key !== "sell" &&
-                        item.key !== "thesis"
-                    )
-                    .map((item) => (
-                      <Link
-                        key={item.key}
-                        href={item.href}
-                        aria-current={activeNav === item.key ? "page" : undefined}
-                        className={cn(
-                          "inline-flex h-9 xl:h-10 items-center rounded border px-2.5 xl:px-3 text-14 xl:text-15 font-medium no-underline state-transition whitespace-nowrap",
-                          activeNav === item.key
-                            ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                            : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                </nav>
               </div>
 
-              {/* Action Buttons (Right Aligned) */}
+              {/* Right Side: Quick Action Buttons */}
               <div className="flex items-center gap-2 sm:gap-2.5">
-                {/* List a business CTA Button */}
                 <Link
                   href="/sell"
                   aria-current={activeNav === "sell" ? "page" : undefined}
                   className={cn(
-                    "hidden sm:inline-flex h-9 xl:h-10 items-center justify-center rounded border px-3.5 xl:px-4 text-14 font-medium transition-colors whitespace-nowrap",
+                    "hidden sm:inline-flex h-9 items-center justify-center rounded border px-3.5 text-13 font-medium transition-colors whitespace-nowrap",
                     activeNav === "sell"
                       ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                       : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
@@ -126,12 +342,11 @@ export function AppShell({
                   List a business
                 </Link>
 
-                {/* Sign in Button */}
                 <Link
                   href="/auth/signin"
                   aria-current={activeNav === "signin" ? "page" : undefined}
                   className={cn(
-                    "inline-flex h-9 xl:h-10 items-center justify-center rounded border px-3.5 xl:px-4 text-14 font-medium transition-colors whitespace-nowrap",
+                    "inline-flex h-9 items-center justify-center rounded border px-3.5 text-13 font-medium transition-colors whitespace-nowrap",
                     activeNav === "signin"
                       ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                       : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
@@ -139,132 +354,94 @@ export function AppShell({
                 >
                   Sign in
                 </Link>
-
-                {/* Mobile Menu Toggle Button (< 1024px) */}
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen((open) => !open)}
-                  aria-expanded={mobileMenuOpen}
-                  aria-label={mobileMenuOpen ? "Close menu" : "Open navigation menu"}
-                  className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded border border-mist bg-cloud text-deep-navy hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue lg:hidden"
-                >
-                  {mobileMenuOpen ? (
-                    <X className="h-5 w-5" aria-hidden="true" />
-                  ) : (
-                    <Menu className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </button>
               </div>
             </div>
+          </header>
 
-            {/* Mobile Navigation Drawer */}
-            {mobileMenuOpen ? (
-              <nav
-                aria-label="Mobile navigation"
-                className="mt-4 flex flex-col gap-1 border-t border-mist pt-4 lg:hidden"
+          {/* Trust Banner (C2 Mission / Vitals) */}
+          {trustBanner ? (
+            <section
+              aria-label="Verification and next step summary"
+              className="border-b border-mist bg-white"
+            >
+              <PageContainer className="py-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      What has been checked, and what hasn&apos;t?
+                    </span>
+                    <p className="text-16 text-ink">{trustBanner.canTrustAnswer}</p>
+                  </div>
+                  <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      What happens next?
+                    </span>
+                    <p className="text-16 text-ink">{trustBanner.nextStepAnswer}</p>
+                  </div>
+                </div>
+              </PageContainer>
+            </section>
+          ) : null}
+
+          {/* Page Body */}
+          <main id="main-content" className="py-8">
+            <PageContainer>{children}</PageContainer>
+          </main>
+        </div>
+
+        {/* C2, C8, C11: Footer with Baton introduction platform disclaimer & legal links */}
+        <footer className="mt-12 border-t border-mist bg-white">
+          <PageContainer className="py-6 flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-4 text-14">
+              <span className="text-slate font-medium">Baton Legal Pack:</span>
+              <Link
+                href="/legal/terms"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
               >
-                {navItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    aria-current={activeNav === item.key ? "page" : undefined}
-                    className={cn(
-                      "flex min-h-[44px] items-center rounded border px-4 py-2.5 text-16 font-medium no-underline state-transition",
-                      activeNav === item.key
-                        ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                        : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            ) : null}
+                Terms of Service
+              </Link>
+              <Link
+                href="/legal/privacy"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/legal/rules"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Listing rules
+              </Link>
+              <Link
+                href="/legal/takedown"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Report &amp; Takedown
+              </Link>
+              <Link
+                href="/closing-guide"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Closing Guide
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Pricing
+              </Link>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-mist pt-4 sm:flex-row sm:items-center sm:justify-between text-14 text-slate">
+              <p className="text-14 text-slate m-0">
+                {SITE_CONFIG.footerDisclaimer}
+              </p>
+              <span className="text-14 text-slate shrink-0">
+                Legal templates require qualified counsel review prior to launch.
+              </span>
+            </div>
           </PageContainer>
-        </header>
-
-        {trustBanner ? (
-          <section
-            aria-label="Verification and next step summary"
-            className="border-b border-mist bg-white"
-          >
-            <PageContainer className="py-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
-                  <span className="text-14 font-semibold text-deep-navy">
-                    What has been checked, and what hasn&apos;t?
-                  </span>
-                  <p className="text-16 text-ink">{trustBanner.canTrustAnswer}</p>
-                </div>
-                <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
-                  <span className="text-14 font-semibold text-deep-navy">
-                    What happens next?
-                  </span>
-                  <p className="text-16 text-ink">{trustBanner.nextStepAnswer}</p>
-                </div>
-              </div>
-            </PageContainer>
-          </section>
-        ) : null}
-
-        <main id="main-content" className="py-8">
-          <PageContainer>{children}</PageContainer>
-        </main>
+        </footer>
       </div>
-
-      {/* C2, C8, C11: Footer with Baton introduction platform disclaimer & legal links */}
-      <footer className="mt-12 border-t border-mist bg-white">
-        <PageContainer className="py-6 flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-4 text-14">
-            <span className="text-slate font-medium">Baton Legal Pack:</span>
-            <Link
-              href="/legal/terms"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Terms of Service
-            </Link>
-            <Link
-              href="/legal/privacy"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              href="/legal/rules"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Listing rules
-            </Link>
-            <Link
-              href="/legal/takedown"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Report &amp; Takedown
-            </Link>
-            <Link
-              href="/closing-guide"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Closing Guide
-            </Link>
-            <Link
-              href="/pricing"
-              className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
-            >
-              Pricing
-            </Link>
-          </div>
-          <div className="flex flex-col gap-2 border-t border-mist pt-4 sm:flex-row sm:items-center sm:justify-between text-14 text-slate">
-            <p className="text-14 text-slate m-0">
-              {SITE_CONFIG.footerDisclaimer}
-            </p>
-            <span className="text-14 text-slate shrink-0">
-              Legal templates require qualified counsel review prior to launch.
-            </span>
-          </div>
-        </PageContainer>
-      </footer>
     </div>
   );
 }
