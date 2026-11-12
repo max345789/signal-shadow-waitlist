@@ -327,16 +327,22 @@ export function PortalAdminClient({
               <span className="text-14 font-semibold text-white">{session.name}</span>
               <span className="text-14 text-mist font-mono">{session.email}</span>
             </div>
-            <form action="/api/auth/logout" method="POST">
-              <Button
-                type="submit"
-                variant="secondary"
-                className="bg-mist/10 text-white border-mist/30 hover:bg-mist/20 text-14 px-3 py-1.5 h-auto min-h-0"
-              >
-                <LogOut className="w-4 h-4 mr-1.5" />
-                Sign out
-              </Button>
-            </form>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  window.location.href = "/";
+                } catch {
+                  window.location.href = "/";
+                }
+              }}
+              className="bg-mist/10 text-white border-mist/30 hover:bg-mist/20 text-14 px-3 py-1.5 h-auto min-h-0"
+            >
+              <LogOut className="w-4 h-4 mr-1.5" />
+              Sign out
+            </Button>
           </div>
         </div>
 

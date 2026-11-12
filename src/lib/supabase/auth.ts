@@ -30,12 +30,15 @@ export async function getSupabaseAuthSession(): Promise<AuthSession | null> {
       .filter(Boolean);
 
     const isAdminEmail =
-      envAdminEmails.includes(normalizedEmail) ||
-      normalizedEmail.startsWith("admin@") ||
-      normalizedEmail.includes("+admin@") ||
-      normalizedEmail === "admin@baton.com" ||
-      normalizedEmail.endsWith("@baton.internal") ||
-      normalizedEmail.endsWith("@dabcloud.in");
+      envAdminEmails.length > 0
+        ? envAdminEmails.includes(normalizedEmail)
+        : normalizedEmail === "admin@baton.com" ||
+          normalizedEmail === "admin.sample@trustmarketplace.local" ||
+          normalizedEmail === "reviewer.sample@trustmarketplace.local" ||
+          normalizedEmail.startsWith("admin@") ||
+          normalizedEmail.startsWith("admin.") ||
+          normalizedEmail.endsWith("@baton.internal") ||
+          normalizedEmail.endsWith("@dabcloud.in");
 
     // If database is configured, load or synchronize with User table
     if (isDatabaseConfigured()) {

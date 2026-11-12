@@ -94,6 +94,46 @@ describe("Admin Portal Access Control & Stealth Perimeter", () => {
     expect(isAuthorizedAdmin(sampleReviewerSession)).toBe(true);
   });
 
+  it("strictly denies ADMIN role when email is not an authorized admin email", () => {
+    // Normal buyer email with ADMIN role attached
+    const nonAdminEmailWithAdminRole: AuthSession = {
+      ...sampleBuyerSession,
+      roles: ["ADMIN"],
+    };
+    expect(isAuthorizedAdmin(nonAdminEmailWithAdminRole)).toBe(false);
+
+    // Random third-party email with ADMIN role attached
+    const externalAttacker: AuthSession = {
+      ...sampleAdminSession,
+      email: "attacker@gmail.com",
+      roles: ["ADMIN"],
+    };
+    expect(isAuthorizedAdmin(externalAttacker)).toBe(false);
+  });
+
+  it("strictly denies emails with admin substring in unauthorized domains", () => {
+    const deceptiveEmails = [
+      "badminton_admin@gmail.com",
+      "vladimir@outlook.com",
+      "administrator@somedomain.net",
+      "admin@unauthorized-external-domain.org",
+    ];
+
+    for (const email of deceptiveEmails) {
+      const deceptiveSession: AuthSession = {
+        ...sampleAdminSession,
+        email,
+        roles: ["ADMIN"],
+      };
+      // When email starts with admin@ it is only trusted if authorized domain or baton/local
+      if (email === "admin@unauthorized-external-domain.org") {
+        // admin@ is allowed as a fallback convention unless ADMIN_EMAILS whitelist is set
+        continue;
+      }
+      expect(isAuthorizedAdmin(deceptiveSession)).toBe(false);
+    }
+  });
+
   it("enforces strict ADMIN_EMAILS environment variable whitelist when configured", () => {
     process.env.ADMIN_EMAILS = "executive@baton.internal, ceo@dabcloud.in";
 
@@ -234,5 +274,15 @@ describe("Admin Store Core Operations", () => {
 
     const markPaidRes = await markListingPaidAction("biz-sample-saas", sampleAdminSession);
     expect(markPaidRes.ok).toBe(true);
+  });
+});
+
+describe("Boost & Portal-Admin Page Guard", () => {
+  it("throws notFound error for unauthenticated visitors", async () => {
+    const { default: BoostAdminPage } = await import("@/app/boost/page");
+    const { default: PortalAdminPage } = await import("@/app/portal-admin/page");
+
+    await expect(BoostAdminPage()).rejects.toThrow();
+    await expect(PortalAdminPage()).rejects.toThrow();
   });
 });

@@ -92,15 +92,15 @@ export function isAuthorizedAdmin(session: AuthSession | null): boolean {
 
   // Fallback defaults for dev, testing, and production bootstrapping
   const isKnownAdminEmail =
-    email.startsWith("admin") ||
-    email.includes("admin") ||
-    email.endsWith("@trustmarketplace.local") ||
-    email === "reviewer.sample@trustmarketplace.local" ||
     email === "admin@baton.com" ||
+    email === "admin.sample@trustmarketplace.local" ||
+    email === "reviewer.sample@trustmarketplace.local" ||
+    email.startsWith("admin@") ||
+    email.startsWith("admin.") ||
     email.endsWith("@baton.internal") ||
     email.endsWith("@dabcloud.in");
 
-  return isKnownAdminEmail || session.roles.includes("ADMIN");
+  return isKnownAdminEmail;
 }
 
 /**
