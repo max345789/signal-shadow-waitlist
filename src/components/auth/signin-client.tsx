@@ -303,6 +303,7 @@ export function SignInClient({
                         variant="link"
                         onClick={() => {
                           setEmail(acc.email);
+                          setPassword("SampleDevPass!2026");
                           setTotpCode(acc.currentTotpCode);
                         }}
                       >
