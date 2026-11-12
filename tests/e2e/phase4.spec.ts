@@ -302,7 +302,7 @@ test("Phase 4 acceptance: 2FA gate, NDA redaction unlock, stage transitions, cha
     .getByLabel(/Or enter plain-text document contents directly/i)
     .fill("Q3 Updated Bank Inflows: INR 36,50,000");
   await page.getByRole("button", { name: /Upload & scan document/i }).click();
-  await expect(page.getByText("v2")).toBeVisible();
+  await expect(page.getByText("v2", { exact: true })).toBeVisible();
 
   // Also exercise real multipart <input type="file"> upload with CSV buffer
   await page.getByLabel(/Document title/i).fill("Q3 Cohort CSV");
