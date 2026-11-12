@@ -756,7 +756,7 @@ export async function listNotificationsForUser(
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
     const rows = await prisma.notification.findMany({
-      where: { userId: session.userId },
+      where: { userId: session.userId, type: "THESIS_MATCH" },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -855,7 +855,7 @@ export async function markAllNotificationsRead(
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();
     const res = await prisma.notification.updateMany({
-      where: { userId: session.userId, readAt: null },
+      where: { userId: session.userId, type: "THESIS_MATCH", readAt: null },
       data: { readAt: now },
     });
     return { updatedCount: res.count };

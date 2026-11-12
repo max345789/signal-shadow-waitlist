@@ -26,6 +26,11 @@ import {
 } from "@/lib/domain/valuation";
 import { createSampleSeedListings } from "@/lib/listings/sample-data";
 import { evaluateAndSendThesisAlertsForListing } from "@/lib/matching/alerts";
+import { evaluateVerification } from "@/lib/domain/verification";
+import {
+  hasActiveLocalUserVerification,
+  resetLocalVerificationsStoreForTest,
+} from "@/lib/verification/local-store";
 import {
   CurrencyCode as PrismaCurrencyCode,
   ListingStatus as PrismaListingStatus,
@@ -86,9 +91,14 @@ function getLocalListingsStore(): RawBusinessRecord[] {
   return globalForListingsStore.__trustMarketplaceLocalListings;
 }
 
+export function getLocalListingsStoreForVerification(): RawBusinessRecord[] {
+  return getLocalListingsStore();
+}
+
 export function resetLocalListingsStoreForTest(): void {
   globalForListingsStore.__trustMarketplaceLocalListings =
     createSampleSeedListings();
+  resetLocalVerificationsStoreForTest();
 }
 
 function buildSellerReportedMetrics(
@@ -1169,16 +1179,18 @@ export async function addListingQuestion(
       };
     }
 
-    const buyerProfile = actor.roles.includes("BUYER")
-      ? await prisma.buyerProfile.findUnique({
-          where: { userId: actor.userId },
-          select: { identityStatus: true },
+    const latestIdentity = actor.roles.includes("BUYER")
+      ? await prisma.verification.findFirst({
+          where: { userId: actor.userId, type: "IDENTITY" },
+          orderBy: { updatedAt: "desc" },
         })
       : null;
-    const askerLabel =
-      buyerProfile?.identityStatus === "VERIFIED"
-        ? "Identity-verified Buyer"
-        : defaultAskerLabel;
+    const isIdentityVerified = latestIdentity
+      ? evaluateVerification(latestIdentity, now).isVerified
+      : false;
+    const askerLabel = isIdentityVerified
+      ? "Identity-verified Buyer"
+      : defaultAskerLabel;
 
     const q = await prisma.$transaction(async (tx) => {
       const created = await tx.listingQuestion.create({
@@ -1235,11 +1247,18 @@ export async function addListingQuestion(
     };
   }
 
+  const isIdentityVerified = actor.roles.includes("BUYER")
+    ? hasActiveLocalUserVerification(actor.userId, "IDENTITY", now)
+    : false;
+  const askerLabel = isIdentityVerified
+    ? "Identity-verified Buyer"
+    : defaultAskerLabel;
+
   const record: ListingQuestionRecord = {
     id: `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     businessId: listingId,
     askerId: actor.userId,
-    askerLabel: defaultAskerLabel,
+    askerLabel,
     question: trimmed,
     answer: null,
     answeredAt: null,

@@ -111,8 +111,28 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 
 ---
 
-## Next: Phase 3 Plan (Verification and Connectors)
-1. **Verification Centre (`/verify`)**: Buyer identity (KYC) and Proof of Funds verification flows (persisting `Verification` records with provider, `verifiedAt`, `expiresAt`, and `BuyerProfile` status), plus Seller identity verification.
-2. **Read-Only Payment & Analytics Connectors**: Implement read-only OAuth/API-key connector flows for at least one payment provider (`Stripe` / `Razorpay`) and one analytics provider (`GA4` / `Plausible`) with sandbox/test adapters.
-3. **Auto-Refresh & Expiry Enforcement**: Scheduled/on-demand metric sync updating `BusinessMetric` rows (`source`, `verificationId`, `verifiedAt`) and automatically stripping the green `Verified` mark when a connector fails, revokes, or passes `expiresAt`.
-4. **Live Listing & Match Trust Sync**: Ensure updated verification states propagate immediately to `/listings/[slug]`, `/matches`, `/compare`, and `ListingCard` without stale cached verification labels.
+## Phase 3: Verification and Connectors
+
+### 21. Regulated Identity (KYC) & Proof of Funds Flows Without Raw Document Storage
+- **Decision**: Implemented `/verify` (`VerificationCentreClient`) and `/api/verification/identity` + `/api/verification/proof-of-funds` using regulated provider adapters (`Persona` / `Digio KYC` for Identity, `Setu AA` / `Plaid Assets` for Proof of Funds). Submissions enter `PENDING` with masked references (`****482F`), sync `BuyerProfile.identityStatus`, `BuyerProfile.proofOfFundsStatus`, and `SellerProfile.identityStatus` in PostgreSQL, and require Admin/Reviewer verification in `/admin/review` (`POST /api/admin/verifications/[id]/review`) before earning `VERIFIED` status (90-day TTL for KYC, 30-day TTL for Proof of Funds).
+- **Why**: Satisfies Section 2 ("Never fake trust", "Use proven providers; do not write custom crypto"), Section 6 (Buyer KYC + Proof of Funds gate before `Data access`, enforced via `hasActiveBuyerDataAccessVerification()`), and Section 10 without storing full government ID numbers or banking credentials.
+
+### 22. Read-Only Payment & Analytics Connector Adapters & Secret Redaction
+- **Decision**: Implemented `src/lib/verification/connectors.ts` supporting read-only payment (`Stripe`, `Razorpay` -> `REVENUE`, `CUSTOMERS`) and analytics (`GA4`, `Plausible` -> `TRAFFIC`) connections. Raw API tokens/grants are validated at sync time and never stored in `metadataJson` or returned in API responses (only masked `accountHint` values are persisted). Sandbox mode deterministically tests valid (`rk_sandbox_valid_*`), failing/revoked (`*fail*`, `*revoked*`, `*invalid*`), and expired (`*expired*`) credentials, while `ENABLE_LIVE_CONNECTORS="true"` enables read-only HTTPS `GET` balance transaction reads for live Stripe restricted keys (`rk_live_*`).
+- **Why**: Allows both real read-only production integration and deterministic offline/CI testing of connection success, failure, and expiration without faking trust or risking fund/account mutations.
+
+### 23. Automatic Expiry Reconciliation, Auto-Refresh & Immediate Verified-Mark Removal
+- **Decision**: `reconcileExpiredVerifications()` and `autoRefreshDueConnectors()` (`POST /api/verification/refresh`, `POST /api/verification/connectors/[id]/sync`, plus 60s active polling on `/verify`) automatically transition expired `VERIFIED` records (`expiresAt <= now`) to `EXPIRED`, transition failing syncs to `FAILED`, revert `Business.financialSeriesJson` from `VERIFIED` back to `SELLER_REPORTED`, emit `Notification` + `AuditLog` entries, and strip the green `Verified` mark immediately across `ListingDetailClient`, `ListingCard`, `MatchResultCard`, `CompareClient`, and `addListingQuestion()` (`"Identity-verified Buyer"` reverts to `"Prospective Buyer"` on KYC expiry).
+- **Why**: Guarantees Phase 3 acceptance ("connected metrics show a correct 'last verified' time and lose the mark when the connection fails or expires") without stale cache illusions.
+
+### 24. Admin Verification Queue Integration & 3-Color Isolation
+- **Decision**: Added a top-level `Verification queue` tab to `/admin/review` (`AdminReviewClient`) with status-grouped sub-tabs (`Pending checks`, `Verified`, `Expired, failed & revoked`) and enforced `<= 3` non-neutral colors across `VerificationCentreClient`, `MetricTile`, `ListingDetailClient`, and `AdminReviewClient` by falling back secondary mixed-trust chips to neutral `Mist`/`Cloud`/`Ink` styling with explicit status icons and labels when `Verified Green` or `Brick Red` is already active in the view.
+- **Why**: Preserves backward compatibility with existing Phase 1/2 listing review flows while integrating Admin verification review and upholding Section 4's strict color-budget and accessibility rules.
+
+---
+
+## Next: Phase 4 Plan (Deal Room)
+1. **Deal Room Creation & Mandatory 2FA + Participant RBAC**: Implement `POST /api/deal-rooms` and `/deals/[id]` guarded on every read/write by `canEnterDealRoom()` (role + participant ownership + 12-hour fresh 2FA).
+2. **Stage Tracker & Enforced State Transitions**: Wire `StageTracker` to live `DealRoom` / `DealStage` records (`INTRO -> NDA -> DATA_ACCESS -> OFFER -> DUE_DILIGENCE -> ESCROW -> TRANSFER`) using `validateStageTransition()` so `DATA_ACCESS` strictly enforces signed NDA + active Buyer KYC + Proof of Funds and appends immutable `AuditLog` entries.
+3. **NDA E-Signature & Server-Side Redaction Unlock**: Implement NDA e-signature (`ndaSignedAt`, `ndaDocumentId`) that unlocks `redactedName`, `redactedDomain`, and `redactedCustomers` exclusively for participants in that deal room.
+4. **Threaded Chat, Versioned Document Vault with View Logs, Offers & Diligence Checklists**: Build rate-limited threaded chat (`Message`), private object storage / signed download URLs with `DocumentView` audit logging and watermark metadata, `Offer` / counter-offer history, and business-type due-diligence `ChecklistItem` generation.
