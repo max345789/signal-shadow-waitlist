@@ -1,0 +1,114 @@
+import type { AuthSession, RoleName } from "@/lib/auth/types";
+
+export type PermissionCheckResult =
+  | { allowed: true }
+  | {
+      allowed: false;
+      code:
+        | "UNAUTHENTICATED"
+        | "FORBIDDEN"
+        | "TWO_FACTOR_REQUIRED"
+        | "TWO_FACTOR_EXPIRED";
+      reason: string;
+    };
+
+export function hasRole(session: AuthSession | null, role: RoleName): boolean {
+  return Boolean(session?.roles.includes(role));
+}
+
+export function canCreateListing(session: AuthSession | null): PermissionCheckResult {
+  if (!session) {
+    return {
+      allowed: false,
+      code: "UNAUTHENTICATED",
+      reason: "Sign in to create or edit a business listing.",
+    };
+  }
+  if (!hasRole(session, "SELLER") && !hasRole(session, "ADMIN")) {
+    return {
+      allowed: false,
+      code: "FORBIDDEN",
+      reason: "A Seller or Admin role is required to create a listing.",
+    };
+  }
+  return { allowed: true };
+}
+
+export function canReviewAdminQueue(session: AuthSession | null): PermissionCheckResult {
+  if (!session) {
+    return {
+      allowed: false,
+      code: "UNAUTHENTICATED",
+      reason: "Sign in with a reviewer account to view the review queue.",
+    };
+  }
+  if (!hasRole(session, "ADMIN") && !hasRole(session, "REVIEWER")) {
+    return {
+      allowed: false,
+      code: "FORBIDDEN",
+      reason: "Admin or Reviewer access is required.",
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Section 7 Security Rule:
+ * "mandatory 2FA for anyone entering a deal room."
+ * Enforced on the server for every deal-room read and write.
+ */
+export function canEnterDealRoom(
+  session: AuthSession | null,
+  participants: { buyerUserId: string; sellerUserId: string },
+  options?: { now?: Date; twoFactorMaxAgeHours?: number }
+): PermissionCheckResult {
+  if (!session) {
+    return {
+      allowed: false,
+      code: "UNAUTHENTICATED",
+      reason: "Sign in and verify two-factor authentication to enter a deal room.",
+    };
+  }
+
+  const isParticipant =
+    session.userId === participants.buyerUserId ||
+    session.userId === participants.sellerUserId;
+  const isStaff = hasRole(session, "ADMIN") || hasRole(session, "REVIEWER");
+
+  if (!isParticipant && !isStaff) {
+    return {
+      allowed: false,
+      code: "FORBIDDEN",
+      reason: "You are not an authorized participant in this deal room.",
+    };
+  }
+
+  if (!session.twoFactorVerifiedAt) {
+    return {
+      allowed: false,
+      code: "TWO_FACTOR_REQUIRED",
+      reason: "Two-factor authentication is mandatory before entering any deal room.",
+    };
+  }
+
+  const verifiedAt = new Date(session.twoFactorVerifiedAt);
+  if (Number.isNaN(verifiedAt.getTime())) {
+    return {
+      allowed: false,
+      code: "TWO_FACTOR_REQUIRED",
+      reason: "Valid two-factor verification timestamp is required.",
+    };
+  }
+
+  const now = options?.now ?? new Date();
+  const maxAgeMs = (options?.twoFactorMaxAgeHours ?? 12) * 60 * 60 * 1000;
+  if (now.getTime() - verifiedAt.getTime() > maxAgeMs) {
+    return {
+      allowed: false,
+      code: "TWO_FACTOR_EXPIRED",
+      reason: "Your two-factor verification session has expired. Verify again to continue.",
+    };
+  }
+
+  return { allowed: true };
+}
