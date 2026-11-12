@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-deep-navy: #0B2545;
+  --color-trust-blue: #1E56A0;
+  --color-cloud: #F5F7FA;
+  --color-white: #FFFFFF;
+  --color-ink: #1F2933;
+  --color-slate: #52606D;
+  --color-mist: #CBD2D9;
+  --color-verified-green: #1B7F5C;
+  --color-amber: #B7791F;
+  --color-brick-red: #B42318;
+  --color-pale-blue: #E8EEF6;
+  --radius-base: 8px;
+  --motion-duration: 200ms;
+  --motion-ease: cubic-bezier(0, 0, 0.2, 1);
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--color-cloud);
+    color: var(--color-ink);
+    font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 24px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-source-serif), Georgia, serif;
+    color: var(--color-deep-navy);
+  }
+
+  a {
+    color: var(--color-trust-blue);
+  }
+
+  /* Visible, high-contrast keyboard focus state (no blurred glow) */
+  :focus-visible {
+    outline: 2px solid var(--color-trust-blue);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+.tabular-figures {
+  font-variant-numeric: tabular-nums;
+}
+
+.state-transition {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: var(--motion-duration);
+  transition-timing-function: var(--motion-ease);
+}
