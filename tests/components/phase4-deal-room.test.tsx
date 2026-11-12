@@ -112,6 +112,7 @@ function makeRawRoom(ndaSigned: boolean): RawDealRoomRecord {
         updatedAt: NOW_ISO,
       },
     ],
+    escrowTransactions: [],
     auditLogs: [
       {
         id: "audit-1",

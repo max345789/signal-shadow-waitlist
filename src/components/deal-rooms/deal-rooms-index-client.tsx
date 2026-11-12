@@ -102,6 +102,10 @@ export function DealRoomsIndexClient({
   }
 
   const anyNdaSigned = rooms.some((r) => r.ndaCompleted);
+  const hasDisputedRoom = rooms.some(
+    (r) => r.status === "DISPUTED" || r.latestEscrowStatus === "DISPUTED"
+  );
+  const allowGreen = !hasDisputedRoom;
 
   return (
     <div className="flex flex-col gap-8">
@@ -160,8 +164,8 @@ export function DealRoomsIndexClient({
                     />
                     {room.ndaCompleted ? (
                       <StatusChip
-                        tone="verified"
-                        emphasis="solid"
+                        tone={allowGreen ? "verified" : "neutral"}
+                        emphasis={allowGreen ? "solid" : "outline"}
                         label="NDA signed"
                       />
                     ) : (
@@ -170,6 +174,24 @@ export function DealRoomsIndexClient({
                         label="NDA pending"
                       />
                     )}
+                    {room.status === "DISPUTED" ? (
+                      <StatusChip
+                        tone="risk"
+                        emphasis="solid"
+                        label="Disputed"
+                      />
+                    ) : room.latestEscrowStatus ? (
+                      <StatusChip
+                        tone={
+                          allowGreen &&
+                          (room.latestEscrowStatus === "FUNDED" ||
+                            room.latestEscrowStatus === "RELEASED")
+                            ? "verified"
+                            : "neutral"
+                        }
+                        label={`Escrow: ${room.latestEscrowStatus.replace("_", " ")}`}
+                      />
+                    ) : null}
                     {room.isSampleData ? (
                       <StatusChip tone="neutral" label="Sample data" />
                     ) : null}

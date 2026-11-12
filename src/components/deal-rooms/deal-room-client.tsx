@@ -3,12 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clock,
   Download,
   Eye,
   FileText,
   History,
+  Landmark,
   Lock,
   MessageSquare,
   RefreshCw,
@@ -16,12 +19,14 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import type {
-  DealChecklistItemView,
-  DealDocumentView,
-  DealMessageView,
-  DealOfferView,
-  DealRoomView,
+import {
+  areAllTransferChecklistItemsConfirmed,
+  type DealChecklistItemView,
+  type DealDocumentView,
+  type DealMessageView,
+  type DealOfferView,
+  type DealRoomView,
+  type EscrowProviderName,
 } from "@/lib/domain/deal-room";
 import {
   ALLOWED_STAGE_TRANSITIONS,
@@ -29,6 +34,10 @@ import {
   DEAL_STAGE_DEFINITIONS,
   type DealStageType,
 } from "@/lib/domain/deal-stages";
+import {
+  ESCROW_PROVIDERS,
+  ESCROW_PROVIDER_SPECS,
+} from "@/lib/escrow/provider";
 import { formatCurrency, type CurrencyCode } from "@/lib/format/currency";
 import { StageTracker, type StageTrackerItem } from "@/components/domain/stage-tracker";
 import { Button } from "@/components/ui/button";
@@ -118,6 +127,13 @@ export function DealRoomClient({
     Record<string, { amount: string; terms: string }>
   >({});
 
+  // Escrow & dispute state
+  const [escrowProvider, setEscrowProvider] = React.useState<EscrowProviderName>(
+    initialDealRoom.currency === "INR" ? "Castler Escrow" : "Escrow.com"
+  );
+  const [fundingRefInput, setFundingRefInput] = React.useState("");
+  const [disputeReasonInput, setDisputeReasonInput] = React.useState("");
+
   const refreshDealRoom = React.useCallback(
     async (manual: boolean = false) => {
       if (manual) {
@@ -173,8 +189,12 @@ export function DealRoomClient({
     };
   }, [dealRoom.id, refreshDealRoom]);
 
+  const activeEscrow = dealRoom.escrowTransactions?.[0] ?? null;
+  const isDisputed =
+    dealRoom.status === "DISPUTED" || activeEscrow?.status === "DISPUTED";
   const hasActiveError = Boolean(actionError);
-  const allowGreen = !hasActiveError;
+  const allowRisk = hasActiveError || isDisputed;
+  const allowGreen = !allowRisk;
 
   function verifiedTone(isPositive: boolean): StatusChipTone {
     if (isPositive) {
@@ -571,13 +591,91 @@ export function DealRoomClient({
         return;
       }
       setDealRoom(data.dealRoom);
-      setStatusMessage("Due-diligence checklist updated.");
+      setStatusMessage("Checklist updated.");
     } catch {
       setActionError("Network error while updating checklist.");
     } finally {
       setBusyAction(null);
     }
   }
+
+  async function handleEscrowAction(
+    payload:
+      | { action: "INITIATE"; provider: EscrowProviderName }
+      | { action: "FUND"; escrowId: string; fundingReference?: string }
+      | { action: "START_REVIEW"; escrowId: string }
+      | { action: "RELEASE"; escrowId: string }
+      | { action: "DISPUTE"; escrowId: string; disputeReason: string }
+  ) {
+    setActionError(null);
+    setStatusMessage(null);
+
+    if (
+      payload.action === "DISPUTE" &&
+      payload.disputeReason.trim().length < 10
+    ) {
+      setActionError(
+        "Enter a clear dispute reason (at least 10 characters) before flagging."
+      );
+      return;
+    }
+
+    setBusyAction(`escrow:${payload.action}`);
+    try {
+      const res = await fetch(`/api/deal-rooms/${dealRoom.id}/escrow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? "Escrow action failed.");
+        return;
+      }
+      setDealRoom(data.dealRoom);
+      if (payload.action === "FUND") {
+        setFundingRefInput("");
+        setStatusMessage(
+          "Third-party escrow funded. You can now move to the Transfer stage."
+        );
+      } else if (payload.action === "START_REVIEW") {
+        setStatusMessage("Escrow marked In review while asset handover is verified.");
+      } else if (payload.action === "RELEASE") {
+        setStatusMessage(
+          "Escrow funds released by third-party partner. Deal room marked Completed."
+        );
+      } else if (payload.action === "DISPUTE") {
+        setDisputeReasonInput("");
+        setStatusMessage(
+          "Escrow dispute flagged. Deal room paused for Admin/Reviewer inspection."
+        );
+      } else {
+        setStatusMessage(
+          "Third-party escrow initiated. Platform holds no funds."
+        );
+      }
+    } catch {
+      setActionError("Network error while updating third-party escrow.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  const dueDiligenceItems = dealRoom.checklistItems.filter(
+    (c) => c.phase === "DUE_DILIGENCE"
+  );
+  const transferItems = dealRoom.checklistItems.filter(
+    (c) => c.phase === "TRANSFER"
+  );
+  const transferConfirmedCount = transferItems.filter(
+    (c) =>
+      c.status === "CONFIRMED" &&
+      Boolean(c.buyerConfirmedAt) &&
+      Boolean(c.sellerConfirmedAt)
+  ).length;
+  const allTransferConfirmed = areAllTransferChecklistItemsConfirmed(
+    dealRoom.checklistItems
+  );
 
   // Group messages into top-level threads + replies
   const topLevelMessages = dealRoom.messages.filter((m) => !m.parentId);
@@ -619,6 +717,36 @@ export function DealRoomClient({
                 emphasis={dealRoom.nda.completed && allowGreen ? "solid" : "outline"}
                 label={dealRoom.nda.completed ? "NDA executed" : "NDA pending"}
               />
+              {dealRoom.status === "DISPUTED" ? (
+                <StatusChip
+                  tone={allowRisk ? "risk" : "neutral"}
+                  emphasis="solid"
+                  label="Room: DISPUTED"
+                />
+              ) : dealRoom.status === "COMPLETED" ? (
+                <StatusChip
+                  tone={verifiedTone(true)}
+                  emphasis={allowGreen ? "solid" : "outline"}
+                  label="Room: COMPLETED"
+                />
+              ) : dealRoom.status === "CANCELLED" ? (
+                <StatusChip tone="neutral" label="Room: CANCELLED" />
+              ) : null}
+              {activeEscrow ? (
+                <StatusChip
+                  tone={
+                    activeEscrow.status === "DISPUTED"
+                      ? allowRisk
+                        ? "risk"
+                        : "neutral"
+                      : activeEscrow.status === "FUNDED" ||
+                          activeEscrow.status === "RELEASED"
+                        ? verifiedTone(true)
+                        : "neutral"
+                  }
+                  label={`Escrow: ${activeEscrow.status.replace("_", " ")}`}
+                />
+              ) : null}
               {dealRoom.isSampleData ? (
                 <StatusChip tone="neutral" label="Sample data" />
               ) : null}
@@ -769,7 +897,7 @@ export function DealRoomClient({
         stages={trackerStages}
         strictThreeColorBudget
         allowGreenAccent={allowGreen}
-        allowRiskAccent={hasActiveError}
+        allowRiskAccent={allowRisk}
       />
 
       <Card>
@@ -787,8 +915,27 @@ export function DealRoomClient({
             </p>
           </div>
 
-          {dealRoom.viewerRole === "BUYER" ||
-          dealRoom.viewerRole === "SELLER" ? (
+          {dealRoom.status !== "ACTIVE" ? (
+            <StatusChip
+              tone={
+                dealRoom.status === "DISPUTED"
+                  ? allowRisk
+                    ? "risk"
+                    : "neutral"
+                  : dealRoom.status === "COMPLETED"
+                    ? verifiedTone(true)
+                    : "neutral"
+              }
+              label={
+                dealRoom.status === "DISPUTED"
+                  ? "Paused: Dispute under review"
+                  : dealRoom.status === "COMPLETED"
+                    ? "Deal completed & escrow released"
+                    : "Deal cancelled / refunded"
+              }
+            />
+          ) : dealRoom.viewerRole === "BUYER" ||
+            dealRoom.viewerRole === "SELLER" ? (
             <div className="flex flex-wrap gap-2">
               {allowedNextStages.map((nextStage) => {
                 const isForward =
@@ -829,6 +976,9 @@ export function DealRoomClient({
           </TabsTrigger>
           <TabsTrigger value="offers">
             Offers ({dealRoom.offers.length})
+          </TabsTrigger>
+          <TabsTrigger value="escrow">
+            Escrow &amp; transfer
           </TabsTrigger>
           <TabsTrigger value="checklist">
             Checklist ({dealRoom.checklistItems.length})
@@ -1713,7 +1863,548 @@ export function DealRoomClient({
           </div>
         </TabsContent>
 
-        {/* TAB 5: DUE DILIGENCE CHECKLIST */}
+        {/* TAB 5: ESCROW & TRANSFER */}
+        <TabsContent value="escrow">
+          <div className="flex flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Landmark
+                      className="h-5 w-5 text-trust-blue"
+                      aria-hidden="true"
+                    />
+                    <CardTitle as="h2">
+                      Licensed third-party escrow
+                    </CardTitle>
+                  </div>
+                  <StatusChip
+                    tone={
+                      activeEscrow?.status === "DISPUTED"
+                        ? allowRisk
+                          ? "risk"
+                          : "neutral"
+                        : activeEscrow?.status === "FUNDED" ||
+                            activeEscrow?.status === "RELEASED"
+                          ? verifiedTone(true)
+                          : "neutral"
+                    }
+                    label={
+                      activeEscrow
+                        ? `Status: ${activeEscrow.status.replace("_", " ")}`
+                        : "Not initiated"
+                    }
+                  />
+                </div>
+                <CardDescription>
+                  Trust Marketplace never holds or custodies funds. Purchase
+                  consideration is settled strictly through a licensed third-party
+                  escrow provider.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-col gap-6">
+                {/* Visual 4-state escrow status tracker (Funded, In review, Released, Disputed) */}
+                {activeEscrow ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      {
+                        key: "FUNDED",
+                        label: "Funded",
+                        active: activeEscrow.status === "FUNDED",
+                        done:
+                          Boolean(activeEscrow.fundedAt) &&
+                          activeEscrow.status !== "DISPUTED",
+                        detail: activeEscrow.fundedAt
+                          ? `Funded ${formatTimestamp(activeEscrow.fundedAt)}`
+                          : "Awaiting buyer deposit",
+                      },
+                      {
+                        key: "IN_REVIEW",
+                        label: "In review",
+                        active: activeEscrow.status === "IN_REVIEW",
+                        done: activeEscrow.status === "RELEASED",
+                        detail:
+                          activeEscrow.status === "IN_REVIEW"
+                            ? "Transfer inspection active"
+                            : activeEscrow.status === "RELEASED"
+                              ? "Inspection passed"
+                              : "Opens during Transfer",
+                      },
+                      {
+                        key: "RELEASED",
+                        label: "Released",
+                        active: activeEscrow.status === "RELEASED",
+                        done: activeEscrow.status === "RELEASED",
+                        detail: activeEscrow.releasedAt
+                          ? `Released ${formatTimestamp(activeEscrow.releasedAt)}`
+                          : "Requires 7/7 transfer sign-off",
+                      },
+                      {
+                        key: "DISPUTED",
+                        label: "Disputed",
+                        active: activeEscrow.status === "DISPUTED",
+                        done: false,
+                        detail:
+                          activeEscrow.status === "DISPUTED"
+                            ? activeEscrow.disputeReason ??
+                              "Held pending Admin review"
+                            : "No active dispute",
+                      },
+                    ].map((tile) => {
+                      const isDisputeTile =
+                        tile.key === "DISPUTED" && tile.active;
+                      const borderClass = isDisputeTile
+                        ? allowRisk
+                          ? "border-brick-red"
+                          : "border-mist"
+                        : tile.done
+                          ? allowGreen
+                            ? "border-verified-green"
+                            : "border-deep-navy"
+                          : tile.active
+                            ? "border-trust-blue"
+                            : "border-mist";
+
+                      return (
+                        <div
+                          key={tile.key}
+                          className={`flex flex-col gap-2 rounded border bg-cloud p-4 ${borderClass}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-16 font-semibold text-deep-navy">
+                              {tile.label}
+                            </span>
+                            {isDisputeTile ? (
+                              <AlertTriangle
+                                className={
+                                  allowRisk
+                                    ? "h-4 w-4 text-brick-red"
+                                    : "h-4 w-4 text-trust-blue"
+                                }
+                                aria-hidden="true"
+                              />
+                            ) : tile.done ? (
+                              <CheckCircle2
+                                className={
+                                  allowGreen
+                                    ? "h-4 w-4 text-verified-green"
+                                    : "h-4 w-4 text-trust-blue"
+                                }
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Clock
+                                className="h-4 w-4 text-slate"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </div>
+                          <span className="text-14 text-slate tabular-figures">
+                            {tile.detail}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {!activeEscrow || activeEscrow.status === "REFUNDED" ? (
+                  dealRoom.currentStage === "ESCROW" &&
+                  acceptedOffer &&
+                  dealRoom.status === "ACTIVE" &&
+                  (dealRoom.viewerRole === "BUYER" ||
+                    dealRoom.viewerRole === "SELLER") ? (
+                    <div className="flex flex-col gap-4 rounded border border-mist bg-cloud p-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Select
+                          label="Licensed third-party escrow provider"
+                          value={escrowProvider}
+                          onChange={(e) =>
+                            setEscrowProvider(
+                              e.target.value as EscrowProviderName
+                            )
+                          }
+                        >
+                          {ESCROW_PROVIDERS.map((prov) => (
+                            <option key={prov} value={prov}>
+                              {prov}
+                            </option>
+                          ))}
+                        </Select>
+
+                        <div className="flex flex-col justify-center gap-1 rounded border border-mist bg-white p-4">
+                          <span className="text-14 text-slate">
+                            Accepted offer amount ({acceptedOffer.currency})
+                          </span>
+                          <span className="text-20 font-semibold text-deep-navy tabular-figures">
+                            {formatCurrency(acceptedOffer.amount, {
+                              currency: acceptedOffer.currency,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-14 text-slate">
+                        {ESCROW_PROVIDER_SPECS[escrowProvider].regulatorySummary}
+                      </p>
+
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          loading={busyAction === "escrow:INITIATE"}
+                          loadingLabel="Initiating escrow..."
+                          onClick={() =>
+                            void handleEscrowAction({
+                              action: "INITIATE",
+                              provider: escrowProvider,
+                            })
+                          }
+                        >
+                          <Landmark className="h-4 w-4" aria-hidden="true" />
+                          <span>Initiate third-party escrow</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <CardStateEmpty
+                      title={
+                        dealRoom.currentStage === "ESCROW"
+                          ? "Escrow initiation unavailable"
+                          : "Escrow activates in the Escrow stage"
+                      }
+                      description={
+                        dealRoom.currentStage === "ESCROW"
+                          ? "An accepted offer and active deal room status are required to open third-party escrow."
+                          : `Current stage is ${DEAL_STAGE_DEFINITIONS[dealRoom.currentStage].label}. Complete Offer acceptance and Due diligence before initiating escrow.`
+                      }
+                    />
+                  )
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <dl className="grid grid-cols-1 gap-4 rounded border border-mist bg-cloud p-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-14 text-slate">Escrow provider</dt>
+                        <dd className="text-16 font-semibold text-deep-navy">
+                          {activeEscrow.provider}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-14 text-slate">External reference</dt>
+                        <dd className="break-all text-16 font-medium text-ink tabular-figures">
+                          {activeEscrow.externalRef}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-14 text-slate">Escrowed amount</dt>
+                        <dd className="text-16 font-semibold text-deep-navy tabular-figures">
+                          {formatCurrency(activeEscrow.amount, {
+                            currency: activeEscrow.currency,
+                          })}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-14 text-slate">Platform custody</dt>
+                        <dd className="text-16 font-medium text-ink">
+                          None (third-party only)
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {activeEscrow.status === "INITIATED" &&
+                    dealRoom.status === "ACTIVE" ? (
+                      <div className="flex flex-col gap-4 rounded border border-mist bg-cloud p-4">
+                        <p className="text-16 text-ink">
+                          {(
+                            ESCROW_PROVIDER_SPECS[
+                              activeEscrow.provider as EscrowProviderName
+                            ] ?? ESCROW_PROVIDER_SPECS["Escrow.com"]
+                          ).depositInstructionTemplate}
+                        </p>
+                        {dealRoom.viewerRole === "BUYER" ? (
+                          <div className="flex flex-col gap-4">
+                            <Input
+                              label="Third-party funding / wire reference (optional in sandbox)"
+                              value={fundingRefInput}
+                              onChange={(e) => setFundingRefInput(e.target.value)}
+                              placeholder="WIRE-HDFC-2026-8841"
+                            />
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="primary"
+                                loading={busyAction === "escrow:FUND"}
+                                loadingLabel="Confirming funding..."
+                                onClick={() =>
+                                  void handleEscrowAction({
+                                    action: "FUND",
+                                    escrowId: activeEscrow.id,
+                                    fundingReference:
+                                      fundingRefInput.trim() || undefined,
+                                  })
+                                }
+                              >
+                                <ShieldCheck
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
+                                <span>Confirm third-party escrow funding</span>
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-14 text-slate">
+                            Waiting for Buyer to deposit funds with{" "}
+                            {activeEscrow.provider}.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {activeEscrow.status === "FUNDED" &&
+                    dealRoom.status === "ACTIVE" ? (
+                      <div className="flex flex-col gap-3 rounded border border-mist bg-cloud p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-16 text-ink">
+                          {dealRoom.currentStage === "ESCROW"
+                            ? "Escrow is funded. Use the stage controls above to move to Transfer and generate the 7-category asset handover checklist."
+                            : "Escrow is funded in the Transfer stage. Put escrow into review while both parties verify asset handover."}
+                        </p>
+                        {dealRoom.currentStage === "TRANSFER" &&
+                        (dealRoom.viewerRole === "BUYER" ||
+                          dealRoom.viewerRole === "SELLER") ? (
+                          <Button
+                            type="button"
+                            variant="action"
+                            loading={busyAction === "escrow:START_REVIEW"}
+                            loadingLabel="Updating..."
+                            onClick={() =>
+                              void handleEscrowAction({
+                                action: "START_REVIEW",
+                                escrowId: activeEscrow.id,
+                              })
+                            }
+                          >
+                            <span>Mark escrow in review</span>
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {(activeEscrow.status === "FUNDED" ||
+                      activeEscrow.status === "IN_REVIEW") &&
+                    dealRoom.currentStage === "TRANSFER" &&
+                    dealRoom.status === "ACTIVE" &&
+                    dealRoom.viewerRole === "BUYER" ? (
+                      <div className="flex flex-col gap-3 rounded border border-mist bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-16 font-semibold text-deep-navy">
+                            Release third-party escrow funds
+                          </span>
+                          <span className="text-14 text-slate tabular-figures">
+                            {allTransferConfirmed
+                              ? "All 7 asset transfer categories confirmed by both Buyer and Seller."
+                              : `Waiting for two-sided confirmation on all 7 Transfer checklist items (${transferConfirmedCount} / ${transferItems.length} confirmed).`}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          disabled={!allTransferConfirmed}
+                          loading={busyAction === "escrow:RELEASE"}
+                          loadingLabel="Releasing..."
+                          onClick={() =>
+                            void handleEscrowAction({
+                              action: "RELEASE",
+                              escrowId: activeEscrow.id,
+                            })
+                          }
+                        >
+                          <CheckCircle2
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                          <span>Authorize escrow release</span>
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {activeEscrow.status === "DISPUTED" ? (
+                      <div className="rounded border border-brick-red bg-white p-4">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle
+                            className="h-5 w-5 text-brick-red"
+                            aria-hidden="true"
+                          />
+                          <span className="text-16 font-semibold text-brick-red">
+                            Escrow dispute flagged — awaiting Admin / Reviewer resolution
+                          </span>
+                        </div>
+                        <p className="pt-2 text-16 text-ink">
+                          {activeEscrow.disputeReason}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {(activeEscrow.status === "INITIATED" ||
+                      activeEscrow.status === "FUNDED" ||
+                      activeEscrow.status === "IN_REVIEW") &&
+                    dealRoom.status === "ACTIVE" &&
+                    (dealRoom.viewerRole === "BUYER" ||
+                      dealRoom.viewerRole === "SELLER") ? (
+                      <div className="flex flex-col gap-4 rounded border border-mist bg-cloud p-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-16 font-semibold text-deep-navy">
+                            Report issue or flag escrow dispute
+                          </span>
+                          <span className="text-14 text-slate">
+                            Flagging a dispute freezes escrow disbursement and
+                            escalates this deal room to the Admin Dispute Queue.
+                          </span>
+                        </div>
+                        <Textarea
+                          label="Dispute reason (minimum 10 characters)"
+                          value={disputeReasonInput}
+                          onChange={(e) => setDisputeReasonInput(e.target.value)}
+                          placeholder="Describe the missing asset transfer, credential discrepancy, or breach."
+                          rows={2}
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            loading={busyAction === "escrow:DISPUTE"}
+                            loadingLabel="Flagging dispute..."
+                            onClick={() =>
+                              void handleEscrowAction({
+                                action: "DISPUTE",
+                                escrowId: activeEscrow.id,
+                                disputeReason: disputeReasonInput,
+                              })
+                            }
+                          >
+                            <AlertTriangle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>Flag escrow dispute</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 7-Category Two-Sided Transfer Checklist */}
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle as="h2">
+                    Transfer checklist (7 asset categories)
+                  </CardTitle>
+                  <StatusChip
+                    tone={verifiedTone(allTransferConfirmed)}
+                    label={`${transferConfirmedCount} / ${transferItems.length} confirmed by both sides`}
+                  />
+                </div>
+                <CardDescription>
+                  Domain, code repository, cloud &amp; hosting, payment accounts,
+                  social handles, customer data, and vendor contracts. Every
+                  category requires confirmation from both Buyer and Seller.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {transferItems.length === 0 ? (
+              <CardStateEmpty
+                title="Transfer checklist generates at the Transfer stage"
+                description="Once third-party escrow is funded and the deal room moves to Transfer, all 7 two-sided asset handover categories appear here."
+              />
+            ) : (
+              <div className="flex flex-col gap-4">
+                {transferItems.map((item) => (
+                  <Card key={item.id}>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusChip tone="neutral" label={item.category} />
+                          <StatusChip
+                            tone={
+                              item.status === "CONFIRMED"
+                                ? verifiedTone(true)
+                                : "seller-reported"
+                            }
+                            label={item.status.replace("_", " ")}
+                          />
+                        </div>
+                        <h3 className="font-serif text-20 font-semibold text-deep-navy">
+                          {item.title}
+                        </h3>
+                        <div className="flex flex-wrap gap-4 text-14 text-slate tabular-figures">
+                          <span>
+                            Buyer confirmed:{" "}
+                            {item.buyerConfirmedAt
+                              ? formatTimestamp(item.buyerConfirmedAt)
+                              : "Pending"}
+                          </span>
+                          <span>
+                            Seller confirmed:{" "}
+                            {item.sellerConfirmedAt
+                              ? formatTimestamp(item.sellerConfirmedAt)
+                              : "Pending"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {dealRoom.status === "ACTIVE" &&
+                      (dealRoom.viewerRole === "BUYER" ||
+                        dealRoom.viewerRole === "SELLER") ? (
+                        <div className="flex flex-wrap gap-2">
+                          {(dealRoom.viewerRole === "BUYER" &&
+                            item.buyerConfirmedAt) ||
+                          (dealRoom.viewerRole === "SELLER" &&
+                            item.sellerConfirmedAt) ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              loading={busyAction === `chk:${item.id}`}
+                              loadingLabel="Updating..."
+                              onClick={() =>
+                                void handleChecklistAction(item, "REOPEN")
+                              }
+                            >
+                              Undo transfer confirmation
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="primary"
+                              loading={busyAction === `chk:${item.id}`}
+                              loadingLabel="Saving..."
+                              onClick={() =>
+                                void handleChecklistAction(item, "CONFIRM")
+                              }
+                            >
+                              <CheckCircle2
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>Confirm transfer</span>
+                            </Button>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* TAB 6: DUE DILIGENCE & TRANSFER CHECKLISTS */}
         <TabsContent value="checklist">
           <div className="flex flex-col gap-4">
             <Card>
@@ -1724,11 +2415,10 @@ export function DealRoomClient({
                   </CardTitle>
                   <StatusChip
                     tone={verifiedTone(
-                      dealRoom.checklistItems.every(
-                        (i) => i.status === "CONFIRMED"
-                      )
+                      dueDiligenceItems.length > 0 &&
+                        dueDiligenceItems.every((i) => i.status === "CONFIRMED")
                     )}
-                    label={`${dealRoom.checklistItems.filter((i) => i.status === "CONFIRMED").length} / ${dealRoom.checklistItems.length} confirmed`}
+                    label={`${dueDiligenceItems.filter((i) => i.status === "CONFIRMED").length} / ${dueDiligenceItems.length} confirmed`}
                   />
                 </div>
                 <CardDescription>
@@ -1738,7 +2428,7 @@ export function DealRoomClient({
               </CardHeader>
             </Card>
 
-            {dealRoom.checklistItems.map((item) => (
+            {dueDiligenceItems.map((item) => (
               <Card key={item.id}>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-col gap-2">
@@ -1772,8 +2462,9 @@ export function DealRoomClient({
                     </div>
                   </div>
 
-                  {dealRoom.viewerRole === "BUYER" ||
-                  dealRoom.viewerRole === "SELLER" ? (
+                  {dealRoom.status === "ACTIVE" &&
+                  (dealRoom.viewerRole === "BUYER" ||
+                    dealRoom.viewerRole === "SELLER") ? (
                     <div className="flex flex-wrap gap-2">
                       {(dealRoom.viewerRole === "BUYER" && item.buyerConfirmedAt) ||
                       (dealRoom.viewerRole === "SELLER" &&
@@ -1827,6 +2518,35 @@ export function DealRoomClient({
                 </div>
               </Card>
             ))}
+
+            {transferItems.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle as="h2">
+                      Asset transfer checklist (7 categories)
+                    </CardTitle>
+                    <StatusChip
+                      tone={verifiedTone(allTransferConfirmed)}
+                      label={`${transferConfirmedCount} / ${transferItems.length} confirmed`}
+                    />
+                  </div>
+                  <CardDescription>
+                    Two-sided handover items are managed alongside third-party
+                    escrow release in the Escrow &amp; transfer tab.
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter>
+                  <Button
+                    type="button"
+                    variant="action"
+                    onClick={() => setActiveTab("escrow")}
+                  >
+                    Open Escrow &amp; transfer
+                  </Button>
+                </CardFooter>
+              </Card>
+            ) : null}
           </div>
         </TabsContent>
 

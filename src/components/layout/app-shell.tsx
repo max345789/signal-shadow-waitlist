@@ -130,7 +130,7 @@ export function AppShell({
       <footer className="mt-8 border-t border-mist bg-white">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-2 px-4 py-6 text-14 text-slate sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <span>
-            Trust Marketplace — Phase 4: Deal rooms, NDA redaction unlock, document vault, offers, and audit trail.
+            Trust Marketplace — Phase 5: Licensed third-party escrow, two-sided transfer checklists, dispute resolution, and audit trail.
           </span>
           <span>
             Legal templates and regulatory positions require qualified counsel review prior to launch.

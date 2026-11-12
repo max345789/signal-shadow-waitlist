@@ -151,8 +151,24 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 
 ---
 
-## Next: Phase 5 Plan (Escrow and Transfer)
-1. **Licensed Third-Party Escrow Adapter**: Integrate a sandbox-capable escrow provider boundary (e.g., Escrow.com / regulated partner adapter) in `src/lib/escrow/` without holding funds on-platform, tracking `INITIATED`, `FUNDED`, `IN_REVIEW`, `RELEASED`, `DISPUTED`, and `REFUNDED` states in `EscrowTransaction`.
-2. **Deal Room Escrow & Dispute UI**: Add an Escrow & Transfer workflow panel inside `/deals/[id]` displaying visual escrow status, funding milestones, release authorization, and clear dispute reporting paths (`DealRoomStatus.DISPUTED` + Admin/Reviewer dispute resolution).
-3. **Two-Sided Transfer Checklist**: Generate the 7 Section 6 `TRANSFER` `ChecklistItem` categories (domain, code repository, cloud and hosting accounts, payment accounts, social handles, customer data, vendor contracts) requiring confirmation from both Buyer and Seller before escrow release and `COMPLETED` room status.
-4. **Full Intro-to-Transfer E2E Acceptance**: Verify a complete test deal progresses cleanly from `INTRO` through `TRANSFER` in the sandbox with zero manual database edits and full `AuditLog` coverage.
+## Phase 5: Escrow and Transfer
+
+### 29. Licensed Third-Party Escrow Adapter Without Platform Custody
+- **Decision**: Implemented `src/lib/escrow/provider.ts` supporting regulated third-party escrow providers (`Escrow.com` for `INR/USD/EUR/GBP` and `Castler Escrow` for RBI-regulated `INR` domestic M&A) with explicit `platformHoldsFunds: false` invariants, deterministic sandbox workflows, and an optional live `Escrow.com` REST boundary (`ENABLE_LIVE_ESCROW="true"` + `ESCROW_COM_API_KEY` / `ESCROW_COM_EMAIL`). Escrow amounts and currencies are validated strictly against the Deal Room's accepted `Offer`.
+- **Why**: Enforces Section 2 ("Money, identity and documents are the sensitive areas. Use proven providers; do not write custom crypto or hold funds") and Section 6 ("Use a licensed third-party escrow provider. The platform never holds funds").
+
+### 30. Visual Escrow Statuses, Two-Sided 7-Category Transfer Checklist & Release Gate
+- **Decision**: Added `POST /api/deal-rooms/[id]/escrow` (`INITIATE`, `FUND`, `START_REVIEW`, `RELEASE`, `DISPUTE`) and the `Escrow & transfer` workspace tab in `DealRoomClient` displaying a visual 4-state escrow status strip (`Funded`, `In review`, `Released`, `Disputed`). Transitioning `ESCROW -> TRANSFER` requires `FUNDED`/`IN_REVIEW`/`RELEASED` escrow and automatically creates all 7 Section 6 `TRANSFER` `ChecklistItem` categories (`Domain`, `Code repository`, `Cloud & hosting`, `Payment accounts`, `Social handles`, `Customer data`, `Vendor contracts`). Buyer escrow `RELEASE` is blocked on the server until all 7 transfer categories have both `buyerConfirmedAt` and `sellerConfirmedAt` (`status === "CONFIRMED"`), upon which `TRANSFER` completes and `DealRoom.status` transitions to `COMPLETED`.
+- **Why**: Guarantees two-sided asset handover before disbursement and enables a complete sandbox `INTRO -> TRANSFER` deal lifecycle with zero manual database edits.
+
+### 31. Dispute Flagging, Room Freeze & 2FA-Guarded Admin Dispute Queue
+- **Decision**: Flagging a dispute (`action: "DISPUTE"`) freezes `EscrowTransaction.status` to `DISPUTED`, sets `DealRoom.status` to `DISPUTED`, marks the active `DealStage` `BLOCKED`, blocks checklist/stage/escrow mutations, and surfaces the case in `/admin/review` under `Dispute queue` (`GET /api/admin/disputes` & `POST /api/admin/disputes/[id]/resolve`). Resolution requires an `ADMIN`/`REVIEWER` role with active 2FA (`canReviewAdminQueue` + `canEnterDealRoom`) and supports `RESUME_TO_IN_REVIEW`, `RELEASE_TO_SELLER`, and `REFUND_TO_BUYER`, writing `DISPUTE_RESOLVED` to `AuditLog` and notifying both parties. Under `DISPUTED` state, `DealRoomClient` and `AdminReviewClient` isolate `Brick Red` as the single semantic accent alongside `Deep Navy` and `Trust Blue` (suppressing `Verified Green`) to uphold Section 4's `<= 3` non-neutral colors rule.
+- **Why**: Satisfies Section 4, Section 6, and Section 10 ("Provide clear reporting and dispute paths", "Role-based access checked on the server for every deal-room read and write").
+
+---
+
+## Next: Phase 6 Plan (Polish and Launch)
+1. **Performance & Accessibility Audit**: Run Lighthouse accessibility and performance audits across core buyer and seller flows (`/` -> `/thesis/new` -> `/matches` -> `/listings/[slug]` -> `/deals/[id]`), targeting Lighthouse Accessibility `95+` and full keyboard-only buy-path traversal.
+2. **Empty, Loading, Error & Notification Polish**: Audit every screen and route for consistent loading/empty/error states, wire email/push notification dispatch hooks alongside in-app `Notification` records, and verify mobile (`360px`) + desktop (`1280px`) ergonomics.
+3. **Legal Placeholders & Regulatory Checklists**: Add `/legal/terms`, `/legal/privacy`, and regulatory/compliance disclosures clearly badged **`Needs legal review`** (Section 10).
+4. **Analytics, Error Monitoring & Production Readiness**: Wire privacy-respecting product analytics, live error monitoring boundaries, and CI verification gates.

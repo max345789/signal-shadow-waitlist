@@ -12,6 +12,10 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
+import type {
+  AdminDisputeDecision,
+  AdminDisputeView,
+} from "@/lib/domain/deal-room";
 import type { AdminReviewDecision, SanitizedListingView } from "@/lib/domain/listings";
 import {
   ALLOWED_VERIFICATION_REVIEW_TRANSITIONS,
@@ -67,20 +71,30 @@ function verificationTypeLabel(type: VerificationTypeValue): string {
 export function AdminReviewClient({
   initialListings,
   initialVerifications = [],
+  initialDisputes = [],
 }: {
   initialListings: SanitizedListingView[];
   initialVerifications?: VerificationWithEvaluation[];
+  initialDisputes?: AdminDisputeView[];
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
   const [verifications, setVerifications] =
     React.useState<VerificationWithEvaluation[]>(initialVerifications);
+  const [disputes, setDisputes] =
+    React.useState<AdminDisputeView[]>(initialDisputes);
   const [notesById, setNotesById] = React.useState<Record<string, string>>({});
   const [fieldErrorsById, setFieldErrorsById] = React.useState<
     Record<string, string | undefined>
   >({});
   const [verNotesById, setVerNotesById] = React.useState<Record<string, string>>({});
   const [verErrorsById, setVerErrorsById] = React.useState<
+    Record<string, string | undefined>
+  >({});
+  const [disputeNotesById, setDisputeNotesById] = React.useState<
+    Record<string, string>
+  >({});
+  const [disputeErrorsById, setDisputeErrorsById] = React.useState<
     Record<string, string | undefined>
   >({});
   const [busyAction, setBusyAction] = React.useState<{
@@ -91,6 +105,10 @@ export function AdminReviewClient({
     id: string;
     decision: AdminVerificationDecision;
   } | null>(null);
+  const [busyDisputeAction, setBusyDisputeAction] = React.useState<{
+    id: string;
+    decision: AdminDisputeDecision;
+  } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<string | null>(null);
@@ -99,12 +117,14 @@ export function AdminReviewClient({
     setLoading(true);
     setFetchError(null);
     try {
-      const [listingsRes, verRes] = await Promise.all([
+      const [listingsRes, verRes, disputesRes] = await Promise.all([
         fetch("/api/admin/listings"),
         fetch("/api/admin/verifications"),
+        fetch("/api/admin/disputes"),
       ]);
       const listingsData = await listingsRes.json();
       const verData = await verRes.json();
+      const disputesData = await disputesRes.json();
       if (!listingsRes.ok) {
         setFetchError(listingsData.error ?? "Could not load Admin review queue.");
         return;
@@ -113,10 +133,68 @@ export function AdminReviewClient({
       if (verRes.ok) {
         setVerifications(verData.verifications ?? []);
       }
+      if (disputesRes.ok) {
+        setDisputes(disputesData.disputes ?? []);
+      }
     } catch {
       setFetchError("Network error while refreshing review queue.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitDisputeResolution(
+    dealRoomId: string,
+    decision: AdminDisputeDecision
+  ) {
+    const note = (disputeNotesById[dealRoomId] ?? "").trim();
+    if (note.length < 10) {
+      setDisputeErrorsById((prev) => ({
+        ...prev,
+        [dealRoomId]:
+          "Enter a resolution note (at least 10 characters) explaining your decision.",
+      }));
+      return;
+    }
+
+    setBusyDisputeAction({ id: dealRoomId, decision });
+    setDisputeErrorsById((prev) => ({ ...prev, [dealRoomId]: undefined }));
+    setFeedback(null);
+
+    try {
+      const res = await fetch(`/api/admin/disputes/${dealRoomId}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, resolutionNote: note }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDisputeErrorsById((prev) => ({
+          ...prev,
+          [dealRoomId]: data.error ?? "Dispute resolution failed.",
+        }));
+        return;
+      }
+
+      const updatedDispute: AdminDisputeView = data.dispute;
+      setDisputes((prev) =>
+        prev.map((d) => (d.dealRoomId === dealRoomId ? updatedDispute : d))
+      );
+      setDisputeNotesById((prev) => {
+        const copy = { ...prev };
+        delete copy[dealRoomId];
+        return copy;
+      });
+      setFeedback(
+        `Resolved dispute for "${updatedDispute.teaserTitle}" (${updatedDispute.escrow.externalRef}) as ${updatedDispute.escrow.status} and wrote AuditLog entry.`
+      );
+    } catch {
+      setDisputeErrorsById((prev) => ({
+        ...prev,
+        [dealRoomId]: "Network error while resolving dispute.",
+      }));
+    } finally {
+      setBusyDisputeAction(null);
     }
   }
 
@@ -238,6 +316,233 @@ export function AdminReviewClient({
   const inactiveVerifications = verifications.filter(
     (v) => v.record.status !== "PENDING" && !v.evaluated.isVerified
   );
+
+  const openDisputes = disputes.filter(
+    (d) => d.roomStatus === "DISPUTED" || d.escrow.status === "DISPUTED"
+  );
+  const resolvedDisputes = disputes.filter(
+    (d) => d.roomStatus !== "DISPUTED" && d.escrow.status !== "DISPUTED"
+  );
+
+  function renderDisputeList(
+    items: AdminDisputeView[],
+    emptyTitle: string,
+    emptyDescription: string,
+    mode: "open" | "resolved"
+  ) {
+    if (loading) {
+      return (
+        <CardStateLoading
+          title="Loading dispute queue"
+          description="Checking flagged deal room escrow transactions and audit records."
+        />
+      );
+    }
+    if (items.length === 0) {
+      return <CardStateEmpty title={emptyTitle} description={emptyDescription} />;
+    }
+
+    const hasFieldError = items.some((d) => Boolean(disputeErrorsById[d.dealRoomId]));
+
+    return (
+      <div className="flex flex-col gap-6">
+        {items.map((item) => {
+          const isBusy = busyDisputeAction?.id === item.dealRoomId;
+          const noteError = disputeErrorsById[item.dealRoomId];
+          const wasFunded = Boolean(item.escrow.fundedAt);
+          const chipTone: StatusChipTone =
+            mode === "open"
+              ? "risk"
+              : item.escrow.status === "RELEASED" && !hasFieldError
+                ? "completed"
+                : "neutral";
+
+          return (
+            <Card key={item.dealRoomId}>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip
+                      tone={chipTone}
+                      emphasis={
+                        chipTone === "risk" || chipTone === "completed"
+                          ? "solid"
+                          : "outline"
+                      }
+                      label={`Escrow: ${item.escrow.status.replace("_", " ")}`}
+                    />
+                    <StatusChip
+                      tone="neutral"
+                      label={`Room: ${item.roomStatus}`}
+                    />
+                    {item.isSampleData ? (
+                      <StatusChip tone="neutral" label="Sample data" />
+                    ) : null}
+                  </div>
+                  <span className="text-14 text-slate tabular-figures">
+                    Ref:{" "}
+                    <strong className="text-ink">{item.escrow.externalRef}</strong>
+                  </span>
+                </div>
+
+                <CardTitle as="h2" className="pt-2">
+                  {item.teaserTitle}
+                </CardTitle>
+                <CardDescription>
+                  Buyer: {item.buyerName} · Seller: {item.sellerName} · Stage:{" "}
+                  {item.currentStage.replace("_", " ")}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 rounded border border-mist bg-cloud p-4 sm:grid-cols-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Escrow provider &amp; amount</span>
+                    <span className="text-16 font-semibold text-deep-navy tabular-figures">
+                      {item.escrow.provider} ·{" "}
+                      {formatCurrency(item.escrow.amount, {
+                        currency: item.escrow.currency,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Funding status</span>
+                    <span className="text-16 font-medium text-ink">
+                      {wasFunded ? "Funded in third-party escrow" : "Not funded yet"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Transfer checklist</span>
+                    <span className="text-16 font-medium text-ink tabular-figures">
+                      {item.transferTotalCount > 0
+                        ? `${item.transferConfirmedCount} / ${item.transferTotalCount} confirmed`
+                        : "Not in Transfer stage"}
+                    </span>
+                  </div>
+                </div>
+
+                {item.escrow.disputeReason ? (
+                  <div className="rounded border border-mist bg-white p-4">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      Reported dispute reason
+                    </span>
+                    <p className="pt-1 text-16 text-ink">
+                      {item.escrow.disputeReason}
+                    </p>
+                  </div>
+                ) : null}
+
+                {item.resolutionNote ? (
+                  <div className="rounded border border-mist bg-cloud p-4">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      Reviewer resolution note
+                    </span>
+                    <p className="pt-1 text-16 text-ink">{item.resolutionNote}</p>
+                  </div>
+                ) : null}
+
+                {mode === "open" ? (
+                  <Textarea
+                    label="Dispute resolution note (required for AuditLog)"
+                    value={disputeNotesById[item.dealRoomId] ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDisputeNotesById((prev) => ({
+                        ...prev,
+                        [item.dealRoomId]: val,
+                      }));
+                      if (noteError) {
+                        setDisputeErrorsById((prev) => ({
+                          ...prev,
+                          [item.dealRoomId]: undefined,
+                        }));
+                      }
+                    }}
+                    error={noteError}
+                    rows={2}
+                    placeholder="Document evidence reviewed from Transfer checklist, chat, and third-party escrow logs."
+                  />
+                ) : null}
+              </CardContent>
+
+              <CardFooter>
+                <Button asChild variant="link">
+                  <Link href={`/deals/${item.dealRoomId}`}>
+                    <span>Inspect deal room</span>
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+
+                {mode === "open" ? (
+                  <div className="flex flex-wrap gap-2">
+                    {wasFunded ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isBusy}
+                        loading={
+                          isBusy &&
+                          busyDisputeAction?.decision === "REFUND_TO_BUYER"
+                        }
+                        loadingLabel="Refunding..."
+                        onClick={() =>
+                          void submitDisputeResolution(
+                            item.dealRoomId,
+                            "REFUND_TO_BUYER"
+                          )
+                        }
+                      >
+                        <span>Refund to Buyer</span>
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isBusy}
+                      loading={
+                        isBusy &&
+                        busyDisputeAction?.decision === "RESUME_TO_IN_REVIEW"
+                      }
+                      loadingLabel="Resuming..."
+                      onClick={() =>
+                        void submitDisputeResolution(
+                          item.dealRoomId,
+                          "RESUME_TO_IN_REVIEW"
+                        )
+                      }
+                    >
+                      <span>Resume to In Review</span>
+                    </Button>
+                    {wasFunded ? (
+                      <Button
+                        type="button"
+                        variant="primary"
+                        disabled={isBusy}
+                        loading={
+                          isBusy &&
+                          busyDisputeAction?.decision === "RELEASE_TO_SELLER"
+                        }
+                        loadingLabel="Releasing..."
+                        onClick={() =>
+                          void submitDisputeResolution(
+                            item.dealRoomId,
+                            "RELEASE_TO_SELLER"
+                          )
+                        }
+                      >
+                        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                        <span>Release to Seller</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </CardFooter>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
 
   function renderVerificationList(
     items: VerificationWithEvaluation[],
@@ -785,6 +1090,9 @@ export function AdminReviewClient({
           <TabsTrigger value="verifications">
             Verification queue ({pendingVerifications.length} pending)
           </TabsTrigger>
+          <TabsTrigger value="disputes">
+            Dispute queue ({openDisputes.length} open)
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="listings">
@@ -865,6 +1173,37 @@ export function AdminReviewClient({
                 "No expired, failed, or revoked verifications",
                 "Connections or KYC checks that fail, expire, or get revoked appear here with their audit reason.",
                 "inactive"
+              )}
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="disputes">
+          <Tabs defaultValue="disputes-open">
+            <TabsList aria-label="Filter dispute queue by resolution status">
+              <TabsTrigger value="disputes-open">
+                Open disputes ({openDisputes.length})
+              </TabsTrigger>
+              <TabsTrigger value="disputes-resolved">
+                Resolved &amp; closed ({resolvedDisputes.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="disputes-open">
+              {renderDisputeList(
+                openDisputes,
+                "No open escrow disputes",
+                "Deal rooms flagged for missing asset transfers or escrow issues appear here for Reviewer resolution.",
+                "open"
+              )}
+            </TabsContent>
+
+            <TabsContent value="disputes-resolved">
+              {renderDisputeList(
+                resolvedDisputes,
+                "No resolved or refunded disputes",
+                "Completed dispute arbitrations and refunds remain auditable here.",
+                "resolved"
               )}
             </TabsContent>
           </Tabs>

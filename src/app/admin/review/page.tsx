@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { canReviewAdminQueue } from "@/lib/auth/permissions";
 import { getServerSession } from "@/lib/auth/session-server";
+import { listDisputedDealRoomsForAdmin } from "@/lib/deal-rooms/store";
 import { listListingsForAdminReview } from "@/lib/listings/store";
 import { listVerificationsForAdminReview } from "@/lib/verification/store";
 
@@ -53,24 +54,28 @@ export default async function AdminReviewPage() {
     );
   }
 
-  const [listings, verifications] = await Promise.all([
+  const [listings, verifications, disputesRes] = await Promise.all([
     listListingsForAdminReview(session!),
     listVerificationsForAdminReview(session!),
+    listDisputedDealRoomsForAdmin(session!),
   ]);
+
+  const disputes = disputesRes.ok ? disputesRes.data : [];
 
   return (
     <AppShell
       activeNav="admin"
       trustBanner={{
         canTrustAnswer:
-          "You are viewing confidential identity fields and verification records under Reviewer access. Every action appends to the AuditLog.",
+          "You are viewing confidential identity fields, verification records, and escrow disputes under Reviewer access. Every action appends to the AuditLog.",
         nextStepAnswer:
-          "Inspect pending submissions and KYC/Proof of Funds/Connector verifications, enter a reviewer note, and Approve, Flag, Fail, or Expire.",
+          "Inspect pending submissions, KYC/POF/Connector verifications, or flagged escrow disputes, enter a reviewer note, and record your decision.",
       }}
     >
       <AdminReviewClient
         initialListings={listings}
         initialVerifications={verifications}
+        initialDisputes={disputes}
       />
     </AppShell>
   );
