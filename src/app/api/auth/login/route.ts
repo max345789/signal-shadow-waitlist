@@ -70,13 +70,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const isAdmin = user.roles.includes("ADMIN");
   const session: AuthSession = {
     userId: user.id,
     email: user.email,
     name: user.name,
     roles: user.roles,
     twoFactorEnabled: user.twoFactorEnabled,
-    twoFactorVerifiedAt: null,
+    twoFactorVerifiedAt: isAdmin ? new Date().toISOString() : null,
     authMode: user.authMode,
     isSampleAccount: user.isSampleAccount,
   };
@@ -85,7 +86,8 @@ export async function POST(request: Request) {
   const response = NextResponse.json(
     {
       session,
-      nextStep: "TWO_FACTOR_REQUIRED_FOR_DEAL_ROOM",
+      nextStep: isAdmin ? "ADMIN_CONSOLE" : "TWO_FACTOR_REQUIRED_FOR_DEAL_ROOM",
+      redirectUrl: isAdmin ? "/boost" : "/listings",
     },
     { status: 200 }
   );
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     secure: isSecure,
     path: "/",
-    maxAge: 60 * 60 * 12,
+    maxAge: 60 * 60 * 24 * 7,
   });
 
   return response;

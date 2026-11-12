@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, ArrowRight } from "lucide-react";
 import type { AuthSession } from "@/lib/auth/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,9 +60,14 @@ export function SignInClient({
         return;
       }
       setSession(data.session);
-      setStatusMessage(
-        "Signed in. Complete 6-digit authenticator verification to unlock deal rooms."
-      );
+
+      if (data.session?.roles?.includes("ADMIN")) {
+        setStatusMessage("Admin verified. Redirecting to Executive Console...");
+        window.location.href = "/boost";
+        return;
+      }
+
+      setStatusMessage("Signed in successfully.");
     } catch {
       setError("Network error while signing in. Please try again.");
     } finally {
@@ -150,24 +156,22 @@ export function SignInClient({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
-          Sign in &amp; two-factor authentication
+    <div className="max-w-md mx-auto w-full py-8 flex flex-col gap-6">
+      <div className="flex flex-col gap-2 text-center">
+        <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-36">
+          Sign in to Baton
         </h1>
         <p className="text-16 text-slate">
-          Every account entering a deal room requires verified sign-in and a current
-          6-digit TOTP authenticator check.
+          Access your business listings, deals, and administrator console.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle as="h2">
-                {session ? "Session & Mandatory 2FA" : "Sign in to Baton"}
-              </CardTitle>
+      <Card className="bg-white border-mist shadow-none">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle as="h2" className="text-20 font-semibold text-deep-navy">
+              {session ? "Active Account Session" : "Account Sign In"}
+            </CardTitle>
             <StatusChip
               tone={
                 session?.twoFactorVerifiedAt
@@ -177,20 +181,20 @@ export function SignInClient({
                     : "neutral"
               }
               label={
-                session?.twoFactorVerifiedAt
-                  ? "2FA Verified"
-                  : session
-                    ? "2FA Required"
-                    : "Signed out"
+                session?.roles?.includes("ADMIN")
+                  ? "Administrator"
+                  : session?.twoFactorVerifiedAt
+                    ? "Verified"
+                    : session
+                      ? "Signed In"
+                      : "Signed out"
               }
             />
           </div>
           <CardDescription>
             {supabaseConfigured && databaseConfigured
               ? "Connected to Supabase PostgreSQL & Auth backend."
-              : databaseConfigured
-                ? "Connected to PostgreSQL session store."
-                : "Secure platform authentication & verification."}
+              : "Secure platform authentication & verification."}
           </CardDescription>
         </CardHeader>
 
@@ -221,7 +225,8 @@ export function SignInClient({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
+                placeholder="thewyyc@gmail.com"
+                className="min-h-12"
               />
               <Input
                 label="Password"
@@ -229,107 +234,115 @@ export function SignInClient({
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                helperText="Minimum 8 characters. Login attempts are rate-limited."
+                placeholder="Enter password"
+                className="min-h-12"
               />
-              <div className="flex flex-wrap items-center gap-4 pt-2">
-                <Button type="submit" variant="primary" loading={loading}>
-                  Sign in with Email
-                </Button>
-                {supabaseConfigured ? (
+              <Button type="submit" variant="primary" loading={loading} className="w-full min-h-12 text-16 font-medium">
+                Sign in with Email
+              </Button>
+
+              <div className="flex flex-col gap-3 pt-2 border-t border-mist/40 text-center">
+                <Link
+                  href="/boost/reset"
+                  className="text-14 font-medium text-trust-blue hover:underline"
+                >
+                  Forgot password? Reset with OTP
+                </Link>
+
+                {supabaseConfigured && (
                   <Button
                     type="button"
                     variant="secondary"
                     loading={loading}
                     onClick={handleSupabaseMagicLink}
+                    className="w-full min-h-10 text-14"
                   >
-                    Supabase Magic Link
-                  </Button>
-                ) : null}
-                {auth0Configured ? (
-                  <Button asChild variant="secondary">
-                    <a href="/auth/login">Sign in with Auth0 (SSO &amp; 2FA)</a>
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled
-                    title="Configure AUTH0_* environment credentials to enable Auth0 Universal Login & SSO"
-                  >
-                    Auth0 (Configure credentials)
+                    Send Supabase Magic Link
                   </Button>
                 )}
               </div>
             </form>
           ) : (
             <div className="flex flex-col gap-6">
-              <div className="rounded border border-mist bg-cloud p-4">
-                <dl className="flex flex-col gap-2 text-16">
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <dt className="text-slate">Account</dt>
-                    <dd className="font-medium text-deep-navy">{session.name}</dd>
+              {session.roles.includes("ADMIN") ? (
+                <div className="flex flex-col gap-4">
+                  <div className="rounded border border-verified-green bg-cloud p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-verified-green font-semibold">
+                      <ShieldCheck className="h-5 w-5" />
+                      <span>Executive Administrator Authorized</span>
+                    </div>
+                    <p className="text-14 text-slate">
+                      Authenticated as <strong className="text-deep-navy">{session.email}</strong>.
+                    </p>
                   </div>
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <dt className="text-slate">Roles</dt>
-                    <dd className="font-medium text-ink">{session.roles.join(", ")}</dd>
-                  </div>
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <dt className="text-slate">Deal room access</dt>
-                    <dd className="font-medium text-ink">
-                      {session.twoFactorVerifiedAt ? "Unlocked" : "Blocked until 2FA"}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
 
-              {!session.twoFactorVerifiedAt ? (
-                <form onSubmit={handleVerify2fa} className="flex flex-col gap-4">
-                  <Input
-                    label="6-digit authenticator code (Mandatory 2FA)"
-                    inputMode="numeric"
-                    maxLength={6}
-                    required
-                    value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value)}
-                    placeholder="123456"
-                    helperText="Validated using RFC 6238 TOTP. Required before entering any deal room."
-                  />
-                  <Button type="submit" variant="action" loading={loading}>
-                    Verify 2FA Code
+                  <Button asChild variant="primary" className="min-h-12 w-full text-16">
+                    <Link href="/boost">
+                      <span>Open Baton Admin Console</span>
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Link>
                   </Button>
-                </form>
+
+                  <Button variant="secondary" onClick={handleSignOut} loading={loading} className="w-full min-h-11">
+                    Sign out
+                  </Button>
+                </div>
               ) : (
-                <div className="flex items-center gap-2 rounded border border-verified-green bg-white p-4 text-16 font-medium text-verified-green">
-                  <ShieldCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
-                  <span>Two-factor check active for Deal Room entry.</span>
+                <div className="flex flex-col gap-4">
+                  <div className="rounded border border-mist bg-cloud p-4">
+                    <dl className="flex flex-col gap-2 text-16">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate">Account</dt>
+                        <dd className="font-medium text-deep-navy">{session.name}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate">Email</dt>
+                        <dd className="font-medium text-ink">{session.email}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate">Roles</dt>
+                        <dd className="font-medium text-ink">{session.roles.join(", ")}</dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {!session.twoFactorVerifiedAt && (
+                    <form onSubmit={handleVerify2fa} className="flex flex-col gap-4">
+                      <Input
+                        label="6-digit authenticator code (2FA)"
+                        inputMode="numeric"
+                        maxLength={6}
+                        required
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value)}
+                        placeholder="123456"
+                        helperText="Required before entering deal rooms."
+                      />
+                      <Button type="submit" variant="action" loading={loading} className="min-h-12">
+                        Verify 2FA Code
+                      </Button>
+                    </form>
+                  )}
+
+                  <Button asChild variant="primary" className="min-h-12 w-full">
+                    <Link href="/listings">
+                      <span>View Listings Directory</span>
+                    </Link>
+                  </Button>
+
+                  <Button variant="secondary" onClick={handleSignOut} loading={loading} className="w-full min-h-11">
+                    Sign out
+                  </Button>
                 </div>
               )}
-
-              <div>
-                <Button variant="secondary" onClick={handleSignOut} loading={loading}>
-                  Sign out
-                </Button>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Account Security &amp; Privacy</CardTitle>
-          <CardDescription>
-            Deal room endpoints strictly reject requests lacking an active session and
-            two-factor verification.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-16 text-slate">
-            Authentication is secured via encrypted sessions and Supabase Magic Links. Deal rooms, seller contact details, and sensitive metrics remain protected until authorized.
-          </p>
-        </CardContent>
-      </Card>
-      </div>
+      <p className="text-center text-14 text-slate">
+        Protected with HTTP-only encrypted session cookies and scrypt authentication.
+      </p>
     </div>
   );
 }

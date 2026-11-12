@@ -80,28 +80,30 @@ export function AppShell({
               {/* Desktop Navigation (>= 1024px) */}
               <nav
                 aria-label="Primary navigation"
-                className="hidden lg:flex flex-wrap items-center gap-1"
+                className="hidden lg:flex items-center gap-1 xl:gap-1.5"
               >
-                {navItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    aria-current={activeNav === item.key ? "page" : undefined}
-                    className={cn(
-                      "inline-flex min-h-[44px] items-center rounded border px-3 py-2 text-16 font-medium no-underline state-transition",
-                      activeNav === item.key
-                        ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                        : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+                {navItems
+                  .filter((item) => item.key !== "home" && item.key !== "compare" && item.key !== "style-guide")
+                  .map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      aria-current={activeNav === item.key ? "page" : undefined}
+                      className={cn(
+                        "inline-flex min-h-[38px] xl:min-h-[42px] items-center rounded border px-2.5 xl:px-3 py-1.5 text-14 xl:text-15 font-medium no-underline state-transition whitespace-nowrap",
+                        activeNav === item.key
+                          ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                          : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
                 <Link
                   href="/auth/signin"
                   aria-current={activeNav === "signin" ? "page" : undefined}
                   className={cn(
-                    "inline-flex min-h-[44px] items-center rounded border px-3 py-2 text-16 font-medium no-underline state-transition ml-2",
+                    "inline-flex min-h-[38px] xl:min-h-[42px] items-center rounded border px-3.5 py-1.5 text-14 xl:text-15 font-medium no-underline state-transition ml-1 xl:ml-2 whitespace-nowrap",
                     activeNav === "signin"
                       ? "border-deep-navy bg-deep-navy text-white font-semibold"
                       : "border-mist bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
