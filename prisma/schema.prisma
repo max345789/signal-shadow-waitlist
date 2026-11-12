@@ -1,0 +1,482 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  BUYER
+  SELLER
+  ADMIN
+  REVIEWER
+}
+
+enum CurrencyCode {
+  INR
+  USD
+  EUR
+  GBP
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  FLAGGED
+  REJECTED
+  ARCHIVED
+}
+
+enum MetricKey {
+  REVENUE
+  PROFIT
+  GROWTH
+  CHURN
+  TRAFFIC
+  CUSTOMERS
+}
+
+enum MetricUnit {
+  CURRENCY
+  PERCENT
+  COUNT
+}
+
+enum MetricSource {
+  SELLER_REPORTED
+  STRIPE
+  RAZORPAY
+  GA4
+  PLAUSIBLE
+}
+
+enum VerificationType {
+  IDENTITY
+  PROOF_OF_FUNDS
+  PAYMENT_CONNECTOR
+  ANALYTICS_CONNECTOR
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  FAILED
+  REVOKED
+}
+
+enum DealStageType {
+  INTRO
+  NDA
+  DATA_ACCESS
+  OFFER
+  DUE_DILIGENCE
+  ESCROW
+  TRANSFER
+}
+
+enum StageOwner {
+  BUYER
+  SELLER
+  BOTH
+  ADMIN
+}
+
+enum StageStatus {
+  COMPLETED
+  ACTIVE
+  PENDING
+  BLOCKED
+}
+
+enum DealRoomStatus {
+  ACTIVE
+  DISPUTED
+  COMPLETED
+  CANCELLED
+}
+
+enum VirusScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+}
+
+enum OfferStatus {
+  PROPOSED
+  COUNTERED
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
+enum ChecklistPhase {
+  DUE_DILIGENCE
+  TRANSFER
+}
+
+enum ChecklistStatus {
+  OPEN
+  IN_PROGRESS
+  CONFIRMED
+}
+
+enum EscrowStatus {
+  INITIATED
+  FUNDED
+  IN_REVIEW
+  RELEASED
+  DISPUTED
+  REFUNDED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        RoleType @unique
+  description String
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model User {
+  id                  String         @id @default(cuid())
+  email               String         @unique
+  name                String
+  passwordHash        String?
+  oauthProvider       String?
+  oauthSubject        String?
+  twoFactorEnabled    Boolean        @default(false)
+  twoFactorSecret     String?
+  twoFactorVerifiedAt DateTime?
+  roles               Role[]
+  buyerProfile        BuyerProfile?
+  sellerProfile       SellerProfile?
+  verifications       Verification[]
+  messages            Message[]
+  uploadedDocuments   Document[]
+  documentViews       DocumentView[]
+  offers              Offer[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([oauthProvider, oauthSubject])
+}
+
+model BuyerProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String?
+  bio                String?
+  minBudget          Decimal?           @db.Decimal(18, 2)
+  maxBudget          Decimal?           @db.Decimal(18, 2)
+  preferredCurrency  CurrencyCode       @default(INR)
+  identityStatus     VerificationStatus @default(PENDING)
+  proofOfFundsStatus VerificationStatus @default(PENDING)
+  theses             Thesis[]
+  dealRooms          DealRoom[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model SellerProfile {
+  id             String             @id @default(cuid())
+  userId         String             @unique
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String?
+  bio            String?
+  payoutCountry  String             @default("IN")
+  identityStatus VerificationStatus @default(PENDING)
+  businesses     Business[]
+  dealRooms      DealRoom[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model Thesis {
+  id             String       @id @default(cuid())
+  buyerProfileId String
+  buyerProfile   BuyerProfile @relation(fields: [buyerProfileId], references: [id], onDelete: Cascade)
+  title          String
+  sector         String?
+  minRevenue     Decimal?     @db.Decimal(18, 2)
+  maxRevenue     Decimal?     @db.Decimal(18, 2)
+  minProfit      Decimal?     @db.Decimal(18, 2)
+  maxOwnerHours  Int?
+  geography      String?
+  minPrice       Decimal?     @db.Decimal(18, 2)
+  maxPrice       Decimal?     @db.Decimal(18, 2)
+  currency       CurrencyCode @default(INR)
+  freeText       String       @default("")
+  alertsEnabled  Boolean      @default(true)
+  isSampleData   Boolean      @default(false)
+  matches        Match[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([buyerProfileId])
+}
+
+model Business {
+  id                 String           @id @default(cuid())
+  sellerProfileId    String
+  sellerProfile      SellerProfile    @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  slug               String           @unique
+  teaserTitle        String
+  redactedName       String
+  redactedDomain     String
+  redactedCustomers  String?
+  sector             String
+  geography          String
+  askingPrice        Decimal          @db.Decimal(18, 2)
+  currency           CurrencyCode     @default(INR)
+  ownerHoursPerWeek  Int
+  reasonForSelling   String
+  financialNarrative String
+  risksSummary       String
+  assetsIncluded     String[]
+  founderMediaUrl    String?
+  status             ListingStatus    @default(DRAFT)
+  isSampleData       Boolean          @default(false)
+  metrics            BusinessMetric[]
+  verifications      Verification[]
+  matches            Match[]
+  dealRooms          DealRoom[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([status, sector])
+}
+
+model BusinessMetric {
+  id             String        @id @default(cuid())
+  businessId     String
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  key            MetricKey
+  label          String
+  value          Decimal       @db.Decimal(18, 2)
+  unit           MetricUnit
+  currency       CurrencyCode?
+  source         MetricSource  @default(SELLER_REPORTED)
+  verificationId String?
+  verification   Verification? @relation(fields: [verificationId], references: [id], onDelete: SetNull)
+  verifiedAt     DateTime?
+  isSampleData   Boolean       @default(false)
+  updatedAt      DateTime      @updatedAt
+
+  @@index([businessId, key])
+}
+
+model Verification {
+  id            String             @id @default(cuid())
+  userId        String?
+  user          User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId    String?
+  business      Business?          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type          VerificationType
+  provider      String
+  status        VerificationStatus @default(PENDING)
+  verifiedAt    DateTime?
+  expiresAt     DateTime?
+  failureReason String?
+  metadataJson  Json?
+  metrics       BusinessMetric[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId, type, status])
+  @@index([businessId, type, status])
+}
+
+model Match {
+  id             String    @id @default(cuid())
+  thesisId       String
+  thesis         Thesis    @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  businessId     String
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  score          Int
+  reasonsJson    Json
+  mismatchesJson Json
+  alertSentAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([thesisId, businessId])
+  @@index([thesisId, score])
+}
+
+model DealRoom {
+  id                 String              @id @default(cuid())
+  businessId         String
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  buyerProfileId     String
+  buyerProfile       BuyerProfile        @relation(fields: [buyerProfileId], references: [id], onDelete: Restrict)
+  sellerProfileId    String
+  sellerProfile      SellerProfile       @relation(fields: [sellerProfileId], references: [id], onDelete: Restrict)
+  currentStage       DealStageType       @default(INTRO)
+  status             DealRoomStatus      @default(ACTIVE)
+  ndaSignedAt        DateTime?
+  ndaDocumentId      String?
+  stages             DealStage[]
+  messages           Message[]
+  documents          Document[]
+  offers             Offer[]
+  checklistItems     ChecklistItem[]
+  escrowTransactions EscrowTransaction[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([businessId, buyerProfileId])
+  @@index([status, currentStage])
+}
+
+model DealStage {
+  id             String        @id @default(cuid())
+  dealRoomId     String
+  dealRoom       DealRoom      @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  stage          DealStageType
+  ownerRole      StageOwner
+  requiredAction String
+  status         StageStatus   @default(PENDING)
+  completedAt    DateTime?
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([dealRoomId, stage])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  dealRoomId String
+  dealRoom   DealRoom  @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  parentId   String?
+  parent     Message?  @relation("MessageThread", fields: [parentId], references: [id], onDelete: SetNull)
+  replies    Message[] @relation("MessageThread")
+  body       String
+  createdAt  DateTime  @default(now())
+
+  @@index([dealRoomId, createdAt])
+}
+
+model Document {
+  id              String          @id @default(cuid())
+  dealRoomId      String
+  dealRoom        DealRoom        @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  uploadedById    String
+  uploadedBy      User            @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  title           String
+  category        String
+  storageKey      String
+  watermarkedKey  String?
+  version         Int             @default(1)
+  virusScanStatus VirusScanStatus @default(PENDING)
+  views           DocumentView[]
+  createdAt       DateTime        @default(now())
+
+  @@index([dealRoomId, category])
+}
+
+model DocumentView {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  viewerId   String
+  viewer     User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+  viewedAt   DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([documentId, viewedAt])
+}
+
+model Offer {
+  id            String       @id @default(cuid())
+  dealRoomId    String
+  dealRoom      DealRoom     @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  proposerId    String
+  proposer      User         @relation(fields: [proposerId], references: [id], onDelete: Restrict)
+  amount        Decimal      @db.Decimal(18, 2)
+  currency      CurrencyCode @default(INR)
+  termsSummary  String
+  status        OfferStatus  @default(PROPOSED)
+  parentOfferId String?
+  parentOffer   Offer?       @relation("OfferHistory", fields: [parentOfferId], references: [id], onDelete: SetNull)
+  counterOffers Offer[]      @relation("OfferHistory")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([dealRoomId, createdAt])
+}
+
+model ChecklistItem {
+  id                String          @id @default(cuid())
+  dealRoomId        String
+  dealRoom          DealRoom        @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  phase             ChecklistPhase
+  category          String
+  title             String
+  buyerConfirmedAt  DateTime?
+  sellerConfirmedAt DateTime?
+  status            ChecklistStatus @default(OPEN)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([dealRoomId, phase])
+}
+
+model EscrowTransaction {
+  id            String       @id @default(cuid())
+  dealRoomId    String
+  dealRoom      DealRoom     @relation(fields: [dealRoomId], references: [id], onDelete: Restrict)
+  provider      String
+  externalRef   String       @unique
+  amount        Decimal      @db.Decimal(18, 2)
+  currency      CurrencyCode @default(INR)
+  status        EscrowStatus @default(INITIATED)
+  fundedAt      DateTime?
+  releasedAt    DateTime?
+  disputeReason String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([dealRoomId, status])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  actionUrl String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id            String    @id @default(cuid())
+  actorId       String?
+  actor         User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  dealRoomId    String?
+  dealRoom      DealRoom? @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
+  entityType    String
+  entityId      String
+  action        String
+  previousState Json?
+  newState      Json?
+  metadataJson  Json?
+  createdAt     DateTime  @default(now())
+
+  @@index([dealRoomId, createdAt])
+  @@index([entityType, entityId])
+}
