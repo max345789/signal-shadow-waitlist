@@ -1,4 +1,17 @@
-import { PrismaClient, RoleType } from "@prisma/client";
+import {
+  CurrencyCode,
+  ListingStatus,
+  MetricKey,
+  MetricSource,
+  MetricUnit,
+  Prisma,
+  PrismaClient,
+  RoleType,
+  VerificationStatus,
+  VerificationType,
+} from "@prisma/client";
+import { hashPassword } from "../src/lib/auth/crypto";
+import { createSampleSeedListings } from "../src/lib/listings/sample-data";
 
 const prisma = new PrismaClient();
 
@@ -18,8 +31,205 @@ async function main() {
     });
   }
 
-  // Note: Sample businesses and theses for Phase 1+ will always be marked `isSampleData: true`.
-  console.log("Seeded canonical Role records.");
+  // Seed explicit Sample Data accounts and Sample Phase 1 listings (only when SEED_SAMPLE_DATA !== "false")
+  if (process.env.SEED_SAMPLE_DATA !== "false") {
+    const samplePassword = process.env.LOCAL_DEV_SAMPLE_PASSWORD ?? "SampleDevPass!2026";
+    const passwordHash = hashPassword(samplePassword);
+
+    const sampleUsers = [
+      {
+        id: "sample-buyer-01",
+        email: "buyer.sample@trustmarketplace.local",
+        name: "Ananya Rao (Sample Buyer)",
+        roles: [RoleType.BUYER],
+        twoFactorSecret: "JBSWY3DPEHPK3PXP",
+      },
+      {
+        id: "sample-seller-01",
+        email: "seller.sample@trustmarketplace.local",
+        name: "Rohan Mehta (Sample Seller)",
+        roles: [RoleType.SELLER],
+        twoFactorSecret: "KRSXG5CTMVRXEZLU",
+      },
+      {
+        id: "sample-seller-02",
+        email: "seller2.sample@trustmarketplace.local",
+        name: "Kavita Deshmukh (Sample Seller)",
+        roles: [RoleType.SELLER],
+        twoFactorSecret: "KRSXG5CTMVRXEZLU",
+      },
+      {
+        id: "sample-reviewer-01",
+        email: "reviewer.sample@trustmarketplace.local",
+        name: "Priya Nair (Sample Reviewer)",
+        roles: [RoleType.REVIEWER, RoleType.ADMIN],
+        twoFactorSecret: "MFRGGZDFMZTWQ2LK",
+      },
+    ];
+
+    for (const u of sampleUsers) {
+      await prisma.user.upsert({
+        where: { email: u.email },
+        update: { name: u.name },
+        create: {
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          passwordHash,
+          twoFactorEnabled: true,
+          twoFactorSecret: u.twoFactorSecret,
+          roles: {
+            connect: u.roles.map((name) => ({ name })),
+          },
+        },
+      });
+    }
+
+    await prisma.buyerProfile.upsert({
+      where: { userId: "sample-buyer-01" },
+      update: {},
+      create: {
+        id: "sample-buyer-profile-01",
+        userId: "sample-buyer-01",
+        preferredCurrency: CurrencyCode.INR,
+      },
+    });
+
+    await prisma.sellerProfile.upsert({
+      where: { userId: "sample-seller-01" },
+      update: {},
+      create: {
+        id: "sample-seller-profile-01",
+        userId: "sample-seller-01",
+        payoutCountry: "IN",
+      },
+    });
+
+    await prisma.sellerProfile.upsert({
+      where: { userId: "sample-seller-02" },
+      update: {},
+      create: {
+        id: "sample-seller-profile-02",
+        userId: "sample-seller-02",
+        payoutCountry: "IN",
+      },
+    });
+
+    const sampleListings = createSampleSeedListings();
+    for (const biz of sampleListings) {
+      await prisma.business.upsert({
+        where: { slug: biz.slug },
+        update: {
+          teaserTitle: biz.teaserTitle,
+          teaserSummary: biz.teaserSummary,
+          status: biz.status as ListingStatus,
+          isSampleData: true,
+        },
+        create: {
+          id: biz.id,
+          sellerProfileId: biz.sellerProfileId,
+          slug: biz.slug,
+          teaserTitle: biz.teaserTitle,
+          teaserSummary: biz.teaserSummary,
+          redactedName: biz.redactedName,
+          redactedDomain: biz.redactedDomain,
+          redactedCustomers: biz.redactedCustomers,
+          sector: biz.sector,
+          geography: biz.geography,
+          askingPrice: biz.askingPrice,
+          currency: biz.currency as CurrencyCode,
+          ownerHoursPerWeek: biz.ownerHoursPerWeek,
+          reasonForSelling: biz.reasonForSelling,
+          founderStory: biz.founderStory,
+          founderMediaUrl: biz.founderMediaUrl,
+          founderMediaType: biz.founderMediaType,
+          financialNarrative: biz.financialNarrative,
+          financialSeriesJson: biz.financialSeries as unknown as Prisma.InputJsonValue,
+          risksSummary: biz.risksSummary,
+          techStack: biz.techStack,
+          assetsIncluded: biz.assetsIncluded,
+          valuationLow: biz.valuationLow,
+          valuationHigh: biz.valuationHigh,
+          valuationBasis: biz.valuationBasis,
+          status: biz.status as ListingStatus,
+          submittedAt: biz.submittedAt ? new Date(biz.submittedAt) : null,
+          reviewedAt: biz.reviewedAt ? new Date(biz.reviewedAt) : null,
+          reviewedById: biz.reviewedById,
+          reviewerNote: biz.reviewerNote,
+          isSampleData: true,
+        },
+      });
+
+      const createdVerIds = new Set<string>();
+      for (const m of biz.metrics) {
+        if (m.verification && !createdVerIds.has(m.verification.id)) {
+          createdVerIds.add(m.verification.id);
+          const vType =
+            m.source === "GA4" || m.source === "PLAUSIBLE"
+              ? VerificationType.ANALYTICS_CONNECTOR
+              : VerificationType.PAYMENT_CONNECTOR;
+          await prisma.verification.upsert({
+            where: { id: m.verification.id },
+            update: {
+              status: m.verification.status as VerificationStatus,
+              verifiedAt: m.verification.verifiedAt ? new Date(m.verification.verifiedAt) : null,
+              expiresAt: m.verification.expiresAt ? new Date(m.verification.expiresAt) : null,
+            },
+            create: {
+              id: m.verification.id,
+              businessId: biz.id,
+              type: vType,
+              provider: m.verification.provider,
+              status: m.verification.status as VerificationStatus,
+              verifiedAt: m.verification.verifiedAt ? new Date(m.verification.verifiedAt) : null,
+              expiresAt: m.verification.expiresAt ? new Date(m.verification.expiresAt) : null,
+            },
+          });
+        }
+
+        await prisma.businessMetric.upsert({
+          where: { id: m.id },
+          update: {
+            value: m.value,
+            source: m.source as MetricSource,
+            verificationId: m.verification?.id ?? null,
+          },
+          create: {
+            id: m.id,
+            businessId: biz.id,
+            key: m.key as MetricKey,
+            label: m.label,
+            value: m.value,
+            unit: m.unit as MetricUnit,
+            currency: m.currency ? (m.currency as CurrencyCode) : null,
+            source: m.source as MetricSource,
+            verificationId: m.verification?.id ?? null,
+            verifiedAt: m.verification?.verifiedAt ? new Date(m.verification.verifiedAt) : null,
+            isSampleData: true,
+          },
+        });
+      }
+
+      for (const q of biz.questions) {
+        await prisma.listingQuestion.upsert({
+          where: { id: q.id },
+          update: {},
+          create: {
+            id: q.id,
+            businessId: biz.id,
+            askerId: q.askerId,
+            askerLabel: q.askerLabel,
+            question: q.question,
+            answer: q.answer,
+            answeredAt: q.answeredAt ? new Date(q.answeredAt) : null,
+            isSampleData: true,
+          },
+        });
+      }
+    }
+  }
+
+  console.log("Seeded canonical Role records and Sample Phase 1 listings.");
 }
 
 main()

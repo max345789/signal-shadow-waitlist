@@ -161,8 +161,9 @@ model User {
   offers              Offer[]
   notifications       Notification[]
   auditLogs           AuditLog[]
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  questionsAsked      ListingQuestion[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([oauthProvider, oauthSubject])
 }
@@ -223,34 +224,64 @@ model Thesis {
 }
 
 model Business {
-  id                 String           @id @default(cuid())
-  sellerProfileId    String
-  sellerProfile      SellerProfile    @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  slug               String           @unique
-  teaserTitle        String
-  redactedName       String
-  redactedDomain     String
-  redactedCustomers  String?
-  sector             String
-  geography          String
-  askingPrice        Decimal          @db.Decimal(18, 2)
-  currency           CurrencyCode     @default(INR)
-  ownerHoursPerWeek  Int
-  reasonForSelling   String
-  financialNarrative String
-  risksSummary       String
-  assetsIncluded     String[]
-  founderMediaUrl    String?
-  status             ListingStatus    @default(DRAFT)
-  isSampleData       Boolean          @default(false)
-  metrics            BusinessMetric[]
-  verifications      Verification[]
-  matches            Match[]
-  dealRooms          DealRoom[]
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                  String            @id @default(cuid())
+  sellerProfileId     String
+  sellerProfile       SellerProfile     @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  slug                String            @unique
+  teaserTitle         String
+  teaserSummary       String            @default("")
+  redactedName        String
+  redactedDomain      String
+  redactedCustomers   String?
+  sector              String
+  geography           String
+  askingPrice         Decimal           @db.Decimal(18, 2)
+  currency            CurrencyCode      @default(INR)
+  ownerHoursPerWeek   Int
+  reasonForSelling    String
+  founderStory        String            @default("")
+  founderMediaUrl     String?
+  founderMediaType    String?
+  financialNarrative  String
+  financialSeriesJson Json?
+  risksSummary        String
+  techStack           String[]          @default([])
+  assetsIncluded      String[]
+  valuationLow        Decimal?          @db.Decimal(18, 2)
+  valuationHigh       Decimal?          @db.Decimal(18, 2)
+  valuationBasis      String?
+  status              ListingStatus     @default(DRAFT)
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  reviewedById        String?
+  reviewerNote        String?
+  isSampleData        Boolean           @default(false)
+  metrics             BusinessMetric[]
+  verifications       Verification[]
+  questions           ListingQuestion[]
+  matches             Match[]
+  dealRooms           DealRoom[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([status, sector])
+}
+
+model ListingQuestion {
+  id           String    @id @default(cuid())
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  askerId      String?
+  asker        User?     @relation(fields: [askerId], references: [id], onDelete: SetNull)
+  askerLabel   String
+  question     String
+  answer       String?
+  answeredAt   DateTime?
+  isSampleData Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([businessId, createdAt])
 }
 
 model BusinessMetric {

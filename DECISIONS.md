@@ -59,9 +59,37 @@ Mathematical WCAG 2.1 contrast audit of Section 4 pairs revealed two critical ru
 
 ---
 
-## Next: Phase 1 Plan (Listings and Vitals)
-1. **Seller Onboarding & Guided Valuation**: Multi-step flow capturing sector, financials, owner hours, geography, and reason for selling with conservative valuation guidance (labelled estimates, never guaranteed claims).
-2. **Auto-Built Listing Editor & Redaction Controls**: Separate public teaser fields from NDA-gated sensitive identity fields (`businessName`, `domain`, `customerNames`).
-3. **Listing Page with Live Vitals Strip**: Ordered strictly per Section 6 (`Vitals strip`, `Founder audio/video note`, `Reason for selling`, `Financial narrative`, `Risks`, `Assets included`, `Q&A`), clearly separating verified connected metrics from `Seller-reported` numbers.
-4. **Admin Review Queue**: Approve/flag/reject workflow for listings with required reviewer notes and `AuditLog` entries.
-5. **Sample Data Seed**: Explicit `isSampleData: true` listings clearly badged `Sample data` everywhere rendered.
+## Phase 1: Listings and Vitals
+
+### 10. Listing Schema Extensions & Q&A Persistence
+- **Decision**: Extended `Business` in `prisma/schema.prisma` with `teaserSummary`, `founderStory`, `founderMediaType`, `techStack`, `financialSeriesJson`, `valuationLow`, `valuationHigh`, `valuationBasis`, `submittedAt`, `reviewedAt`, `reviewedById`, and `reviewerNote`, and added a dedicated `ListingQuestion` model for public buyer Q&A threads.
+- **Why**: Supports all Section 5 & Section 6 Listing page elements (including financial charts, tech & assets, and Q&A) with normalized persistence and auditability.
+
+### 11. Conservative Guided Valuation & Zero-Hype Framing
+- **Decision**: Implemented `calculateGuidedValuation()` in `src/lib/domain/valuation.ts` using conservative sector profit multiples (`1.5x–4.0x` depending on sector, adjusted for weekly owner hours and annual growth rate, with a `0.8x–1.4x` pre-profit revenue fallback). Every output includes an explicit disclaimer that it is an illustrative estimate from seller-reported inputs, never a guaranteed exit price.
+- **Why**: Aligns with Section 2 ("Never fake trust", "Never use urgency tricks or hype") and Section 3 ("guided valuation, auto-built listing").
+
+### 12. Server-Side Redaction & Confidential Leak Guard
+- **Decision**: `sanitizeListingForViewer()` in `src/lib/domain/listings.ts` strips `redactedName`, `redactedDomain`, `redactedCustomers`, and internal `reviewerNote`/`auditLogs` on the server unless the viewer is the owning Seller, an Admin/Reviewer, or a Buyer with a completed NDA. `detectConfidentialLeak()` blocks submission for Admin review if `redactedName` or `redactedDomain` appears inside public teaser fields.
+- **Why**: Enforces Section 6 ("Sensitive details (name, domain, customer names) are redacted until NDA is signed") at the data-serialization boundary rather than relying on client-only CSS hiding.
+
+### 13. Strict Separation of Verified vs Seller-Reported Vitals
+- **Decision**: Seller-created listings in Phase 1 create `BusinessMetric` rows strictly with `source = SELLER_REPORTED` and `verificationId = null`; API endpoints ignore any client-supplied verification fields. The Listing detail page separates **Verified connected metrics** (`Verified Green`, active `Verification` record + source + `Last verified` timestamp) from **Seller-reported metrics (unverified)** (neutral `Cloud`/`Mist` panel + `Seller-reported` chip). Seeded sample listings (`isSampleData: true`) supply real `Verification` records (`Stripe`, `GA4`, `Razorpay`) to demonstrate the distinction cleanly until Phase 3 live connectors launch.
+- **Why**: Satisfies Section 2, Section 6, and Phase 1 acceptance criteria without faking trust.
+
+### 14. Status-Tabbed Seller & Admin Views for the 3-Color Rule
+- **Decision**: `/seller` and `/admin/review` organize listings into Radix Tabs by status (`Drafts & pending` / `Pending review`, `Approved`, `Flagged & rejected`). Admin review decisions (`APPROVE`, `FLAG`, `REJECT`) require a minimum 5-character reviewer note and append an `AuditLog` entry.
+- **Why**: Prevents mixing `Amber`, `Verified Green`, and `Brick Red` chips on a single screen, maintaining Section 4's limit of `<= 3` non-neutral colors visible per view alongside `Deep Navy` and `Trust Blue`.
+
+### 15. Local Founder Voice Note Media Endpoint
+- **Decision**: Added `/api/media/sample-founder-note` returning a deterministic PCM WAV audio stream for sample listings and restricted `founderMediaUrl` to `https://` or `/api/media/` paths via `sanitizeFounderMediaUrl()`.
+- **Why**: Avoids broken external media URLs, console 404 errors, and `javascript:`/`http:` URL risks while keeping the Section 6 `<audio controls>` founder voice note functional offline and in CI.
+
+---
+
+## Next: Phase 2 Plan (Buyer Thesis and Matching)
+1. **Buyer Thesis Builder (`/thesis/new` & Home prompt wiring)**: Guided structured inputs (sector, revenue range, net profit floor, max owner hours/week, geography, target price range, currency) plus free-text narrative persisted to `Thesis`.
+2. **Transparent Match Scoring Engine**: Weighted hard-criteria scoring (`price`, `revenue`, `profit`, `ownerHours`, `sector`, `geography`) combined with keyword/semantic free-text scoring, explicitly outputting both `Why this matches` and `What doesn't fit` mismatches for every ranked `Match` record.
+3. **Saved-Thesis Feed & Matches View (`/matches`)**: Replace the Phase 0/1 empty thesis preview on Home with live saved theses, ranked matches with fit scores, and one-line explanations.
+4. **Side-by-Side Compare View (`/compare`)**: Compare up to 3 businesses cleanly across price, verified vs seller-reported vitals, owner hours, risks, and match mismatches at both 360px and 1280px.
+5. **Thesis Alerts (`Notification`)**: Generate `Notification` alerts when newly approved listings match an existing saved thesis with `alertsEnabled: true`.
