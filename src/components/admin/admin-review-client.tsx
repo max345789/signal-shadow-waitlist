@@ -2,10 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ExternalLink, Lock, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Lock,
+  RefreshCw,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import type { AdminReviewDecision, SanitizedListingView } from "@/lib/domain/listings";
+import {
+  ALLOWED_VERIFICATION_REVIEW_TRANSITIONS,
+  type AdminVerificationDecision,
+  type VerificationTypeValue,
+} from "@/lib/domain/verification";
 import { detectConfidentialLeak } from "@/lib/domain/valuation";
 import { formatCurrency } from "@/lib/format/currency";
+import type { VerificationWithEvaluation } from "@/lib/verification/store";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,20 +51,45 @@ function statusChipTone(status: SanitizedListingView["status"]): StatusChipTone 
   }
 }
 
+function verificationTypeLabel(type: VerificationTypeValue): string {
+  switch (type) {
+    case "IDENTITY":
+      return "Identity KYC";
+    case "PROOF_OF_FUNDS":
+      return "Proof of funds";
+    case "PAYMENT_CONNECTOR":
+      return "Payment connector";
+    case "ANALYTICS_CONNECTOR":
+      return "Analytics connector";
+  }
+}
+
 export function AdminReviewClient({
   initialListings,
+  initialVerifications = [],
 }: {
   initialListings: SanitizedListingView[];
+  initialVerifications?: VerificationWithEvaluation[];
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
+  const [verifications, setVerifications] =
+    React.useState<VerificationWithEvaluation[]>(initialVerifications);
   const [notesById, setNotesById] = React.useState<Record<string, string>>({});
   const [fieldErrorsById, setFieldErrorsById] = React.useState<
+    Record<string, string | undefined>
+  >({});
+  const [verNotesById, setVerNotesById] = React.useState<Record<string, string>>({});
+  const [verErrorsById, setVerErrorsById] = React.useState<
     Record<string, string | undefined>
   >({});
   const [busyAction, setBusyAction] = React.useState<{
     id: string;
     decision: AdminReviewDecision;
+  } | null>(null);
+  const [busyVerAction, setBusyVerAction] = React.useState<{
+    id: string;
+    decision: AdminVerificationDecision;
   } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
@@ -59,17 +99,78 @@ export function AdminReviewClient({
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch("/api/admin/listings");
-      const data = await res.json();
-      if (!res.ok) {
-        setFetchError(data.error ?? "Could not load Admin review queue.");
+      const [listingsRes, verRes] = await Promise.all([
+        fetch("/api/admin/listings"),
+        fetch("/api/admin/verifications"),
+      ]);
+      const listingsData = await listingsRes.json();
+      const verData = await verRes.json();
+      if (!listingsRes.ok) {
+        setFetchError(listingsData.error ?? "Could not load Admin review queue.");
         return;
       }
-      setListings(data.listings ?? []);
+      setListings(listingsData.listings ?? []);
+      if (verRes.ok) {
+        setVerifications(verData.verifications ?? []);
+      }
     } catch {
       setFetchError("Network error while refreshing review queue.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitVerificationDecision(
+    id: string,
+    decision: AdminVerificationDecision
+  ) {
+    const note = (verNotesById[id] ?? "").trim();
+    if (note.length < 5) {
+      setVerErrorsById((prev) => ({
+        ...prev,
+        [id]: "Enter a reviewer note (at least 5 characters) explaining this decision.",
+      }));
+      return;
+    }
+
+    setBusyVerAction({ id, decision });
+    setVerErrorsById((prev) => ({ ...prev, [id]: undefined }));
+    setFeedback(null);
+
+    try {
+      const res = await fetch(`/api/admin/verifications/${id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, reviewerNote: note }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVerErrorsById((prev) => ({
+          ...prev,
+          [id]: data.error ?? "Verification review action failed.",
+        }));
+        return;
+      }
+
+      const updated: VerificationWithEvaluation = data.verification;
+      setVerifications((prev) =>
+        prev.map((item) => (item.record.id === id ? updated : item))
+      );
+      setVerNotesById((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setFeedback(
+        `Updated ${updated.record.provider} (${verificationTypeLabel(updated.record.type)}) to ${updated.record.status} and wrote AuditLog entry.`
+      );
+    } catch {
+      setVerErrorsById((prev) => ({
+        ...prev,
+        [id]: "Network error while saving verification review.",
+      }));
+    } finally {
+      setBusyVerAction(null);
     }
   }
 
@@ -127,6 +228,251 @@ export function AdminReviewClient({
   const flaggedOrRejected = listings.filter(
     (l) => l.status === "FLAGGED" || l.status === "REJECTED"
   );
+
+  const pendingVerifications = verifications.filter(
+    (v) => v.record.status === "PENDING"
+  );
+  const verifiedVerifications = verifications.filter(
+    (v) => v.evaluated.isVerified
+  );
+  const inactiveVerifications = verifications.filter(
+    (v) => v.record.status !== "PENDING" && !v.evaluated.isVerified
+  );
+
+  function renderVerificationList(
+    items: VerificationWithEvaluation[],
+    emptyTitle: string,
+    emptyDescription: string,
+    tabToneMode: "pending" | "verified" | "inactive"
+  ) {
+    if (loading) {
+      return (
+        <CardStateLoading
+          title="Loading verification records"
+          description="Checking KYC, Proof of Funds, and connector expirations."
+        />
+      );
+    }
+    if (items.length === 0) {
+      return <CardStateEmpty title={emptyTitle} description={emptyDescription} />;
+    }
+
+    const inactiveHasRisk = items.some(
+      (v) => v.record.status === "FAILED" || v.record.status === "REVOKED"
+    );
+
+    return (
+      <div className="flex flex-col gap-6">
+        {items.map((item) => {
+          const { record, evaluated } = item;
+          const isBusy = busyVerAction?.id === record.id;
+          const verError = verErrorsById[record.id];
+          const allowedTargets =
+            ALLOWED_VERIFICATION_REVIEW_TRANSITIONS[record.status] ?? [];
+
+          const chipTone: StatusChipTone =
+            tabToneMode === "verified"
+              ? "verified"
+              : tabToneMode === "pending"
+                ? "pending"
+                : record.status === "FAILED" || record.status === "REVOKED"
+                  ? "risk"
+                  : inactiveHasRisk
+                    ? "seller-reported"
+                    : "caution";
+
+          return (
+            <Card key={record.id}>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip
+                      tone={chipTone}
+                      emphasis={evaluated.isVerified ? "solid" : "outline"}
+                      label={evaluated.label}
+                    />
+                    <StatusChip
+                      tone="neutral"
+                      label={verificationTypeLabel(record.type)}
+                    />
+                    {record.isSampleData ? (
+                      <StatusChip tone="neutral" label="Sample data" />
+                    ) : null}
+                  </div>
+                  <span className="text-14 text-slate">
+                    Provider:{" "}
+                    <strong className="text-ink">{record.provider}</strong>
+                  </span>
+                </div>
+
+                <CardTitle as="h2" className="pt-2">
+                  {record.businessTitle ??
+                    record.userName ??
+                    record.userEmail ??
+                    `Verification ${record.id}`}
+                </CardTitle>
+                <CardDescription>
+                  {record.userEmail
+                    ? `Account: ${record.userName ?? record.userEmail} (${record.userEmail})`
+                    : "Marketplace business verification record"}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 rounded border border-mist bg-cloud p-4 sm:grid-cols-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Verification detail</span>
+                    <span className="text-16 font-medium text-ink">
+                      {evaluated.lastVerifiedLabel ?? evaluated.detail}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Masked reference</span>
+                    <span className="break-words text-16 font-medium text-ink">
+                      {record.type === "IDENTITY"
+                        ? `${record.metadata.legalName ?? ""} · ${record.metadata.documentType ?? "ID"} ${record.metadata.maskedReference ?? "****"}`
+                        : record.type === "PROOF_OF_FUNDS"
+                          ? `${record.metadata.institutionLabel ?? "Bank"} · ${
+                              record.metadata.declaredAmount
+                                ? formatCurrency(
+                                    record.metadata.declaredAmount,
+                                    {
+                                      currency:
+                                        record.metadata.currency ?? "INR",
+                                      compact: true,
+                                    }
+                                  )
+                                : "—"
+                            }`
+                          : record.metadata.accountHint ?? record.provider}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-14 text-slate">Expiry timestamp</span>
+                    <span className="text-16 text-ink tabular-figures">
+                      {record.expiresAt
+                        ? new Date(record.expiresAt).toLocaleString("en-IN", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })
+                        : "Pending assignment"}
+                    </span>
+                  </div>
+                </div>
+
+                {record.failureReason ? (
+                  <div className="rounded border border-mist bg-white p-4">
+                    <span className="text-14 font-semibold text-deep-navy">
+                      Failure / expiry note
+                    </span>
+                    <p className="pt-1 text-16 text-ink">
+                      {record.failureReason}
+                    </p>
+                  </div>
+                ) : null}
+
+                <Textarea
+                  label="Verification review note (required for AuditLog)"
+                  value={verNotesById[record.id] ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVerNotesById((prev) => ({ ...prev, [record.id]: val }));
+                    if (verError) {
+                      setVerErrorsById((prev) => ({
+                        ...prev,
+                        [record.id]: undefined,
+                      }));
+                    }
+                  }}
+                  error={verError}
+                  rows={2}
+                  placeholder="Record KYC/POF document check, connector audit, or expiry/failure reason."
+                />
+              </CardContent>
+
+              <CardFooter>
+                {record.businessSlug ? (
+                  <Button asChild variant="link">
+                    <Link href={`/listings/${record.businessSlug}`}>
+                      <span>Inspect listing</span>
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <span className="text-14 text-slate">
+                    ID: {record.id}
+                  </span>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {allowedTargets.includes("REVOKED") ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isBusy}
+                      loading={isBusy && busyVerAction?.decision === "REVOKE"}
+                      loadingLabel="Revoking..."
+                      onClick={() =>
+                        void submitVerificationDecision(record.id, "REVOKE")
+                      }
+                    >
+                      <XCircle className="h-4 w-4" aria-hidden="true" />
+                      <span>Revoke</span>
+                    </Button>
+                  ) : null}
+                  {allowedTargets.includes("EXPIRED") ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isBusy}
+                      loading={isBusy && busyVerAction?.decision === "EXPIRE"}
+                      loadingLabel="Expiring..."
+                      onClick={() =>
+                        void submitVerificationDecision(record.id, "EXPIRE")
+                      }
+                    >
+                      <Clock className="h-4 w-4" aria-hidden="true" />
+                      <span>Mark expired</span>
+                    </Button>
+                  ) : null}
+                  {allowedTargets.includes("FAILED") ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isBusy}
+                      loading={isBusy && busyVerAction?.decision === "FAIL"}
+                      loadingLabel="Failing..."
+                      onClick={() =>
+                        void submitVerificationDecision(record.id, "FAIL")
+                      }
+                    >
+                      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                      <span>Mark failed</span>
+                    </Button>
+                  ) : null}
+                  {allowedTargets.includes("VERIFIED") ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      disabled={isBusy}
+                      loading={isBusy && busyVerAction?.decision === "APPROVE"}
+                      loadingLabel="Verifying..."
+                      onClick={() =>
+                        void submitVerificationDecision(record.id, "APPROVE")
+                      }
+                    >
+                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                      <span>Approve &amp; verify</span>
+                    </Button>
+                  ) : null}
+                </div>
+              </CardFooter>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
 
   function renderQueueList(
     items: SanitizedListingView[],
@@ -426,41 +772,97 @@ export function AdminReviewClient({
         </div>
       ) : null}
 
-      <Tabs defaultValue="pending">
-        <TabsList aria-label="Filter admin review queue by listing status">
-          <TabsTrigger value="pending">
-            Pending review ({pendingListings.length})
+      <Tabs defaultValue="listings">
+        <TabsList aria-label="Switch Admin review queue category">
+          <TabsTrigger value="listings">
+            Listings queue ({listings.length})
           </TabsTrigger>
-          <TabsTrigger value="approved">
-            Approved ({approvedListings.length})
-          </TabsTrigger>
-          <TabsTrigger value="flagged">
-            Flagged &amp; rejected ({flaggedOrRejected.length})
+          <TabsTrigger value="verifications">
+            Verification queue ({pendingVerifications.length} pending)
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending">
-          {renderQueueList(
-            pendingListings,
-            "No listings awaiting review",
-            "New seller submissions will appear here for verification and approval."
-          )}
+        <TabsContent value="listings">
+          <Tabs defaultValue="pending">
+            <TabsList aria-label="Filter admin review queue by listing status">
+              <TabsTrigger value="pending">
+                Pending review ({pendingListings.length})
+              </TabsTrigger>
+              <TabsTrigger value="approved">
+                Approved ({approvedListings.length})
+              </TabsTrigger>
+              <TabsTrigger value="flagged">
+                Flagged &amp; rejected ({flaggedOrRejected.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pending">
+              {renderQueueList(
+                pendingListings,
+                "No listings awaiting review",
+                "New seller submissions will appear here for verification and approval."
+              )}
+            </TabsContent>
+
+            <TabsContent value="approved">
+              {renderQueueList(
+                approvedListings,
+                "No approved listings",
+                "Approved listings appear live in the public directory and can still be flagged if verification fails."
+              )}
+            </TabsContent>
+
+            <TabsContent value="flagged">
+              {renderQueueList(
+                flaggedOrRejected,
+                "No flagged or rejected listings",
+                "Flagged listings return to the seller with your reviewer note."
+              )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="approved">
-          {renderQueueList(
-            approvedListings,
-            "No approved listings",
-            "Approved listings appear live in the public directory and can still be flagged if verification fails."
-          )}
-        </TabsContent>
+        <TabsContent value="verifications">
+          <Tabs defaultValue="ver-pending">
+            <TabsList aria-label="Filter verification queue by status">
+              <TabsTrigger value="ver-pending">
+                Pending checks ({pendingVerifications.length})
+              </TabsTrigger>
+              <TabsTrigger value="ver-verified">
+                Verified ({verifiedVerifications.length})
+              </TabsTrigger>
+              <TabsTrigger value="ver-inactive">
+                Expired, failed &amp; revoked ({inactiveVerifications.length})
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="flagged">
-          {renderQueueList(
-            flaggedOrRejected,
-            "No flagged or rejected listings",
-            "Flagged listings return to the seller with your reviewer note."
-          )}
+            <TabsContent value="ver-pending">
+              {renderVerificationList(
+                pendingVerifications,
+                "No pending KYC or Proof of Funds submissions",
+                "Buyer KYC, Seller KYC, and Proof of Funds requests awaiting compliance review appear here.",
+                "pending"
+              )}
+            </TabsContent>
+
+            <TabsContent value="ver-verified">
+              {renderVerificationList(
+                verifiedVerifications,
+                "No active verified records",
+                "Active verified KYC, Proof of Funds, and payment/analytics connectors appear here.",
+                "verified"
+              )}
+            </TabsContent>
+
+            <TabsContent value="ver-inactive">
+              {renderVerificationList(
+                inactiveVerifications,
+                "No expired, failed, or revoked verifications",
+                "Connections or KYC checks that fail, expire, or get revoked appear here with their audit reason.",
+                "inactive"
+              )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>

@@ -463,6 +463,11 @@ export function SellerOnboardingClient({
           <Button asChild variant="primary">
             <Link href="/seller">Open Seller dashboard</Link>
           </Button>
+          <Button asChild variant="action">
+            <Link href={`/verify?tab=connectors&businessId=${successListing.id}`}>
+              Connect Stripe / GA4 vitals
+            </Link>
+          </Button>
           <Button asChild variant="secondary">
             <Link href={`/listings/${successListing.slug}`}>
               Preview listing as owner
@@ -857,8 +862,7 @@ export function SellerOnboardingClient({
           <CardHeader>
             <CardTitle as="h2">Step 3: Account verification status &amp; included assets</CardTitle>
             <CardDescription>
-              Read-only payment and analytics connectors roll out in Phase 3. Until
-              connected, every figure below renders honestly as Seller-reported.
+              Connect read-only payment and analytics accounts in the Verification Centre after saving, or continue with honest Seller-reported numbers.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
@@ -867,17 +871,34 @@ export function SellerOnboardingClient({
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-slate" aria-hidden="true" />
                   <span className="text-16 font-semibold text-deep-navy">
-                    Account connections (Phase 3 readiness)
+                    Read-only account connections (Verification Centre)
                   </span>
                 </div>
-                <StatusChip tone="seller-reported" label="Seller-reported mode" />
+                <StatusChip
+                  tone={verifiedMetricByKey.size > 0 ? "verified" : "seller-reported"}
+                  label={
+                    verifiedMetricByKey.size > 0
+                      ? `${verifiedMetricByKey.size} metrics verified`
+                      : "Seller-reported mode"
+                  }
+                />
               </div>
               <p className="text-16 text-ink">
-                In Phase 1, your published listing displays all 6 metrics in the
-                Seller-reported section without a green Verified mark. Once Phase 3
-                read-only connectors (Stripe, Razorpay, GA4) launch, verified metrics
-                will upgrade automatically with a timestamp.
+                Unconnected metrics appear honestly in the Seller-reported section without a green Verified mark. After saving this listing, connect read-only Stripe, Razorpay, GA4, or Plausible accounts in the Verification Centre to verify revenue, customers, and traffic automatically.
               </p>
+              <div>
+                <Button asChild variant="secondary">
+                  <Link
+                    href={
+                      editingListing
+                        ? `/verify?tab=connectors&businessId=${editingListing.id}`
+                        : "/verify?tab=connectors"
+                    }
+                  >
+                    Open Verification Centre
+                  </Link>
+                </Button>
+              </div>
             </div>
 
             <Textarea

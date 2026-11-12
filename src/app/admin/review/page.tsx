@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { canReviewAdminQueue } from "@/lib/auth/permissions";
 import { getServerSession } from "@/lib/auth/session-server";
 import { listListingsForAdminReview } from "@/lib/listings/store";
+import { listVerificationsForAdminReview } from "@/lib/verification/store";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,10 @@ export default async function AdminReviewPage() {
     );
   }
 
-  const listings = await listListingsForAdminReview(session!);
+  const [listings, verifications] = await Promise.all([
+    listListingsForAdminReview(session!),
+    listVerificationsForAdminReview(session!),
+  ]);
 
   return (
     <AppShell
@@ -61,10 +65,13 @@ export default async function AdminReviewPage() {
         canTrustAnswer:
           "You are viewing confidential identity fields and verification records under Reviewer access. Every action appends to the AuditLog.",
         nextStepAnswer:
-          "Inspect pending submissions for redaction leaks and data honesty, enter a reviewer note, and Approve, Flag, or Reject.",
+          "Inspect pending submissions and KYC/Proof of Funds/Connector verifications, enter a reviewer note, and Approve, Flag, Fail, or Expire.",
       }}
     >
-      <AdminReviewClient initialListings={listings} />
+      <AdminReviewClient
+        initialListings={listings}
+        initialVerifications={verifications}
+      />
     </AppShell>
   );
 }

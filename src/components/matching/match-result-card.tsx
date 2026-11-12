@@ -239,7 +239,11 @@ export function MatchResultCard({
 
           <span className="text-14 text-slate tabular-figures">
             {listing.trustSummary.verifiedCount} verified /{" "}
-            {listing.trustSummary.sellerReportedCount} seller-reported vitals
+            {listing.trustSummary.sellerReportedCount} seller-reported
+            {listing.trustSummary.expiredOrFailedCount > 0
+              ? ` / ${listing.trustSummary.expiredOrFailedCount} expired/failed`
+              : ""}{" "}
+            vitals
           </span>
         </div>
 

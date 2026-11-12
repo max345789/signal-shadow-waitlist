@@ -30,6 +30,8 @@ export interface MetricTileProps {
   verification?: VerificationRecord | null;
   isSampleData?: boolean;
   referenceNow?: Date | string;
+  allowCautionAccent?: boolean;
+  allowRiskAccent?: boolean;
   state?: "ready" | "loading" | "empty" | "error";
   errorMessage?: string;
   onRetry?: () => void;
@@ -53,17 +55,19 @@ function formatMetricValue(
 }
 
 function getChipTone(
-  effectiveState: ReturnType<typeof evaluateVerification>["effectiveState"]
+  effectiveState: ReturnType<typeof evaluateVerification>["effectiveState"],
+  allowCautionAccent: boolean,
+  allowRiskAccent: boolean
 ): StatusChipTone {
   switch (effectiveState) {
     case "verified":
       return "verified";
     case "pending":
-      return "pending";
+      return allowCautionAccent ? "pending" : "seller-reported";
     case "expired":
-      return "caution";
+      return allowCautionAccent ? "caution" : "seller-reported";
     case "failed":
-      return "risk";
+      return allowRiskAccent ? "risk" : "seller-reported";
     case "seller-reported":
     default:
       return "seller-reported";
@@ -80,6 +84,8 @@ export function MetricTile({
   verification = null,
   isSampleData = false,
   referenceNow,
+  allowCautionAccent = true,
+  allowRiskAccent = true,
   state = "ready",
   errorMessage,
   onRetry,
@@ -119,7 +125,11 @@ export function MetricTile({
       : (referenceNow ?? new Date());
 
   const trust = evaluateVerification(verification, nowDate);
-  const chipTone = getChipTone(trust.effectiveState);
+  const chipTone = getChipTone(
+    trust.effectiveState,
+    allowCautionAccent,
+    allowRiskAccent
+  );
   const formattedValue = formatMetricValue(value, unit, currency, compactCurrency);
 
   return (

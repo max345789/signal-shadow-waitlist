@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { AlertTriangle, Inbox } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -104,11 +105,13 @@ export function CardStateEmpty({
   title,
   description,
   actionLabel,
+  actionHref,
   onAction,
 }: {
   title: string;
   description: string;
   actionLabel?: string;
+  actionHref?: string;
   onAction?: () => void;
 }) {
   return (
@@ -119,7 +122,11 @@ export function CardStateEmpty({
           <h3 className="font-serif text-20 font-semibold text-deep-navy">{title}</h3>
         </div>
         <p className="text-16 text-slate">{description}</p>
-        {actionLabel && onAction ? (
+        {actionLabel && actionHref ? (
+          <Button asChild variant="secondary">
+            <Link href={actionHref}>{actionLabel}</Link>
+          </Button>
+        ) : actionLabel && onAction ? (
           <Button variant="secondary" onClick={onAction}>
             {actionLabel}
           </Button>

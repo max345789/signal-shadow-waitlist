@@ -239,6 +239,9 @@ export function SellerDashboardClient({
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             <span>Refresh</span>
           </Button>
+          <Button asChild variant="secondary">
+            <Link href="/verify?tab=connectors">Verification &amp; connectors</Link>
+          </Button>
           <Button asChild variant="primary">
             <Link href="/sell">
               <PlusCircle className="h-4 w-4" aria-hidden="true" />

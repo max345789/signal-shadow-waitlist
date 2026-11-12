@@ -9,6 +9,7 @@ import {
   Lock,
   MessageSquare,
   Mic,
+  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import type {
@@ -49,9 +50,53 @@ export function ListingDetailClient({
   const [answerErrorsById, setAnswerErrorsById] = React.useState<
     Record<string, string | undefined>
   >({});
+  const [refreshingVitals, setRefreshingVitals] = React.useState(false);
+  const [refreshStatusMessage, setRefreshStatusMessage] = React.useState<string | null>(null);
 
   const verifiedMetrics = listing.metrics.filter((m) => m.trust.isVerified);
   const unverifiedMetrics = listing.metrics.filter((m) => !m.trust.isVerified);
+  const hasAnyVerified = verifiedMetrics.length > 0;
+  const hasExpired = unverifiedMetrics.some(
+    (m) => m.trust.effectiveState === "expired"
+  );
+  const hasFailed = unverifiedMetrics.some(
+    (m) => m.trust.effectiveState === "failed"
+  );
+  const allowCautionAccent = !hasAnyVerified && !hasFailed;
+  const allowRiskAccent = !hasAnyVerified && !hasExpired;
+
+  async function handleRefreshVitals() {
+    setRefreshingVitals(true);
+    setRefreshStatusMessage(null);
+    try {
+      const refreshRes = await fetch("/api/verification/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: listing.id, force: true }),
+      });
+      const refreshData = await refreshRes.json();
+      if (!refreshRes.ok) {
+        setRefreshStatusMessage(
+          refreshData.error ?? "Unable to refresh connected vitals."
+        );
+        return;
+      }
+      const listingRes = await fetch(`/api/listings/${listing.id}`);
+      if (listingRes.ok) {
+        const listingData = await listingRes.json();
+        if (listingData.listing) {
+          setListing(listingData.listing);
+        }
+      }
+      setRefreshStatusMessage(
+        `Sync complete: ${refreshData.refreshedCount ?? 0} refreshed, ${refreshData.expiredCount ?? 0} expired, ${refreshData.failedCount ?? 0} failed.`
+      );
+    } catch {
+      setRefreshStatusMessage("Network error while refreshing vitals.");
+    } finally {
+      setRefreshingVitals(false);
+    }
+  }
 
   async function handleAskQuestion(event: React.FormEvent) {
     event.preventDefault();
@@ -151,9 +196,11 @@ export function ListingDetailClient({
               {listing.status !== "APPROVED" ? (
                 <StatusChip
                   tone={
-                    listing.status === "FLAGGED" || listing.status === "REJECTED"
-                      ? "risk"
-                      : "pending"
+                    hasAnyVerified
+                      ? "neutral"
+                      : listing.status === "FLAGGED" || listing.status === "REJECTED"
+                        ? "risk"
+                        : "pending"
                   }
                   label={`Status: ${listing.status.replace("_", " ")}`}
                 />
@@ -262,18 +309,47 @@ export function ListingDetailClient({
         aria-labelledby="vitals-strip-heading"
         className="flex flex-col gap-6"
       >
-        <div className="flex flex-col gap-2">
-          <h2
-            id="vitals-strip-heading"
-            className="font-serif text-28 font-semibold text-deep-navy"
-          >
-            1. Live vitals strip
-          </h2>
-          <p className="text-16 text-slate">
-            Connected read-only metrics carry a Verified mark with source and timestamp.
-            Unverified metrics remain separated below as Seller-reported.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-2">
+            <h2
+              id="vitals-strip-heading"
+              className="font-serif text-28 font-semibold text-deep-navy"
+            >
+              1. Live vitals strip
+            </h2>
+            <p className="text-16 text-slate">
+              Connected read-only metrics carry a Verified mark with source and timestamp.
+              Unverified metrics remain separated below as Seller-reported.
+            </p>
+          </div>
+          {listing.canEdit ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                loading={refreshingVitals}
+                loadingLabel="Syncing..."
+                onClick={() => void handleRefreshVitals()}
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                <span>Refresh vitals</span>
+              </Button>
+              <Button asChild variant="action">
+                <Link href={`/verify?tab=connectors&businessId=${listing.id}`}>
+                  Manage connectors
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
+        {refreshStatusMessage ? (
+          <div
+            role="status"
+            className="rounded border border-mist bg-white p-4 text-16 text-deep-navy"
+          >
+            {refreshStatusMessage}
+          </div>
+        ) : null}
 
         {/* Subsection A: Verified Connected Metrics */}
         <div className="flex flex-col gap-4 rounded border border-mist bg-white p-6">
@@ -311,6 +387,8 @@ export function ListingDetailClient({
                   verification={m.verification}
                   isSampleData={m.isSampleData}
                   referenceNow={referenceNow}
+                  allowCautionAccent={allowCautionAccent}
+                  allowRiskAccent={allowRiskAccent}
                 />
               ))}
             </div>
@@ -350,6 +428,8 @@ export function ListingDetailClient({
                   verification={m.verification}
                   isSampleData={m.isSampleData}
                   referenceNow={referenceNow}
+                  allowCautionAccent={allowCautionAccent}
+                  allowRiskAccent={allowRiskAccent}
                 />
               ))}
             </div>
