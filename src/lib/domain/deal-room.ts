@@ -668,6 +668,10 @@ export function sanitizeDealRoomForViewer(
     (ndaCompleted && dataAccessStageReached && buyerVerification.dataAccessReady);
 
   // Filter confidential non-NDA documents from Buyer until Data Access is unlocked
+  const ndaDocIds = new Set(
+    raw.documents.filter((d) => d.category === "NDA").map((d) => d.id)
+  );
+
   const visibleDocuments = raw.documents
     .filter((doc) => {
       if (doc.category === "NDA") return true;
@@ -689,6 +693,51 @@ export function sanitizeDealRoomForViewer(
       views: doc.views,
       createdAt: doc.createdAt,
     }));
+
+  const redactedLogText = "[Redacted until Data access unlocked]";
+  const visibleAuditLogs: DealAuditLogView[] = dataAccessUnlocked
+    ? raw.auditLogs
+    : raw.auditLogs.map((entry) => {
+        if (
+          entry.action !== "DOCUMENT_UPLOADED" &&
+          entry.action !== "DOCUMENT_SCAN_INFECTED" &&
+          entry.action !== "DOCUMENT_VIEWED"
+        ) {
+          return entry;
+        }
+        const docIdFromState =
+          entry.newState && typeof entry.newState.documentId === "string"
+            ? entry.newState.documentId
+            : entry.entityType === "Document"
+              ? entry.entityId
+              : null;
+        const categoryFromState =
+          entry.newState && typeof entry.newState.category === "string"
+            ? entry.newState.category
+            : null;
+        if (categoryFromState === "NDA" || (docIdFromState && ndaDocIds.has(docIdFromState))) {
+          return entry;
+        }
+        return {
+          ...entry,
+          newState: entry.newState
+            ? {
+                ...entry.newState,
+                ...(typeof entry.newState.title === "string"
+                  ? { title: redactedLogText }
+                  : {}),
+              }
+            : null,
+          metadataJson: entry.metadataJson
+            ? {
+                ...entry.metadataJson,
+                ...(typeof entry.metadataJson.filename === "string"
+                  ? { filename: redactedLogText }
+                  : {}),
+              }
+            : null,
+        };
+      });
 
   const acceptedOffer = raw.offers.find((o) => o.status === "ACCEPTED") ?? null;
   const acceptedOfferLabel = acceptedOffer
@@ -743,6 +792,6 @@ export function sanitizeDealRoomForViewer(
     documents: visibleDocuments,
     offers: raw.offers,
     checklistItems: raw.checklistItems,
-    auditLogs: raw.auditLogs,
+    auditLogs: visibleAuditLogs,
   };
 }

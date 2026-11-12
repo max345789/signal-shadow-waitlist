@@ -49,6 +49,56 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   "image/jpeg",
 ]);
 
+const EXTENSION_TO_MIME: Record<string, string> = {
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".csv": "text/csv",
+  ".json": "application/json",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+};
+
+const GENERIC_OR_BROWSER_ALIAS_MIMES = new Set([
+  "",
+  "application/octet-stream",
+  "application/vnd.ms-excel",
+  "text/x-markdown",
+]);
+
+export function resolveAllowedDocumentMimeType(
+  rawMimeType: string | null | undefined,
+  filename: string
+): string | null {
+  const lowerName = filename.trim().toLowerCase();
+  const dotIdx = lowerName.lastIndexOf(".");
+  if (dotIdx < 0) return null;
+  const ext = lowerName.slice(dotIdx);
+  const expectedMime = EXTENSION_TO_MIME[ext];
+  if (!expectedMime) return null;
+
+  const normalizedMime = (rawMimeType ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  if (GENERIC_OR_BROWSER_ALIAS_MIMES.has(normalizedMime)) {
+    return expectedMime;
+  }
+
+  if (normalizedMime === expectedMime) {
+    return expectedMime;
+  }
+
+  // Allow compatible text MIME types for text extensions only (never treat binary extensions as text)
+  const textExtensions = new Set([".txt", ".md", ".csv", ".json"]);
+  if (
+    textExtensions.has(ext) &&
+    (normalizedMime === "text/plain" || normalizedMime === expectedMime)
+  ) {
+    return expectedMime;
+  }
+
+  return null;
+}
+
 export const uploadDocumentJsonSchema = z.object({
   title: z
     .string()

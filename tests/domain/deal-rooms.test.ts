@@ -701,4 +701,201 @@ describe("Phase 4 Deal Room: RBAC, 2FA, Redaction, Stage Machine, Vault, Offers 
         .status
     ).toBe("CLEAN");
   });
+
+  it("redacts confidential document titles/filenames in auditLogs when Buyer lacks Data access", async () => {
+    await verifyBuyerKycAndPof();
+    activeMockSession = BUYER_SESSION;
+    const opened = await createOrOpenDealRoom("sample-biz-gst-01", BUYER_SESSION);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const roomId = opened.data.id;
+
+    await transitionDealRoomStage(roomId, "NDA", BUYER_SESSION);
+    await signDealRoomNda(
+      roomId,
+      { signerName: "Ananya Rao", acceptedTerms: true },
+      BUYER_SESSION
+    );
+    await signDealRoomNda(
+      roomId,
+      { signerName: "Rohan Mehta", acceptedTerms: true },
+      SELLER_SESSION
+    );
+    await transitionDealRoomStage(roomId, "DATA_ACCESS", SELLER_SESSION);
+
+    // Seller uploads confidential document while Buyer has Data Access
+    activeMockSession = SELLER_SESSION;
+    const uploadRes = await docPost(
+      new Request(`http://localhost/api/deal-rooms/${roomId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Secret Customer Cohort Ledger",
+          category: "CUSTOMER",
+          filename: "secret-cohort-2026.csv",
+          mimeType: "text/csv",
+          contentBase64: Buffer.from("cohort,mrr\nenterprise,500000", "utf8").toString(
+            "base64"
+          ),
+        }),
+      }),
+      { params: Promise.resolve({ id: roomId }) }
+    );
+    expect(uploadRes.status).toBe(201);
+
+    // Simulate Buyer KYC expiry/revocation by resetting verification store
+    const { getLocalVerificationStore } = await import("@/lib/verification/local-store");
+    for (const v of getLocalVerificationStore().verifications) {
+      if (v.userId === BUYER_SESSION.userId) {
+        v.status = "EXPIRED";
+        v.expiresAt = new Date(Date.now() - 60_000).toISOString();
+      }
+    }
+
+    // Buyer reads room -> documents AND auditLog document titles/filenames must be redacted,
+    // and Buyer cannot upload or advance to OFFER while expired
+    const buyerView = await getDealRoomForViewer(roomId, BUYER_SESSION);
+    expect(buyerView.ok).toBe(true);
+    if (buyerView.ok) {
+      expect(buyerView.data.dataAccessUnlocked).toBe(false);
+      expect(
+        buyerView.data.documents.some((d) => d.title.includes("Secret Customer"))
+      ).toBe(false);
+      const serializedLogs = JSON.stringify(buyerView.data.auditLogs);
+      expect(serializedLogs).not.toContain("Secret Customer Cohort Ledger");
+      expect(serializedLogs).not.toContain("secret-cohort-2026.csv");
+      expect(serializedLogs).toContain("[Redacted until Data access unlocked]");
+    }
+
+    activeMockSession = BUYER_SESSION;
+    const blockedUpload = await docPost(
+      new Request(`http://localhost/api/deal-rooms/${roomId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Expired Buyer Upload",
+          category: "OTHER",
+          filename: "note.txt",
+          mimeType: "text/plain",
+          contentBase64: Buffer.from("Hello world", "utf8").toString("base64"),
+        }),
+      }),
+      { params: Promise.resolve({ id: roomId }) }
+    );
+    expect(blockedUpload.status).toBe(400);
+
+    const blockedOfferStage = await transitionDealRoomStage(
+      roomId,
+      "OFFER",
+      BUYER_SESSION
+    );
+    expect(blockedOfferStage.ok).toBe(false);
+    if (!blockedOfferStage.ok) {
+      expect(blockedOfferStage.code).toBe("PREREQUISITE_FAILED");
+    }
+  });
+
+  it("blocks REVIEWER from commercial stage transitions and document uploads, and handles multipart MIME safely", async () => {
+    await verifyBuyerKycAndPof();
+    const opened = await createOrOpenDealRoom("sample-biz-gst-01", BUYER_SESSION);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const roomId = opened.data.id;
+
+    // REVIEWER cannot advance stage
+    const reviewerStage = await transitionDealRoomStage(
+      roomId,
+      "NDA",
+      REVIEWER_SESSION
+    );
+    expect(reviewerStage.ok).toBe(false);
+    if (!reviewerStage.ok) {
+      expect(reviewerStage.code).toBe("FORBIDDEN");
+    }
+
+    await transitionDealRoomStage(roomId, "NDA", BUYER_SESSION);
+    await signDealRoomNda(
+      roomId,
+      { signerName: "Ananya Rao", acceptedTerms: true },
+      BUYER_SESSION
+    );
+    await signDealRoomNda(
+      roomId,
+      { signerName: "Rohan Mehta", acceptedTerms: true },
+      SELLER_SESSION
+    );
+    await transitionDealRoomStage(roomId, "DATA_ACCESS", SELLER_SESSION);
+
+    // REVIEWER cannot upload documents
+    activeMockSession = REVIEWER_SESSION;
+    const reviewerUpload = await docPost(
+      new Request(`http://localhost/api/deal-rooms/${roomId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Reviewer Note",
+          category: "OTHER",
+          filename: "note.txt",
+          mimeType: "text/plain",
+          contentBase64: Buffer.from("Note body", "utf8").toString("base64"),
+        }),
+      }),
+      { params: Promise.resolve({ id: roomId }) }
+    );
+    expect(reviewerUpload.status).toBe(403);
+
+    // Multipart upload: .pdf with empty browser MIME type preserves binary bytes without text-watermark corruption
+    activeMockSession = SELLER_SESSION;
+    const pdfBytes = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF", "utf8");
+    const pdfForm = new FormData();
+    pdfForm.set("title", "Audited Financial PDF");
+    pdfForm.set("category", "FINANCIAL");
+    pdfForm.set("file", new File([pdfBytes], "audited-2026.pdf", { type: "" }));
+    const pdfRes = await docPost(
+      new Request(`http://localhost/api/deal-rooms/${roomId}/documents`, {
+        method: "POST",
+        body: pdfForm,
+      }),
+      { params: Promise.resolve({ id: roomId }) }
+    );
+    expect(pdfRes.status).toBe(201);
+    const pdfDoc = (await pdfRes.json()).dealRoom.documents.find(
+      (d: { filename: string }) => d.filename === "audited-2026.pdf"
+    );
+    expect(pdfDoc).toBeDefined();
+    expect(pdfDoc.mimeType).toBe("application/pdf");
+
+    activeMockSession = BUYER_SESSION;
+    const pdfSignedRes = await signedUrlGet(
+      new Request(
+        `http://localhost/api/deal-rooms/${roomId}/documents/${pdfDoc.id}/signed-url`
+      ),
+      { params: Promise.resolve({ id: roomId, docId: pdfDoc.id }) }
+    );
+    const { signedUrl: pdfSignedUrl } = await pdfSignedRes.json();
+    const pdfDlRes = await downloadGet(
+      new Request(`http://localhost${pdfSignedUrl}`),
+      { params: Promise.resolve({ id: roomId, docId: pdfDoc.id }) }
+    );
+    const dlBuf = Buffer.from(await pdfDlRes.arrayBuffer());
+    expect(dlBuf.equals(pdfBytes)).toBe(true);
+
+    // Disallowed HTML extension disguised as text/plain is rejected
+    activeMockSession = SELLER_SESSION;
+    const htmlForm = new FormData();
+    htmlForm.set("title", "Disguised HTML");
+    htmlForm.set("category", "OTHER");
+    htmlForm.set(
+      "file",
+      new File([Buffer.from("<p>hi</p>")], "page.html", { type: "text/plain" })
+    );
+    const htmlRes = await docPost(
+      new Request(`http://localhost/api/deal-rooms/${roomId}/documents`, {
+        method: "POST",
+        body: htmlForm,
+      }),
+      { params: Promise.resolve({ id: roomId }) }
+    );
+    expect(htmlRes.status).toBe(400);
+  });
 });

@@ -272,6 +272,11 @@ export function ListingDetailClient({
                     <span>Open deal room</span>
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
+                ) : isAuthenticated && hasTwoFactorVerified && !canOpenDealRoom ? (
+                  <StatusChip
+                    tone="neutral"
+                    label="Buyer account required for deal room"
+                  />
                 ) : (
                   <Button asChild variant="action">
                     <Link href="/auth/signin">
@@ -291,7 +296,11 @@ export function ListingDetailClient({
           {dealRoomError ? (
             <div
               role="alert"
-              className="rounded border border-brick-red bg-white p-4 text-16 font-medium text-brick-red"
+              className={
+                allowRiskAccent
+                  ? "rounded border border-brick-red bg-white p-4 text-16 font-medium text-brick-red"
+                  : "rounded border border-deep-navy bg-white p-4 text-16 font-medium text-deep-navy"
+              }
             >
               {dealRoomError}
             </div>

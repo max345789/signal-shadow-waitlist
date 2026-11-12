@@ -75,13 +75,22 @@ export type DealRoomOperationResult<T> =
 
 function inferFilenameFromStorageKey(storageKey: string): string {
   const base = storageKey.split("/").pop() ?? "document.txt";
+  const doubleDashMatch = base.match(
+    /--[0-9a-f]{12}--(?:watermarked--)?(.+)$/i
+  );
+  if (doubleDashMatch?.[1]) {
+    return doubleDashMatch[1];
+  }
+  const hexNonceMatch = base.match(/-[0-9a-f]{12}-(?:watermarked-)?(.+)$/i);
+  if (hexNonceMatch?.[1]) {
+    return hexNonceMatch[1];
+  }
   const parts = base.split("-");
   if (parts.length >= 3) {
-    // Pattern: docId-nonce-watermarked-filename or docId-nonce-filename
     if (parts[2] === "watermarked" && parts.length >= 4) {
       return parts.slice(3).join("-");
     }
-    return parts.slice(2).join("-");
+    return parts[parts.length - 1] ?? base;
   }
   return base;
 }
@@ -901,8 +910,32 @@ export async function transitionDealRoomStage(
   const access = enforceDealRoomAccess(session, raw, now);
   if (!access.ok) return access;
 
+  if (access.viewerRole !== "BUYER" && access.viewerRole !== "SELLER") {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      reason: "Only Buyer or Seller participants can transition deal stages.",
+    };
+  }
+
   const buyerVer = await getBuyerVerificationReadiness(raw.buyerUserId, now);
   const offerAccepted = raw.offers.some((o) => o.status === "ACCEPTED");
+
+  if (
+    access.viewerRole === "BUYER" &&
+    (toStage === "OFFER" ||
+      toStage === "DUE_DILIGENCE" ||
+      toStage === "ESCROW" ||
+      toStage === "TRANSFER") &&
+    !buyerVer.dataAccessReady
+  ) {
+    return {
+      ok: false,
+      code: "PREREQUISITE_FAILED",
+      reason:
+        "Active Buyer identity check and Proof of Funds are required before advancing commercial deal stages.",
+    };
+  }
 
   let escrowFunded = false;
   if (isDatabaseConfigured()) {
@@ -1649,12 +1682,30 @@ export async function uploadDealRoomDocument(
   const access = enforceDealRoomAccess(session, raw, now);
   if (!access.ok) return access;
 
+  if (access.viewerRole !== "BUYER" && access.viewerRole !== "SELLER") {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      reason: "Only Buyer or Seller participants can upload files to the deal room vault.",
+    };
+  }
+
   if (raw.currentStage === "INTRO" || raw.currentStage === "NDA") {
     return {
       ok: false,
       code: "INVALID_STAGE",
       reason:
         "Confidential documents can only be uploaded once NDA and verification unlock Data access.",
+    };
+  }
+
+  const buyerVer = await getBuyerVerificationReadiness(raw.buyerUserId, now);
+  if (access.viewerRole === "BUYER" && !buyerVer.dataAccessReady) {
+    return {
+      ok: false,
+      code: "PREREQUISITE_FAILED",
+      reason:
+        "Active Buyer KYC and Proof of Funds are required to upload documents to the data room.",
     };
   }
 
@@ -1694,8 +1745,6 @@ export async function uploadDealRoomDocument(
     uploaderLabel: session!.name,
     scanStatus: scanResult.status,
   });
-
-  const buyerVer = await getBuyerVerificationReadiness(raw.buyerUserId, now);
 
   if (isDatabaseConfigured()) {
     const prisma = getPrismaClient();

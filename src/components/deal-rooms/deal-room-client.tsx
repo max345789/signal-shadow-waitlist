@@ -25,6 +25,7 @@ import type {
 } from "@/lib/domain/deal-room";
 import {
   ALLOWED_STAGE_TRANSITIONS,
+  DEAL_STAGES_ORDER,
   DEAL_STAGE_DEFINITIONS,
   type DealStageType,
 } from "@/lib/domain/deal-stages";
@@ -52,19 +53,6 @@ function formatTimestamp(iso: string | null | undefined): string {
   return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      const idx = result.indexOf(",");
-      resolve(idx >= 0 ? result.slice(idx + 1) : result);
-    };
-    reader.onerror = () => reject(new Error("Could not read file."));
-    reader.readAsDataURL(file);
-  });
-}
-
 export function DealRoomClient({
   initialDealRoom,
 }: {
@@ -73,6 +61,7 @@ export function DealRoomClient({
   const [dealRoom, setDealRoom] = React.useState<DealRoomView>(initialDealRoom);
   const [activeTab, setActiveTab] = React.useState<string>("overview");
   const [busyAction, setBusyAction] = React.useState<string | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 
@@ -129,19 +118,41 @@ export function DealRoomClient({
     Record<string, { amount: string; terms: string }>
   >({});
 
-  const refreshDealRoom = React.useCallback(async () => {
-    try {
-      const res = await fetch(`/api/deal-rooms/${dealRoom.id}`);
-      if (res.ok) {
-        const data = await res.json();
+  const refreshDealRoom = React.useCallback(
+    async (manual: boolean = false) => {
+      if (manual) {
+        setRefreshing(true);
+        setActionError(null);
+      }
+      try {
+        const res = await fetch(`/api/deal-rooms/${dealRoom.id}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (manual) {
+            setActionError(
+              data.error ?? "Unable to refresh deal room state. Check your 2FA session."
+            );
+          }
+          return;
+        }
         if (data.dealRoom) {
           setDealRoom(data.dealRoom);
+          if (manual) {
+            setStatusMessage("Deal room state synchronized.");
+          }
+        }
+      } catch {
+        if (manual) {
+          setActionError("Network error while refreshing deal room.");
+        }
+      } finally {
+        if (manual) {
+          setRefreshing(false);
         }
       }
-    } catch {
-      // Silent background sync error; user can retry manually
-    }
-  }, [dealRoom.id]);
+    },
+    [dealRoom.id]
+  );
 
   // Deferred SSE subscription (starts 1000ms after mount so networkidle settles cleanly)
   React.useEffect(() => {
@@ -150,7 +161,7 @@ export function DealRoomClient({
       if (typeof EventSource === "undefined") return;
       source = new EventSource(`/api/deal-rooms/${dealRoom.id}/events`);
       source.addEventListener("deal-update", () => {
-        void refreshDealRoom();
+        void refreshDealRoom(false);
       });
     }, 1000);
 
@@ -353,43 +364,34 @@ export function DealRoomClient({
 
     setBusyAction("upload-doc");
     try {
-      let payload: {
-        title: string;
-        category: string;
-        filename: string;
-        mimeType: string;
-        contentBase64: string;
-      };
-
+      let res: Response;
       if (selectedFile) {
-        const b64 = await fileToBase64(selectedFile);
-        payload = {
-          title: docTitle.trim(),
-          category: docCategory,
-          filename: selectedFile.name,
-          mimeType: selectedFile.type || "text/plain",
-          contentBase64: b64,
-        };
+        const formData = new FormData();
+        formData.set("title", docTitle.trim());
+        formData.set("category", docCategory);
+        formData.set("file", selectedFile);
+        res = await fetch(`/api/deal-rooms/${dealRoom.id}/documents`, {
+          method: "POST",
+          body: formData,
+        });
       } else {
         const bytes = new TextEncoder().encode(docTextFallback.trim());
         let binary = "";
         for (const b of bytes) {
           binary += String.fromCharCode(b);
         }
-        payload = {
-          title: docTitle.trim(),
-          category: docCategory,
-          filename: `${docTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}.txt`,
-          mimeType: "text/plain",
-          contentBase64: btoa(binary),
-        };
+        res = await fetch(`/api/deal-rooms/${dealRoom.id}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: docTitle.trim(),
+            category: docCategory,
+            filename: `${docTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}.txt`,
+            mimeType: "text/plain",
+            contentBase64: btoa(binary),
+          }),
+        });
       }
-
-      const res = await fetch(`/api/deal-rooms/${dealRoom.id}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
       const data = await res.json();
       if (!res.ok) {
         setActionError(data.error ?? "Document upload failed.");
@@ -626,7 +628,9 @@ export function DealRoomClient({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void refreshDealRoom()}
+                loading={refreshing}
+                loadingLabel="Refreshing..."
+                onClick={() => void refreshDealRoom(true)}
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 <span>Refresh room</span>
@@ -783,31 +787,33 @@ export function DealRoomClient({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {allowedNextStages.map((nextStage) => (
-              <Button
-                key={nextStage}
-                type="button"
-                variant={
-                  nextStage === "DATA_ACCESS" ||
-                  nextStage === "NDA" ||
-                  nextStage === "OFFER" ||
-                  nextStage === "DUE_DILIGENCE" ||
-                  nextStage === "ESCROW"
-                    ? "primary"
-                    : "secondary"
-                }
-                loading={busyAction === `stage:${nextStage}`}
-                loadingLabel="Updating..."
-                onClick={() => void handleStageTransition(nextStage)}
-              >
-                <span>
-                  Move to {DEAL_STAGE_DEFINITIONS[nextStage].label}
-                </span>
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            ))}
-          </div>
+          {dealRoom.viewerRole === "BUYER" ||
+          dealRoom.viewerRole === "SELLER" ? (
+            <div className="flex flex-wrap gap-2">
+              {allowedNextStages.map((nextStage) => {
+                const isForward =
+                  DEAL_STAGES_ORDER.indexOf(nextStage) >
+                  DEAL_STAGES_ORDER.indexOf(dealRoom.currentStage);
+                return (
+                  <Button
+                    key={nextStage}
+                    type="button"
+                    variant={isForward ? "primary" : "secondary"}
+                    loading={busyAction === `stage:${nextStage}`}
+                    loadingLabel="Updating..."
+                    onClick={() => void handleStageTransition(nextStage)}
+                  >
+                    <span>
+                      Move to {DEAL_STAGE_DEFINITIONS[nextStage].label}
+                    </span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                );
+              })}
+            </div>
+          ) : (
+            <StatusChip tone="neutral" label="Oversight mode (read-only stages)" />
+          )}
         </div>
       </Card>
 
@@ -1272,7 +1278,9 @@ export function DealRoomClient({
               </Card>
             ) : null}
 
-            {dealRoom.currentStage !== "INTRO" &&
+            {(dealRoom.viewerRole === "BUYER" ||
+              dealRoom.viewerRole === "SELLER") &&
+            dealRoom.currentStage !== "INTRO" &&
             dealRoom.currentStage !== "NDA" ? (
               <Card>
                 <CardHeader>
@@ -1456,7 +1464,8 @@ export function DealRoomClient({
           <div className="flex flex-col gap-6">
             {dealRoom.currentStage === "OFFER" &&
             !dealRoom.offers.some((o) => o.status === "PROPOSED") &&
-            dealRoom.viewerRole !== "REVIEWER" ? (
+            (dealRoom.viewerRole === "BUYER" ||
+              dealRoom.viewerRole === "SELLER") ? (
               <Card>
                 <CardHeader>
                   <CardTitle as="h2">Submit written offer</CardTitle>
@@ -1766,29 +1775,53 @@ export function DealRoomClient({
                   {dealRoom.viewerRole === "BUYER" ||
                   dealRoom.viewerRole === "SELLER" ? (
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        loading={busyAction === `chk:${item.id}`}
-                        loadingLabel="Saving..."
-                        onClick={() =>
-                          void handleChecklistAction(item, "CONFIRM")
-                        }
-                      >
-                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        <span>Confirm</span>
-                      </Button>
-                      {item.status === "OPEN" ? (
+                      {(dealRoom.viewerRole === "BUYER" && item.buyerConfirmedAt) ||
+                      (dealRoom.viewerRole === "SELLER" &&
+                        item.sellerConfirmedAt) ? (
                         <Button
                           type="button"
                           variant="secondary"
+                          loading={busyAction === `chk:${item.id}`}
+                          loadingLabel="Updating..."
                           onClick={() =>
-                            void handleChecklistAction(item, "SET_IN_PROGRESS")
+                            void handleChecklistAction(item, "REOPEN")
                           }
                         >
-                          Mark in progress
+                          Undo confirmation
                         </Button>
-                      ) : null}
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="primary"
+                            loading={busyAction === `chk:${item.id}`}
+                            loadingLabel="Saving..."
+                            onClick={() =>
+                              void handleChecklistAction(item, "CONFIRM")
+                            }
+                          >
+                            <CheckCircle2
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>Confirm</span>
+                          </Button>
+                          {item.status === "OPEN" ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() =>
+                                void handleChecklistAction(
+                                  item,
+                                  "SET_IN_PROGRESS"
+                                )
+                              }
+                            >
+                              Mark in progress
+                            </Button>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   ) : null}
                 </div>

@@ -22,12 +22,20 @@ export function getPrivateVaultDir(): string {
 }
 
 function sanitizeFilename(input: string): string {
-  const base = path.basename(input).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const base = path
+    .basename(input)
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/-{2,}/g, "-");
   return base.slice(0, 80) || "document.txt";
 }
 
+const BINARY_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"];
+
 function isTextLikeMime(mimeType: string, filename: string): boolean {
   const lower = filename.toLowerCase();
+  if (BINARY_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+    return false;
+  }
   return (
     mimeType.startsWith("text/") ||
     mimeType === "application/json" ||
@@ -58,7 +66,7 @@ export async function storePrivateDocumentAndWatermark(params: {
   await fs.mkdir(roomDir, { recursive: true });
 
   const nonce = crypto.randomBytes(6).toString("hex");
-  const storageKey = `${params.dealRoomId}/${params.documentId}-${nonce}-${safeFilename}`;
+  const storageKey = `${params.dealRoomId}/${params.documentId}--${nonce}--${safeFilename}`;
   const rawPath = path.join(vaultRoot, storageKey);
   await fs.mkdir(path.dirname(rawPath), { recursive: true });
   await fs.writeFile(rawPath, params.contentBuffer);
@@ -74,7 +82,7 @@ export async function storePrivateDocumentAndWatermark(params: {
     };
   }
 
-  const watermarkedKey = `${params.dealRoomId}/${params.documentId}-${nonce}-watermarked-${safeFilename}`;
+  const watermarkedKey = `${params.dealRoomId}/${params.documentId}--${nonce}--watermarked--${safeFilename}`;
   const watermarkedPath = path.join(vaultRoot, watermarkedKey);
 
   if (isTextLikeMime(params.mimeType, safeFilename)) {

@@ -49,8 +49,14 @@ export default async function ListingDetailPage({
     );
   }
 
+  const twoFactorTime = session?.twoFactorVerifiedAt
+    ? new Date(session.twoFactorVerifiedAt).getTime()
+    : Number.NaN;
+  const referenceNowMs = new Date(referenceNow).getTime();
   const hasTwoFactorVerified = Boolean(
-    session?.twoFactorEnabled && session?.twoFactorVerifiedAt
+    session?.twoFactorEnabled &&
+      Number.isFinite(twoFactorTime) &&
+      referenceNowMs - twoFactorTime <= 12 * 60 * 60 * 1000
   );
   const canOpenDealRoom = Boolean(
     session &&

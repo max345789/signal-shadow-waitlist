@@ -304,6 +304,16 @@ test("Phase 4 acceptance: 2FA gate, NDA redaction unlock, stage transitions, cha
   await page.getByRole("button", { name: /Upload & scan document/i }).click();
   await expect(page.getByText("v2")).toBeVisible();
 
+  // Also exercise real multipart <input type="file"> upload with CSV buffer
+  await page.getByLabel(/Document title/i).fill("Q3 Cohort CSV");
+  await page.locator("#vault-file-input").setInputFiles({
+    name: "q3-cohorts.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("cohort,mrr\nenterprise,420000\n", "utf8"),
+  });
+  await page.getByRole("button", { name: /Upload & scan document/i }).click();
+  await expect(page.getByText("q3-cohorts.csv")).toBeVisible();
+
   // Seller posts chat message
   await page.getByRole("tab", { name: /^Chat/i }).click();
   await page
@@ -377,10 +387,37 @@ test("Phase 4 acceptance: 2FA gate, NDA redaction unlock, stage transitions, cha
     "Stage updated to Due diligence"
   );
 
-  // Confirm first checklist item
+  // Confirm first checklist item, verify Undo confirmation works, then re-confirm
   await page.getByRole("tab", { name: /^Checklist/i }).click();
   await page.getByRole("button", { name: /^Confirm$/i }).first().click();
   await expect(page.getByText("IN PROGRESS").first()).toBeVisible();
+  await page.getByRole("button", { name: /Undo confirmation/i }).first().click();
+  await expect(page.getByText("OPEN").first()).toBeVisible();
+  await page.getByRole("button", { name: /^Confirm$/i }).first().click();
+  await expect(page.getByText("IN PROGRESS").first()).toBeVisible();
+
+  // Real-time SSE verification: Buyer opens Chat tab, Seller posts via separate context, Buyer sees message live without reload
+  await page.getByRole("tab", { name: /^Chat/i }).click();
+  await page.waitForTimeout(1200); // Allow deferred 1000ms SSE connection to establish
+
+  const sellerContext = await page.context().browser()!.newContext();
+  const sellerPage = await sellerContext.newPage();
+  await signInAsSampleRole(sellerPage, "seller.sample@trustmarketplace.local", true);
+  await sellerPage.goto(dealRoomUrl, { waitUntil: "networkidle" });
+  await sellerPage.getByRole("tab", { name: /^Chat/i }).click();
+  await sellerPage
+    .getByLabel(/Post deal room message/i)
+    .fill("Live SSE update: GST filing receipt attached.");
+  await sellerPage.getByRole("button", { name: /Send message/i }).click();
+  await expect(
+    sellerPage.getByText("Live SSE update: GST filing receipt attached.")
+  ).toBeVisible();
+
+  // Buyer tab receives SSE deal-update and renders the new message automatically
+  await expect(
+    page.getByText("Live SSE update: GST filing receipt attached.")
+  ).toBeVisible({ timeout: 5000 });
+  await sellerContext.close();
 
   // Inspect Audit log tab -> all core actions logged
   await page.getByRole("tab", { name: /^Audit log/i }).click();

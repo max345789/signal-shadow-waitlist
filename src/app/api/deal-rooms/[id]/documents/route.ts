@@ -4,8 +4,8 @@ import { getServerSession } from "@/lib/auth/session-server";
 import { dealRoomFailureResponse } from "@/lib/deal-rooms/http";
 import { uploadDealRoomDocument } from "@/lib/deal-rooms/store";
 import {
-  ALLOWED_DOCUMENT_MIME_TYPES,
   DOCUMENT_CATEGORIES,
+  resolveAllowedDocumentMimeType,
   uploadDocumentJsonSchema,
 } from "@/lib/deal-rooms/validation";
 
@@ -72,12 +72,20 @@ export async function POST(
       );
     }
 
-    const mimeType = file.type || "text/plain";
-    if (!ALLOWED_DOCUMENT_MIME_TYPES.has(mimeType)) {
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Document exceeds maximum 5 MB upload size." },
+        { status: 400 }
+      );
+    }
+
+    const filename = file.name || "upload.txt";
+    const mimeType = resolveAllowedDocumentMimeType(file.type, filename);
+    if (!mimeType) {
       return NextResponse.json(
         {
           error:
-            "Unsupported file type. Allowed types: TXT, MD, CSV, JSON, PDF, PNG, JPG.",
+            "Unsupported file type or extension. Allowed types: TXT, MD, CSV, JSON, PDF, PNG, JPG.",
         },
         { status: 400 }
       );
@@ -89,7 +97,7 @@ export async function POST(
       {
         title,
         category: category as (typeof DOCUMENT_CATEGORIES)[number],
-        filename: file.name || "upload.txt",
+        filename,
         mimeType,
         contentBuffer: Buffer.from(arrayBuf),
       },
@@ -117,12 +125,23 @@ export async function POST(
     );
   }
 
-  if (!ALLOWED_DOCUMENT_MIME_TYPES.has(parsed.data.mimeType)) {
+  const mimeType = resolveAllowedDocumentMimeType(
+    parsed.data.mimeType,
+    parsed.data.filename
+  );
+  if (!mimeType) {
     return NextResponse.json(
       {
         error:
-          "Unsupported file type. Allowed types: TXT, MD, CSV, JSON, PDF, PNG, JPG.",
+          "Unsupported file type or extension. Allowed types: TXT, MD, CSV, JSON, PDF, PNG, JPG.",
       },
+      { status: 400 }
+    );
+  }
+
+  if (parsed.data.contentBase64.length > 7_200_000) {
+    return NextResponse.json(
+      { error: "Document exceeds maximum 5 MB upload size." },
       { status: 400 }
     );
   }
@@ -134,7 +153,7 @@ export async function POST(
       title: parsed.data.title,
       category: parsed.data.category,
       filename: parsed.data.filename,
-      mimeType: parsed.data.mimeType,
+      mimeType,
       contentBuffer: buffer,
     },
     session

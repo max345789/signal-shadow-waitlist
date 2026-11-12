@@ -315,12 +315,70 @@ describe("Phase 4 Deal Room PostgreSQL/Prisma branch", () => {
       userAgent: "Vitest",
     });
     expect(dl.ok).toBe(true);
+    if (dl.ok) {
+      expect(dl.data.filename).toBe("ledger.txt");
+    }
     expect(mockDocumentViewCreate).toHaveBeenCalledTimes(1);
     expect(mockAuditLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "DOCUMENT_VIEWED" }),
       })
     );
+  });
+
+  it("recovers exact filenames with hyphens from vault --nonce-- storage keys in Prisma mode", async () => {
+    const future = new Date(Date.now() + 86_400_000);
+    const past = new Date(Date.now() - 86_400_000);
+    mockVerificationFindMany.mockResolvedValue([
+      {
+        id: "v-id",
+        type: "IDENTITY",
+        provider: "Persona",
+        status: "VERIFIED",
+        verifiedAt: past,
+        expiresAt: future,
+      },
+      {
+        id: "v-pof",
+        type: "PROOF_OF_FUNDS",
+        provider: "Setu AA",
+        status: "VERIFIED",
+        verifiedAt: past,
+        expiresAt: future,
+      },
+    ]);
+
+    mockDealRoomFindUnique.mockResolvedValue(
+      makePrismaRoom({
+        currentStage: "DATA_ACCESS",
+        ndaSignedAt: past,
+        documents: [
+          {
+            id: "pg-doc-2",
+            dealRoomId: "pg-deal-1",
+            uploadedById: "pg-seller-1",
+            uploadedBy: { id: "pg-seller-1", name: "PG Seller" },
+            title: "Audited Q4 Report",
+            category: "FINANCIAL",
+            storageKey: "pg-deal-1/doc-m3xyz-ab12--a1b2c3d4e5f6--q4-audited-report.pdf",
+            watermarkedKey:
+              "pg-deal-1/doc-m3xyz-ab12--a1b2c3d4e5f6--watermarked--q4-audited-report.pdf",
+            version: 1,
+            virusScanStatus: "CLEAN",
+            views: [],
+            createdAt: past,
+          },
+        ],
+      })
+    );
+
+    const { getDealRoomForViewer } = await import("@/lib/deal-rooms/store");
+    const res = await getDealRoomForViewer("pg-deal-1", BUYER_SESSION);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.documents[0]?.filename).toBe("q4-audited-report.pdf");
+      expect(res.data.documents[0]?.mimeType).toBe("application/pdf");
+    }
   });
 
   it("updates checklist item confirmation in Prisma with AuditLog", async () => {
