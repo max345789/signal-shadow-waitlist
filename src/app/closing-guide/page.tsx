@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageContainer } from "@/components/layout/page-container";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { CheckCircle2, ShieldAlert, ArrowLeft, ExternalLink } from "lucide-react";
 
@@ -60,7 +59,7 @@ export default function ClosingGuidePage() {
           "Engage an independent lawyer and agree direct settlement terms with the counterparty.",
       }}
     >
-      <PageContainer className="py-8">
+      <div className="py-8">
         <div className="flex flex-col gap-8 max-w-4xl mx-auto">
           {/* Back link */}
           <Link
@@ -130,7 +129,7 @@ export default function ClosingGuidePage() {
             We provide this guide for information only. It is not legal advice.
           </div>
         </div>
-      </PageContainer>
+      </div>
     </AppShell>
   );
 }

@@ -1,6 +1,5 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageContainer } from "@/components/layout/page-container";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { SITE_CONFIG } from "@/lib/config/site";
 
@@ -13,7 +12,7 @@ export const metadata = {
 export default function TermsOfServicePage() {
   return (
     <AppShell activeNav={undefined}>
-      <PageContainer className="py-8">
+      <div className="py-8">
         <div className="flex flex-col gap-8 max-w-3xl mx-auto">
           {/* C8 Required Legal Review Banner */}
           <div
@@ -112,7 +111,7 @@ export default function TermsOfServicePage() {
             </p>
           </section>
         </div>
-      </PageContainer>
+      </div>
     </AppShell>
   );
 }

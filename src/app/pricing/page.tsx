@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageContainer } from "@/components/layout/page-container";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, ShieldCheck, Zap, Bell, ArrowRight } from "lucide-react";
@@ -28,7 +27,7 @@ export default function PricingPage() {
           "Choose a transparent flat fee plan or browse verified marketplace listings freely.",
       }}
     >
-      <PageContainer className="py-12">
+      <div className="py-12">
         <div className="flex flex-col gap-12 max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center flex flex-col items-center gap-4">
@@ -186,7 +185,7 @@ export default function PricingPage() {
             </p>
           </div>
         </div>
-      </PageContainer>
+      </div>
     </AppShell>
   );
 }

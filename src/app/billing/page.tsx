@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageContainer } from "@/components/layout/page-container";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getServerSession } from "@/lib/auth/session-server";
@@ -31,7 +30,7 @@ export default async function BillingPage() {
           "Manage your active early match alerts or review past listing payments.",
       }}
     >
-      <PageContainer className="py-8">
+      <div className="py-8">
         <div className="flex flex-col gap-8 max-w-4xl mx-auto">
           {/* Header */}
           <div className="flex flex-col gap-2">
@@ -153,7 +152,7 @@ export default async function BillingPage() {
             </CardContent>
           </Card>
         </div>
-      </PageContainer>
+      </div>
     </AppShell>
   );
 }

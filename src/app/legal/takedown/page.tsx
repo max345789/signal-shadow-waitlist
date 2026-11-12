@@ -1,6 +1,5 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageContainer } from "@/components/layout/page-container";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 
 export const metadata = {
@@ -12,7 +11,7 @@ export const metadata = {
 export default function TakedownPolicyPage() {
   return (
     <AppShell activeNav={undefined}>
-      <PageContainer className="py-8">
+      <div className="py-8">
         <div className="flex flex-col gap-8 max-w-3xl mx-auto">
           {/* C8 Required Legal Review Banner */}
           <div
@@ -91,7 +90,7 @@ export default function TakedownPolicyPage() {
             </p>
           </section>
         </div>
-      </PageContainer>
+      </div>
     </AppShell>
   );
 }

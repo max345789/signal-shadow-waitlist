@@ -68,7 +68,7 @@ export function AppShell({
 
         <header className="border-b border-mist bg-white">
           <PageContainer className="py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
               {/* C11: Wordmark: Baton (Source Serif 4, Deep Navy). No logo icon. */}
               <Link
                 href="/"
@@ -80,7 +80,7 @@ export function AppShell({
               {/* Desktop Navigation (>= 1024px) */}
               <nav
                 aria-label="Primary navigation"
-                className="hidden lg:flex items-center gap-1 xl:gap-1.5"
+                className="hidden lg:flex max-w-[920px] flex-wrap items-center justify-end gap-1"
               >
                 {navItems
                   .filter((item) => item.key !== "home" && item.key !== "compare" && item.key !== "style-guide")
@@ -90,7 +90,7 @@ export function AppShell({
                       href={item.href}
                       aria-current={activeNav === item.key ? "page" : undefined}
                       className={cn(
-                        "inline-flex min-h-[38px] xl:min-h-[42px] items-center rounded border px-2.5 xl:px-3 py-1.5 text-14 xl:text-15 font-medium no-underline state-transition whitespace-nowrap",
+                        "inline-flex min-h-[40px] items-center rounded border px-2.5 py-1.5 text-14 font-medium no-underline state-transition whitespace-nowrap",
                         activeNav === item.key
                           ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                           : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
@@ -103,7 +103,7 @@ export function AppShell({
                   href="/auth/signin"
                   aria-current={activeNav === "signin" ? "page" : undefined}
                   className={cn(
-                    "inline-flex min-h-[38px] xl:min-h-[42px] items-center rounded border px-3.5 py-1.5 text-14 xl:text-15 font-medium no-underline state-transition ml-1 xl:ml-2 whitespace-nowrap",
+                    "inline-flex min-h-[40px] items-center rounded border px-3.5 py-1.5 text-14 font-medium no-underline state-transition ml-1 whitespace-nowrap",
                     activeNav === "signin"
                       ? "border-deep-navy bg-deep-navy text-white font-semibold"
                       : "border-mist bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
@@ -161,7 +161,7 @@ export function AppShell({
                 ))}
               </nav>
             ) : null}
-          </PageContainer>
+          </div>
         </header>
 
         {trustBanner ? (
@@ -214,7 +214,7 @@ export function AppShell({
               href="/legal/rules"
               className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
             >
-              Listing Rules
+              Listing rules
             </Link>
             <Link
               href="/legal/takedown"
