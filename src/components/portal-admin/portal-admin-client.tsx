@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   Shield,
   CheckCircle2,
@@ -463,14 +464,20 @@ export function PortalAdminClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col text-right">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right">
               <span className="text-14 font-semibold text-white">{session.name}</span>
-              <span className="text-14 text-mist font-mono">{currentAdminEmail}</span>
+              <span className="text-12 text-mist font-mono">{currentAdminEmail}</span>
             </div>
-            <Button
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-mist/30 bg-mist/10 text-mist hover:text-white hover:bg-mist/20 text-13 font-medium transition-colors no-underline"
+            >
+              <Building className="w-3.5 h-3.5" />
+              <span>Marketplace</span>
+            </Link>
+            <button
               type="button"
-              variant="secondary"
               onClick={async () => {
                 try {
                   await fetch("/api/auth/logout", { method: "POST" });
@@ -479,16 +486,16 @@ export function PortalAdminClient({
                   window.location.href = "/";
                 }
               }}
-              className="bg-mist/10 text-white border-mist/30 hover:bg-mist/20 text-14 px-3 py-1.5 h-auto min-h-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded border border-white/20 bg-white/10 text-white hover:bg-white/20 text-13 font-medium transition-colors cursor-pointer"
             >
-              <LogOut className="w-4 h-4 mr-1.5" />
-              Sign out
-            </Button>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
 
         {/* Console Navigation Tabs */}
-        <div className="max-w-7xl mx-auto mt-4 pt-2 border-t border-mist/20 flex flex-wrap gap-1">
+        <div className="max-w-7xl mx-auto mt-4 pt-2 border-t border-mist/20 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
           {[
             { id: "overview", label: "Executive Overview", icon: Activity },
             { id: "listings", label: `Listings Moderation (${listings.length})`, icon: Building },
@@ -506,7 +513,7 @@ export function PortalAdminClient({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded text-14 font-medium transition-colors ${
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded text-14 font-medium transition-colors shrink-0 whitespace-nowrap cursor-pointer ${
                   isActive
                     ? "bg-white text-deep-navy font-semibold"
                     : "text-white/80 hover:bg-white/10 hover:text-white"

@@ -66,72 +66,92 @@ export function AppShell({
           Skip to main content
         </a>
 
-        <header className="border-b border-mist bg-white">
-          <PageContainer className="py-4">
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <header className="border-b border-mist bg-white sticky top-0 z-40">
+          <PageContainer className="py-3 sm:py-3.5">
+            <div className="flex items-center justify-between gap-4">
               {/* C11: Wordmark: Baton (Source Serif 4, Deep Navy). No logo icon. */}
-              <Link
-                href="/"
-                className="font-serif text-28 font-semibold text-deep-navy no-underline hover:text-trust-blue transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue rounded py-1 px-2"
-              >
-                Baton
-              </Link>
+              <div className="flex items-center gap-5 xl:gap-7">
+                <Link
+                  href="/"
+                  className="font-serif text-26 sm:text-28 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue rounded py-0.5 inline-flex items-center"
+                >
+                  Baton
+                </Link>
 
-              {/* Desktop Navigation (>= 1024px) */}
-              <nav
-                aria-label="Primary navigation"
-                className="hidden lg:flex max-w-[920px] flex-wrap items-center justify-end gap-1"
-              >
-                {navItems
-                  .filter((item) => item.key !== "home" && item.key !== "compare" && item.key !== "style-guide")
-                  .map((item) => (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      aria-current={activeNav === item.key ? "page" : undefined}
-                      className={cn(
-                        "inline-flex min-h-[40px] items-center rounded border px-2.5 py-1.5 text-14 font-medium no-underline state-transition whitespace-nowrap",
-                        activeNav === item.key
-                          ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                          : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                {/* Desktop Primary Navigation (>= 1024px) */}
+                <nav
+                  aria-label="Primary navigation"
+                  className="hidden lg:flex items-center gap-1"
+                >
+                  {navItems
+                    .filter(
+                      (item) =>
+                        item.key !== "home" &&
+                        item.key !== "compare" &&
+                        item.key !== "style-guide" &&
+                        item.key !== "sell" &&
+                        item.key !== "thesis"
+                    )
+                    .map((item) => (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        aria-current={activeNav === item.key ? "page" : undefined}
+                        className={cn(
+                          "inline-flex h-9 xl:h-10 items-center rounded border px-2.5 xl:px-3 text-14 xl:text-15 font-medium no-underline state-transition whitespace-nowrap",
+                          activeNav === item.key
+                            ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                            : "border-transparent text-ink hover:bg-cloud hover:text-deep-navy"
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                </nav>
+              </div>
+
+              {/* Action Buttons (Right Aligned) */}
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                {/* List a business CTA Button */}
+                <Link
+                  href="/sell"
+                  aria-current={activeNav === "sell" ? "page" : undefined}
+                  className={cn(
+                    "hidden sm:inline-flex h-9 xl:h-10 items-center justify-center rounded border px-3.5 xl:px-4 text-14 font-medium transition-colors whitespace-nowrap",
+                    activeNav === "sell"
+                      ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                      : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
+                  )}
+                >
+                  List a business
+                </Link>
+
+                {/* Sign in Button */}
                 <Link
                   href="/auth/signin"
                   aria-current={activeNav === "signin" ? "page" : undefined}
                   className={cn(
-                    "inline-flex min-h-[40px] items-center rounded border px-3.5 py-1.5 text-14 font-medium no-underline state-transition ml-1 whitespace-nowrap",
+                    "inline-flex h-9 xl:h-10 items-center justify-center rounded border px-3.5 xl:px-4 text-14 font-medium transition-colors whitespace-nowrap",
                     activeNav === "signin"
-                      ? "border-deep-navy bg-deep-navy text-white font-semibold"
-                      : "border-mist bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
+                      ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                      : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
                   )}
                 >
                   Sign in
                 </Link>
-              </nav>
 
-              {/* Mobile Menu Toggle Button (< 1024px) */}
-              <div className="flex items-center gap-2 lg:hidden">
-                <Link
-                  href="/auth/signin"
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-mist bg-white px-3 py-2 text-16 font-medium text-deep-navy"
-                >
-                  Sign in
-                </Link>
+                {/* Mobile Menu Toggle Button (< 1024px) */}
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen((open) => !open)}
                   aria-expanded={mobileMenuOpen}
                   aria-label={mobileMenuOpen ? "Close menu" : "Open navigation menu"}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-mist bg-cloud p-2 text-deep-navy hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue"
+                  className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded border border-mist bg-cloud text-deep-navy hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-trust-blue lg:hidden"
                 >
                   {mobileMenuOpen ? (
-                    <X className="h-6 w-6" aria-hidden="true" />
+                    <X className="h-5 w-5" aria-hidden="true" />
                   ) : (
-                    <Menu className="h-6 w-6" aria-hidden="true" />
+                    <Menu className="h-5 w-5" aria-hidden="true" />
                   )}
                 </button>
               </div>
@@ -161,7 +181,7 @@ export function AppShell({
                 ))}
               </nav>
             ) : null}
-          </div>
+          </PageContainer>
         </header>
 
         {trustBanner ? (

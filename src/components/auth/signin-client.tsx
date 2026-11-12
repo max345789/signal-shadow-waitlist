@@ -156,7 +156,7 @@ export function SignInClient({
   }
 
   return (
-    <div className="max-w-md mx-auto w-full py-8 flex flex-col gap-6">
+    <div className="max-w-md mx-auto w-full py-2 sm:py-4 flex flex-col gap-6">
       <div className="flex flex-col gap-2 text-center">
         <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-36">
           Sign in to Baton
