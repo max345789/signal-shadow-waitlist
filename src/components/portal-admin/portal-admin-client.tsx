@@ -472,14 +472,14 @@ export function PortalAdminClient({
               )}
             </button>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3 sm:gap-4">
               <div className="h-9 w-9 bg-trust-blue rounded-md flex items-center justify-center text-white shrink-0">
                 <Shield className="w-4 h-4" aria-hidden="true" />
               </div>
-              <span className="font-serif text-18 sm:text-20 font-bold tracking-wide text-white leading-none">
+              <span className="font-serif text-18 sm:text-20 font-bold tracking-wide text-white leading-none whitespace-nowrap">
                 Baton Control Console
               </span>
-              <span className="hidden md:inline-flex items-center px-2.5 py-1 rounded text-11 font-bold bg-brick-red text-white uppercase tracking-wider leading-none">
+              <span className="hidden md:inline-flex items-center px-2.5 py-1 rounded text-11 font-bold bg-brick-red text-white uppercase tracking-wider leading-none shrink-0">
                 Internal Air-Gapped
               </span>
             </div>

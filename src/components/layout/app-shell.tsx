@@ -328,12 +328,12 @@ export function AppShell({
               </div>
 
               {/* Right Side: Quick Action Buttons */}
-              <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <Link
                   href="/sell"
                   aria-current={activeNav === "sell" ? "page" : undefined}
                   className={cn(
-                    "hidden sm:inline-flex h-10 items-center justify-center px-4 rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy text-14 font-medium transition-colors whitespace-nowrap leading-none",
+                    "hidden sm:inline-flex h-10 items-center justify-center px-4 sm:px-5 rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy text-14 font-medium transition-colors whitespace-nowrap leading-none",
                     activeNav === "sell"
                       ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
                       : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
