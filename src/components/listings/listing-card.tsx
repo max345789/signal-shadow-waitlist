@@ -1,6 +1,8 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Clock, MapPin } from "lucide-react";
+import { ArrowRight, Check, Clock, Copy, MapPin } from "lucide-react";
 import type { SanitizedListingView } from "@/lib/domain/listings";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
@@ -21,9 +23,21 @@ export function ListingCard({
   listing: SanitizedListingView;
   titleAs?: "h2" | "h3";
 }) {
+  const [copied, setCopied] = useState(false);
   const revenueMetric = listing.metrics.find((m) => m.key === "REVENUE");
   const profitMetric = listing.metrics.find((m) => m.key === "PROFIT");
   const hasVerified = listing.trustSummary.verifiedCount > 0;
+
+  async function handleShare(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/listings/${listing.slug}`;
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   return (
     <Card className="flex flex-col justify-between">
@@ -32,6 +46,25 @@ export function ListingCard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-14 font-medium text-slate">{listing.sector}</span>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleShare}
+                title="Copy share link"
+                aria-label="Copy share link"
+                className="inline-flex items-center gap-1.5 px-2 py-1 text-12 font-medium text-slate hover:text-deep-navy border border-mist rounded bg-white hover:bg-cloud transition-colors cursor-pointer"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-forest-green" aria-hidden="true" />
+                    <span className="text-forest-green">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Share</span>
+                  </>
+                )}
+              </button>
               {hasVerified ? (
                 <StatusChip
                   tone="verified"

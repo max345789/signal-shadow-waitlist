@@ -786,12 +786,20 @@ export function SellerOnboardingClient({
                   value={askingPrice}
                   onChange={(e) => setAskingPrice(e.target.value)}
                   helperText={
-                    valuation.suggestedAskingPrice > 0
-                      ? `Guided midpoint suggestion: ${formatCurrency(
+                    (() => {
+                      const num = Number(askingPrice);
+                      const readableInput =
+                        Number.isFinite(num) && num > 0
+                          ? ` (Entered: ${formatCurrency(num, { currency, compact: true })})`
+                          : "";
+                      if (valuation.suggestedAskingPrice > 0) {
+                        return `Guided midpoint suggestion: ${formatCurrency(
                           valuation.suggestedAskingPrice,
                           { currency, compact: true }
-                        )}`
-                      : "Enter positive revenue or profit to compute a guided range."
+                        )}${readableInput} • Typically 2.5x - 4.5x annual EBITDA for profitable Indian tech/SaaS businesses.`;
+                      }
+                      return `Enter positive revenue or profit to compute a guided range.${readableInput}`;
+                    })()
                   }
                 />
               </div>

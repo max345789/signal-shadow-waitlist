@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Lock, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, FileText, Lock, MessageSquare, RefreshCw, ShieldCheck, X } from "lucide-react";
 import type { DealRoomSummary } from "@/lib/domain/deal-room";
 import { DEAL_STAGE_DEFINITIONS } from "@/lib/domain/deal-stages";
 import { formatCurrency } from "@/lib/format/currency";
@@ -36,6 +36,7 @@ export function DealRoomsIndexClient({
   gateMessage?: string;
 }) {
   const [rooms, setRooms] = React.useState<DealRoomSummary[]>(initialRooms);
+  const [showPreviewModal, setShowPreviewModal] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -88,15 +89,112 @@ export function DealRoomsIndexClient({
                 "Sign in and verify a 6-digit authenticator code to access confidential deal rooms."}
             </CardDescription>
           </CardHeader>
-          <CardFooter>
+          <CardFooter className="flex flex-wrap items-center gap-3">
             <Button asChild variant="primary">
               <Link href="/auth/signin">Sign in &amp; verify 2FA</Link>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowPreviewModal(true)}
+              className="inline-flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              <span>Preview sample room</span>
             </Button>
             <Button asChild variant="secondary">
               <Link href="/listings">Browse approved listings</Link>
             </Button>
           </CardFooter>
         </Card>
+
+        {showPreviewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="relative w-full max-w-2xl rounded-lg border border-mist bg-white p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-mist pb-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-forest-green" aria-hidden="true" />
+                  <h3 className="text-18 font-semibold text-deep-navy">
+                    Baton Connect Room • Sample Walkthrough
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="rounded p-1 text-slate hover:bg-cloud hover:text-deep-navy"
+                  aria-label="Close sample preview"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-5 py-4 text-14 text-slate">
+                <p>
+                  Every Baton Connect Room is an air-gapped negotiation space created exclusively between a verified buyer and seller. Here is how it functions once you enter:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded border border-mist bg-cloud p-3 flex flex-col gap-1.5">
+                    <span className="font-semibold text-deep-navy flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-trust-blue" />
+                      1. Mutual E-Sign NDA
+                    </span>
+                    <span className="text-12 text-slate leading-relaxed">
+                      Legal identifiers, financial customer lists, and domains stay redacted until both sides sign the built-in non-disclosure agreement.
+                    </span>
+                  </div>
+
+                  <div className="rounded border border-mist bg-cloud p-3 flex flex-col gap-1.5">
+                    <span className="font-semibold text-deep-navy flex items-center gap-1.5">
+                      <Lock className="h-4 w-4 text-trust-blue" />
+                      2. Secure Data Vault
+                    </span>
+                    <span className="text-12 text-slate leading-relaxed">
+                      Upload P&amp;L reports, cap tables, and tax filings with automatic virus scanning and immutable access logs.
+                    </span>
+                  </div>
+
+                  <div className="rounded border border-mist bg-cloud p-3 flex flex-col gap-1.5">
+                    <span className="font-semibold text-deep-navy flex items-center gap-1.5">
+                      <MessageSquare className="h-4 w-4 text-trust-blue" />
+                      3. Direct Encrypted Chat
+                    </span>
+                    <span className="text-12 text-slate leading-relaxed">
+                      Discuss terms, transition support, and owner handover directly without brokers or intermediary markups.
+                    </span>
+                  </div>
+
+                  <div className="rounded border border-mist bg-cloud p-3 flex flex-col gap-1.5">
+                    <span className="font-semibold text-deep-navy flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-forest-green" />
+                      4. 6-Stage Deal Progression
+                    </span>
+                    <span className="text-12 text-slate leading-relaxed">
+                      Progress transparently from Intro through Details, Offers, Due Diligence, and Closing at your mutual pace.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded border border-mist/80 bg-cloud/50 p-3 text-12 text-slate">
+                  <strong className="text-deep-navy">Privacy Assurance:</strong> Zero public links, mandatory 2FA TOTP verification on every request, and platform non-custody.
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-mist pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowPreviewModal(false)}
+                >
+                  Close
+                </Button>
+                <Button asChild variant="primary">
+                  <Link href="/auth/signin">Sign in to Enter Room</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
