@@ -29,7 +29,7 @@ export function verifyPassword(password: string, storedHash: string): boolean {
 
 export function createTotpInstance(secretBase32: string, accountEmail: string): OTPAuth.TOTP {
   return new OTPAuth.TOTP({
-    issuer: "Trust Marketplace",
+    issuer: "Baton",
     label: accountEmail,
     algorithm: "SHA1",
     digits: 6,

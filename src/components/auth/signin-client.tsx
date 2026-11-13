@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ShieldCheck, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/cn";
 import type { AuthSession } from "@/lib/auth/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,12 +36,62 @@ export function SignInClient({
   supabaseConfigured?: boolean;
 }) {
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
-  const [email, setEmail] = React.useState(sampleAccounts[0]?.email ?? "thewyyc@gmail.com");
+  const [authMode, setAuthMode] = React.useState<"signin" | "signup">("signin");
+  const [signUpName, setSignUpName] = React.useState("");
+  const [signUpRole, setSignUpRole] = React.useState<"BUYER" | "SELLER">("BUYER");
+  const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [totpCode, setTotpCode] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "signup") {
+        setAuthMode("signup");
+      }
+    }
+  }, []);
+
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setStatusMessage(null);
+
+    if (!signUpName.trim() || signUpName.trim().length < 2) {
+      setError("Please enter your full legal name (at least 2 characters).");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: signUpName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role: signUpRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Registration failed.");
+        return;
+      }
+      setSession(data.session);
+      setStatusMessage("Account created successfully. Redirecting to platform...");
+      window.location.href = data.redirectUrl || "/listings";
+    } catch {
+      setError("Network error while creating account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -159,10 +210,12 @@ export function SignInClient({
     <div className="max-w-md mx-auto w-full py-2 sm:py-4 flex flex-col gap-6">
       <div className="flex flex-col gap-2 text-center">
         <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-36">
-          Sign in to Baton
+          {authMode === "signup" ? "Create your Baton account" : "Sign in to Baton"}
         </h1>
         <p className="text-16 text-slate">
-          Access your business listings, deals, and administrator console.
+          {authMode === "signup"
+            ? "Register to explore vetted acquisition opportunities and connect with business owners."
+            : "Access your business listings, deals, and administrator console."}
         </p>
       </div>
 
@@ -170,7 +223,11 @@ export function SignInClient({
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
             <CardTitle as="h2" className="text-20 font-semibold text-deep-navy">
-              {session ? "Active Account Session" : "Account Sign In"}
+              {session
+                ? "Active Account Session"
+                : authMode === "signup"
+                  ? "Customer Registration"
+                  : "Account Sign In"}
             </CardTitle>
             <StatusChip
               tone={
@@ -192,9 +249,7 @@ export function SignInClient({
             />
           </div>
           <CardDescription>
-            {supabaseConfigured && databaseConfigured
-              ? "Connected to Supabase PostgreSQL & Auth backend."
-              : "Secure platform authentication & verification."}
+            Secure platform authentication & verification.
           </CardDescription>
         </CardHeader>
 
@@ -218,50 +273,156 @@ export function SignInClient({
           ) : null}
 
           {!session ? (
-            <form onSubmit={handleLogin} className="flex flex-col gap-4">
-              <Input
-                label="Email address"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="thewyyc@gmail.com"
-                className="min-h-12"
-              />
-              <Input
-                label="Password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                className="min-h-12"
-              />
-              <Button type="submit" variant="primary" loading={loading} className="w-full min-h-12 text-16 font-medium">
-                Sign in with Email
-              </Button>
-
-              <div className="flex flex-col gap-3 pt-2 border-t border-mist/40 text-center">
-                <Link
-                  href="/boost/reset"
-                  className="text-14 font-medium text-trust-blue hover:underline"
+            <div className="flex flex-col gap-4">
+              {/* Tab Selector: Sign in vs Sign up */}
+              <div className="grid grid-cols-2 p-1 rounded-md bg-cloud border border-mist gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setError(null);
+                  }}
+                  className={cn(
+                    "py-2 px-3 text-14 font-semibold rounded transition-colors text-center cursor-pointer leading-none",
+                    authMode === "signin"
+                      ? "bg-white text-deep-navy shadow-none border border-mist"
+                      : "text-slate hover:text-deep-navy border border-transparent"
+                  )}
                 >
-                  Forgot password? Reset with OTP
-                </Link>
-
-                {supabaseConfigured && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    loading={loading}
-                    onClick={handleSupabaseMagicLink}
-                    className="w-full min-h-10 text-14"
-                  >
-                    Send Supabase Magic Link
-                  </Button>
-                )}
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setError(null);
+                  }}
+                  className={cn(
+                    "py-2 px-3 text-14 font-semibold rounded transition-colors text-center cursor-pointer leading-none",
+                    authMode === "signup"
+                      ? "bg-white text-deep-navy shadow-none border border-mist"
+                      : "text-slate hover:text-deep-navy border border-transparent"
+                  )}
+                >
+                  Create Account (Sign Up)
+                </button>
               </div>
-            </form>
+
+              {authMode === "signin" ? (
+                <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                  <Input
+                    label="Email address"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="min-h-12"
+                  />
+                  <Input
+                    label="Password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="min-h-12"
+                  />
+                  <Button type="submit" variant="primary" loading={loading} className="w-full min-h-12 text-16 font-medium">
+                    Sign in with Email
+                  </Button>
+
+                  <div className="flex flex-col gap-3 pt-2 border-t border-mist/40 text-center">
+                    <Link
+                      href="/boost/reset"
+                      className="text-14 font-medium text-trust-blue hover:underline"
+                    >
+                      Forgot password? Reset with OTP
+                    </Link>
+
+                    {supabaseConfigured && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={loading}
+                        onClick={handleSupabaseMagicLink}
+                        className="w-full min-h-10 text-14"
+                      >
+                        Send Supabase Magic Link
+                      </Button>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSignUp} className="flex flex-col gap-4">
+                  <Input
+                    label="Full Name"
+                    type="text"
+                    required
+                    value={signUpName}
+                    onChange={(e) => setSignUpName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="min-h-12"
+                  />
+                  <Input
+                    label="Email address"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="min-h-12"
+                  />
+                  <Input
+                    label="Password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    className="min-h-12"
+                  />
+
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-14 font-medium text-deep-navy">Account Type</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSignUpRole("BUYER")}
+                        className={cn(
+                          "py-2.5 px-3 rounded border text-14 font-medium text-center cursor-pointer transition-colors leading-none",
+                          signUpRole === "BUYER"
+                            ? "border-trust-blue bg-pale-blue text-trust-blue font-semibold"
+                            : "border-mist bg-white text-slate hover:border-deep-navy"
+                        )}
+                      >
+                        Buyer / Investor
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignUpRole("SELLER")}
+                        className={cn(
+                          "py-2.5 px-3 rounded border text-14 font-medium text-center cursor-pointer transition-colors leading-none",
+                          signUpRole === "SELLER"
+                            ? "border-trust-blue bg-pale-blue text-trust-blue font-semibold"
+                            : "border-mist bg-white text-slate hover:border-deep-navy"
+                        )}
+                      >
+                        Business Seller
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button type="submit" variant="action" loading={loading} className="w-full min-h-12 text-16 font-semibold">
+                    Create Customer Account
+                  </Button>
+
+                  <p className="text-13 text-slate text-center m-0">
+                    By registering, you agree to the Baton listing rules and privacy policy.
+                  </p>
+                </form>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col gap-6">
               {session.roles.includes("ADMIN") ? (

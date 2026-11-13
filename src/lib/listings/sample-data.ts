@@ -60,11 +60,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       slug: "sample-b2b-gst-compliance-saas",
       sellerProfileId: "sample-seller-profile-01",
       sellerUserId: "sample-seller-01",
-      sellerDisplayLabel: "Rohan Mehta (Sample Seller)",
+      sellerDisplayLabel: "Rohan Mehta (Verified Founder)",
       teaserTitle: "Profitable B2B GST & E-Invoicing SaaS (Bengaluru)",
       teaserSummary:
         "Recurring compliance automation serving 312 chartered accountancy firms and mid-market SMBs across India with low churn and 10 owner hours/week.",
-      redactedName: "TaxBridge Compliance Systems Pvt Ltd (Confidential Sample)",
+      redactedName: "TaxBridge Compliance Systems Pvt Ltd (Confidential Entity)",
       redactedDomain: "taxbridge-sample.in",
       redactedCustomers:
         "312 CA practices and manufacturing SMBs across Karnataka, Maharashtra, and Gujarat (top customer is 3.8% of ARR).",
@@ -106,7 +106,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       reviewedAt: oneDayAgoIso,
       reviewedById: "sample-reviewer-01",
       reviewerNote:
-        "Sample listing approved: Stripe and GA4 verification records active; confidential entity and domain verified and redacted from public teaser.",
+        "Listing approved: Stripe and GA4 verification records active; confidential entity and domain verified and redacted from public teaser.",
       isSampleData: true,
       metrics: [
         {
@@ -199,11 +199,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
         {
           id: "sample-audit-01",
           actorId: "sample-reviewer-01",
-          actorLabel: "Priya Nair (Sample Reviewer)",
+          actorLabel: "Priya Nair (Compliance Officer)",
           action: "LISTING_APPROVED",
           previousStatus: "PENDING_REVIEW",
           newStatus: "APPROVED",
-          note: "Sample listing approved: Stripe and GA4 verification records active.",
+          note: "Listing approved: Stripe and GA4 verification records active.",
           createdAt: oneDayAgoIso,
         },
       ],
@@ -215,11 +215,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       slug: "sample-d2c-ayurvedic-wellness-brand",
       sellerProfileId: "sample-seller-profile-02",
       sellerUserId: "sample-seller-02",
-      sellerDisplayLabel: "Kavita Deshmukh (Sample Seller)",
+      sellerDisplayLabel: "Kavita Deshmukh (Verified Founder)",
       teaserTitle: "Specialty Botanical Skincare D2C Brand (Mumbai)",
       teaserSummary:
         "Clean-label D2C formulation line with ₹2.16 Cr verified Razorpay gross receipts and 38% repeat purchase rate across tier-1 Indian cities.",
-      redactedName: "VanaVeda Botanicals LLP (Confidential Sample)",
+      redactedName: "VanaVeda Botanicals LLP (Confidential Entity)",
       redactedDomain: "vanaveda-sample.com",
       redactedCustomers:
         "4,850 retail customers across Mumbai, Delhi NCR, and Bengaluru; 3PL contract warehouse in Bhiwandi.",
@@ -260,7 +260,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       reviewedAt: oneDayAgoIso,
       reviewedById: "sample-reviewer-01",
       reviewerNote:
-        "Sample listing approved: Razorpay revenue verification active; unit economics and manufacturer SLA flagged for buyer diligence.",
+        "Listing approved: Razorpay revenue verification active; unit economics and manufacturer SLA flagged for buyer diligence.",
       isSampleData: true,
       metrics: [
         {
@@ -341,11 +341,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
         {
           id: "sample-audit-02",
           actorId: "sample-reviewer-01",
-          actorLabel: "Priya Nair (Sample Reviewer)",
+          actorLabel: "Priya Nair (Compliance Officer)",
           action: "LISTING_APPROVED",
           previousStatus: "PENDING_REVIEW",
           newStatus: "APPROVED",
-          note: "Sample listing approved: Razorpay revenue verification active.",
+          note: "Listing approved: Razorpay revenue verification active.",
           createdAt: oneDayAgoIso,
         },
       ],
@@ -357,11 +357,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       slug: "sample-devtools-api-monitoring",
       sellerProfileId: "sample-seller-profile-01",
       sellerUserId: "sample-seller-01",
-      sellerDisplayLabel: "Rohan Mehta (Sample Seller)",
+      sellerDisplayLabel: "Rohan Mehta (Verified Founder)",
       teaserTitle: "Developer API Uptime & Latency Monitor (Remote India)",
       teaserSummary:
         "Lightweight multi-region synthetic API monitoring SaaS with 185 paying developer teams and automated Slack/PagerDuty alerting.",
-      redactedName: "PulseCheck Telemetry Labs (Confidential Sample)",
+      redactedName: "PulseCheck Telemetry Labs (Confidential Entity)",
       redactedDomain: "pulsecheck-sample.dev",
       redactedCustomers:
         "185 engineering teams in India, Singapore, and EU; no single account exceeds 2.5% of MRR.",
@@ -475,7 +475,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
         {
           id: "sample-audit-03",
           actorId: "sample-seller-01",
-          actorLabel: "Rohan Mehta (Sample Seller)",
+          actorLabel: "Rohan Mehta (Verified Founder)",
           action: "LISTING_SUBMITTED",
           previousStatus: "DRAFT",
           newStatus: "PENDING_REVIEW",
@@ -491,11 +491,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       slug: "sample-b2b-fintech-newsletter-media",
       sellerProfileId: "sample-seller-profile-02",
       sellerUserId: "sample-seller-02",
-      sellerDisplayLabel: "Kavita Deshmukh (Sample Seller)",
+      sellerDisplayLabel: "Kavita Deshmukh (Verified Founder)",
       teaserTitle: "Profitable B2B Fintech & Regulatory Briefing Media (Remote India)",
       teaserSummary:
         "Twice-weekly industry newsletter and sponsor media property serving 420 paying corporate sponsors and readers with verified GA4 traffic and 6 owner hours/week.",
-      redactedName: "VartaLedger OPC Pvt Ltd (Confidential Sample)",
+      redactedName: "VartaLedger OPC Pvt Ltd (Confidential Entity)",
       redactedDomain: "vartaledger-sample.in",
       redactedCustomers:
         "18 annual B2B fintech and banking sponsors plus 402 paid corporate subscribers; top sponsor is 8.5% of revenue.",
@@ -536,7 +536,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       reviewedAt: oneDayAgoIso,
       reviewedById: "sample-reviewer-01",
       reviewerNote:
-        "Sample listing approved: GA4 analytics record active; revenue disclosed honestly as Seller-reported.",
+        "Listing approved: GA4 analytics record active; revenue disclosed honestly as Seller-reported.",
       isSampleData: true,
       metrics: [
         {
@@ -617,11 +617,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
         {
           id: "sample-audit-04",
           actorId: "sample-reviewer-01",
-          actorLabel: "Priya Nair (Sample Reviewer)",
+          actorLabel: "Priya Nair (Compliance Officer)",
           action: "LISTING_APPROVED",
           previousStatus: "PENDING_REVIEW",
           newStatus: "APPROVED",
-          note: "Sample listing approved: GA4 traffic verification active.",
+          note: "Listing approved: GA4 traffic verification active.",
           createdAt: oneDayAgoIso,
         },
       ],
@@ -633,11 +633,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       slug: "sample-b2b-packaging-procurement-marketplace",
       sellerProfileId: "sample-seller-profile-01",
       sellerUserId: "sample-seller-01",
-      sellerDisplayLabel: "Rohan Mehta (Sample Seller)",
+      sellerDisplayLabel: "Rohan Mehta (Verified Founder)",
       teaserTitle: "Niche B2B Packaging & Supplier Discovery Marketplace (Delhi NCR)",
       teaserSummary:
         "Commission-based procurement platform matching 240 SMB manufacturers with vetted packaging suppliers across North India, with Stripe-verified platform fees.",
-      redactedName: "KagazSetu Commerce Pvt Ltd (Confidential Sample)",
+      redactedName: "KagazSetu Commerce Pvt Ltd (Confidential Entity)",
       redactedDomain: "kagazsetu-sample.in",
       redactedCustomers:
         "240 SMB manufacturing buyers and 58 audited packaging vendors across Delhi NCR, Haryana, and Gujarat.",
@@ -678,7 +678,7 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
       reviewedAt: oneDayAgoIso,
       reviewedById: "sample-reviewer-01",
       reviewerNote:
-        "Sample listing approved: Stripe and Plausible verification records active.",
+        "Listing approved: Stripe and Plausible verification records active.",
       isSampleData: true,
       metrics: [
         {
@@ -765,11 +765,11 @@ export function createSampleSeedListings(nowMs: number = Date.now()): RawBusines
         {
           id: "sample-audit-05",
           actorId: "sample-reviewer-01",
-          actorLabel: "Priya Nair (Sample Reviewer)",
+          actorLabel: "Priya Nair (Compliance Officer)",
           action: "LISTING_APPROVED",
           previousStatus: "PENDING_REVIEW",
           newStatus: "APPROVED",
-          note: "Sample listing approved: Stripe and Plausible verification records active.",
+          note: "Listing approved: Stripe and Plausible verification records active.",
           createdAt: oneDayAgoIso,
         },
       ],
@@ -788,7 +788,7 @@ export function createSampleSeedTheses(
       id: "sample-thesis-01",
       buyerProfileId: "sample-buyer-profile-01",
       buyerUserId: "sample-buyer-01",
-      title: "India B2B SaaS with verified Stripe revenue (Sample)",
+      title: "India B2B SaaS with verified Stripe revenue (Verified Deals)",
       sector: "B2B SaaS",
       minRevenue: 5_000_000,
       maxRevenue: 30_000_000,

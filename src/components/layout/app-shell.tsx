@@ -195,18 +195,26 @@ export function AppShell({
             <PlusCircle className="w-4 h-4 mr-2 text-trust-blue" />
             <span>List a business</span>
           </Link>
-          <Link
-            href="/auth/signin"
-            className={cn(
-              "inline-flex h-11 w-full items-center justify-center rounded-md border px-4 text-14 font-semibold transition-colors no-underline leading-none",
-              activeNav === "signin"
-                ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
-            )}
-          >
-            <User className="w-4 h-4 mr-2" />
-            <span>Sign in</span>
-          </Link>
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              href="/auth/signin?mode=signin"
+              className={cn(
+                "inline-flex h-10 w-full items-center justify-center rounded-md border px-3 text-14 font-medium transition-colors no-underline leading-none",
+                activeNav === "signin"
+                  ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                  : "border-deep-navy/30 bg-white text-deep-navy hover:bg-cloud"
+              )}
+            >
+              <User className="w-4 h-4 mr-1.5" />
+              <span>Sign in</span>
+            </Link>
+            <Link
+              href="/auth/signin?mode=signup"
+              className="inline-flex h-10 w-full items-center justify-center rounded-md border border-trust-blue bg-trust-blue text-white hover:bg-deep-navy hover:border-deep-navy px-3 text-14 font-semibold transition-colors no-underline leading-none"
+            >
+              <span>Sign up</span>
+            </Link>
+          </div>
         </div>
       </aside>
 
@@ -262,101 +270,115 @@ export function AppShell({
                 <PlusCircle className="w-4 h-4 mr-2 text-trust-blue" />
                 <span>List a business</span>
               </Link>
-              <Link
-                href="/auth/signin"
-                onClick={() => setIsMobileDrawerOpen(false)}
-                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue text-14 font-semibold transition-colors no-underline leading-none"
-              >
-                <User className="w-4 h-4 mr-2" />
-                <span>Sign in</span>
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/auth/signin?mode=signin"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md border border-deep-navy/30 bg-white text-deep-navy hover:bg-cloud text-14 font-medium transition-colors no-underline leading-none"
+                >
+                  <User className="w-4 h-4 mr-1.5" />
+                  <span>Sign in</span>
+                </Link>
+                <Link
+                  href="/auth/signin?mode=signup"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md border border-trust-blue bg-trust-blue text-white hover:bg-deep-navy hover:border-deep-navy text-14 font-semibold transition-colors no-underline leading-none"
+                >
+                  <span>Sign up</span>
+                </Link>
+              </div>
             </div>
           </aside>
         </div>
       ) : null}
 
-      {/* ─── MAIN CONTENT AREA (Scrollable, Side Panel Locked) ─── */}
-      <div className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col justify-between">
-        <div>
-          {/* Top Header Bar */}
-          <header className="border-b border-mist bg-white sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center shrink-0">
-            <div className="w-full flex items-center justify-between gap-4">
-              {/* Left Side: Toggle Panel Button + Brand Wordmark */}
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* Desktop Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsSidePanelOpen((prev) => !prev)}
-                  aria-expanded={isSidePanelOpen}
-                  aria-controls="desktop-side-panel"
-                  aria-label={isSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
-                  className="hidden lg:inline-flex h-10 items-center justify-center gap-2 px-3.5 rounded-md border border-mist bg-cloud hover:bg-white text-deep-navy text-14 font-medium transition-colors cursor-pointer leading-none"
-                >
-                  {isSidePanelOpen ? (
-                    <>
-                      <PanelLeftClose className="w-4 h-4 text-slate shrink-0" aria-hidden="true" />
-                      <span>Collapse</span>
-                    </>
-                  ) : (
-                    <>
-                      <PanelLeft className="w-4 h-4 text-trust-blue shrink-0" aria-hidden="true" />
-                      <span>Navigation</span>
-                    </>
-                  )}
-                </button>
+      {/* ─── MAIN CONTENT AREA (Stationary Header, Locked Side Panel, Scrollbar restricted below Header) ─── */}
+      <div className="flex-1 min-w-0 h-screen flex flex-col overflow-hidden">
+        {/* Top Header Bar */}
+        <header className="border-b border-mist bg-white shrink-0 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center z-30">
+          <div className="w-full flex items-center justify-between gap-4">
+            {/* Left Side: Toggle Panel Button + Brand Wordmark */}
+            <div className="flex items-center gap-3 sm:gap-4">
+              {/* Desktop Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidePanelOpen((prev) => !prev)}
+                aria-expanded={isSidePanelOpen}
+                aria-controls="desktop-side-panel"
+                aria-label={isSidePanelOpen ? "Collapse navigation panel" : "Open navigation panel"}
+                className="hidden lg:inline-flex h-10 items-center justify-center gap-2 px-3.5 rounded-md border border-mist bg-cloud hover:bg-white text-deep-navy text-14 font-medium transition-colors cursor-pointer leading-none"
+              >
+                {isSidePanelOpen ? (
+                  <>
+                    <PanelLeftClose className="w-4 h-4 text-slate shrink-0" aria-hidden="true" />
+                    <span>Collapse</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelLeft className="w-4 h-4 text-trust-blue shrink-0" aria-hidden="true" />
+                    <span>Navigation</span>
+                  </>
+                )}
+              </button>
 
-                {/* Mobile / Tablet Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsMobileDrawerOpen(true)}
-                  aria-label="Open navigation menu"
-                  className="inline-flex lg:hidden h-10 w-10 items-center justify-center rounded-md border border-mist bg-cloud text-deep-navy hover:bg-white transition-colors cursor-pointer shrink-0"
-                >
-                  <Menu className="w-5 h-5" aria-hidden="true" />
-                </button>
+              {/* Mobile / Tablet Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(true)}
+                aria-label="Open navigation menu"
+                className="inline-flex lg:hidden h-10 w-10 items-center justify-center rounded-md border border-mist bg-cloud text-deep-navy hover:bg-white transition-colors cursor-pointer shrink-0"
+              >
+                <Menu className="w-5 h-5" aria-hidden="true" />
+              </button>
 
-                {/* Brand Wordmark */}
-                <Link
-                  href="/"
-                  className={cn(
-                    "font-serif text-24 sm:text-26 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors items-center tracking-tight",
-                    isSidePanelOpen ? "lg:hidden" : "inline-flex"
-                  )}
-                >
-                  Baton
-                </Link>
-              </div>
-
-              {/* Right Side: Quick Action Buttons */}
-              <div className="flex items-center gap-3 sm:gap-4">
-                <Link
-                  href="/sell"
-                  aria-current={activeNav === "sell" ? "page" : undefined}
-                  className={cn(
-                    "hidden sm:inline-flex h-10 items-center justify-center px-4 sm:px-5 rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy text-14 font-medium transition-colors whitespace-nowrap leading-none",
-                    activeNav === "sell"
-                      ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                      : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
-                  )}
-                >
-                  List a business
-                </Link>
-
-                <Link
-                  href="/auth/signin"
-                  aria-current={activeNav === "signin" ? "page" : undefined}
-                  className={cn(
-                    "inline-flex h-10 items-center justify-center px-4 sm:px-5 rounded-md border border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue text-14 font-medium transition-colors whitespace-nowrap leading-none",
-                    activeNav === "signin"
-                      ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
-                      : "border-deep-navy bg-deep-navy text-white hover:bg-trust-blue hover:border-trust-blue"
-                  )}
-                >
-                  Sign in
-                </Link>
-              </div>
+              {/* Brand Wordmark */}
+              <Link
+                href="/"
+                className={cn(
+                  "font-serif text-24 sm:text-26 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors items-center tracking-tight",
+                  isSidePanelOpen ? "lg:hidden" : "inline-flex"
+                )}
+              >
+                Baton
+              </Link>
             </div>
-          </header>
+
+            {/* Right Side: Quick Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                href="/sell"
+                aria-current={activeNav === "sell" ? "page" : undefined}
+                className={cn(
+                  "hidden sm:inline-flex h-10 items-center justify-center px-4 rounded-md border border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy text-14 font-medium transition-colors whitespace-nowrap leading-none",
+                  activeNav === "sell"
+                    ? "border-deep-navy bg-cloud text-deep-navy font-semibold"
+                    : "border-deep-navy/35 bg-white text-deep-navy hover:bg-cloud hover:border-deep-navy"
+                )}
+              >
+                List a business
+              </Link>
+
+              <Link
+                href="/auth/signin?mode=signin"
+                aria-current={activeNav === "signin" ? "page" : undefined}
+                className="inline-flex h-10 items-center justify-center px-3.5 sm:px-4 rounded-md border border-deep-navy/30 bg-white text-deep-navy hover:bg-cloud text-14 font-medium transition-colors whitespace-nowrap leading-none"
+              >
+                Sign in
+              </Link>
+
+              <Link
+                href="/auth/signin?mode=signup"
+                className="inline-flex h-10 items-center justify-center px-3.5 sm:px-4 rounded-md border border-trust-blue bg-trust-blue text-white hover:bg-deep-navy hover:border-deep-navy text-14 font-semibold transition-colors whitespace-nowrap leading-none"
+              >
+                Sign up
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Body (Scrollbar strictly restricted to content below the header) */}
+        <div className="flex-1 min-w-0 overflow-y-auto flex flex-col justify-between">
+          <div>
 
           {/* Trust Banner (C2 Mission / Vitals) */}
           {trustBanner ? (
@@ -443,5 +465,6 @@ export function AppShell({
         </footer>
       </div>
     </div>
+  </div>
   );
 }

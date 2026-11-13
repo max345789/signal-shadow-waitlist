@@ -145,7 +145,7 @@ describe("Phase 5 Escrow & Transfer UI Components", () => {
     await user.click(screen.getByRole("tab", { name: /Escrow & transfer/i }));
 
     expect(
-      screen.getByText(/Trust Marketplace never holds or custodies funds/i)
+      screen.getByText(/Baton never holds or custodies funds/i)
     ).toBeInTheDocument();
     expect(screen.getByText("ESC-ESCCOM-P5")).toBeInTheDocument();
     expect(screen.getByText("Funded")).toBeInTheDocument();

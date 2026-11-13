@@ -1334,9 +1334,6 @@ export function VerificationCentreClient({
                               <CardTitle as="h2">{biz.teaserTitle}</CardTitle>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
-                              {biz.isSampleData ? (
-                                <StatusChip tone="neutral" label="Sample data" />
-                              ) : null}
                               <span className="text-14 font-medium text-slate tabular-figures">
                                 {biz.verifiedMetricsCount} /{" "}
                                 {biz.totalMetricsCount} vitals verified
@@ -1521,7 +1518,7 @@ export function VerificationCentreClient({
                                 {activeSpec.readOnlyScope}
                               </span>
                               <p className="text-16 text-ink">
-                                Trust Marketplace can only read aggregate
+                                Baton can only read aggregate
                                 metrics ({activeSpec.metricKeys.join(", ")}) and
                                 never holds funds or mutates provider settings.
                               </p>

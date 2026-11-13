@@ -458,9 +458,6 @@ export function MatchesClient({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle as="h3">{activeEntry.thesis.title}</CardTitle>
-                    {activeEntry.thesis.isSampleData ? (
-                      <StatusChip tone="neutral" label="Sample data" />
-                    ) : null}
                   </div>
                   <StatusChip
                     tone={activeEntry.thesis.alertsEnabled ? "neutral" : "seller-reported"}

@@ -22,7 +22,7 @@ export const ESCROW_PROVIDER_SPECS: Record<EscrowProviderName, EscrowProviderSpe
   "Escrow.com": {
     provider: "Escrow.com",
     regulatorySummary:
-      "Licensed third-party online escrow (DFPI / multi-currency M&A). Trust Marketplace never holds funds.",
+      "Licensed third-party online escrow (DFPI / multi-currency M&A). Baton never holds funds.",
     supportedCurrencies: ["INR", "USD", "EUR", "GBP"],
     depositInstructionTemplate:
       "Buyer wires purchase consideration directly to Escrow.com segregated trust account. Seller receives funds only after two-sided Transfer confirmation.",
@@ -30,7 +30,7 @@ export const ESCROW_PROVIDER_SPECS: Record<EscrowProviderName, EscrowProviderSpe
   "Castler Escrow": {
     provider: "Castler Escrow",
     regulatorySummary:
-      "RBI-regulated digital escrow partner for domestic INR M&A settlements. Trust Marketplace never holds funds.",
+      "RBI-regulated digital escrow partner for domestic INR M&A settlements. Baton never holds funds.",
     supportedCurrencies: ["INR"],
     depositInstructionTemplate:
       "Buyer deposits INR consideration via NEFT/RTGS into Castler Escrow virtual trust account. Release executes upon Buyer & Seller transfer sign-off.",
@@ -98,7 +98,7 @@ export async function initiateThirdPartyEscrow(params: {
         },
         body: JSON.stringify({
           currency: params.currency.toLowerCase(),
-          description: `Trust Marketplace acquisition: ${params.businessTitle} (Deal ${params.dealRoomId})`,
+          description: `Baton acquisition: ${params.businessTitle} (Deal ${params.dealRoomId})`,
           parties: [
             { role: "buyer", customer: params.buyerEmail },
             { role: "seller", customer: params.sellerEmail },

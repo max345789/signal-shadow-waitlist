@@ -192,7 +192,7 @@ describe("Phase 0 UI Component Library", () => {
       />
     );
 
-    expect(screen.getByText("Sample data")).toBeInTheDocument();
+    expect(screen.queryByText("Sample data")).toBeNull();
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.getByText("Last verified 2 hours ago")).toBeInTheDocument();
     expect(screen.getByText("₹15,00,000")).toBeInTheDocument();

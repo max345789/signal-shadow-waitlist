@@ -10,6 +10,7 @@ import {
 import {
   listListingsForAdminReview,
   reviewListingAsAdmin,
+  verifyAllBadgesForListingAsAdmin,
 } from "@/lib/listings/store";
 import type {
   SanitizedListingView,
@@ -229,6 +230,24 @@ export async function moderateListingActionAsAdmin(
     details: reviewerNote,
   });
 
+  return { ok: true };
+}
+
+export async function verifyListingBadgesActionAsAdmin(
+  listingId: string,
+  session: AuthSession
+): Promise<{ ok: boolean; reason?: string }> {
+  const result = await verifyAllBadgesForListingAsAdmin(listingId, session);
+  if (!result.ok) {
+    return { ok: false, reason: result.reason };
+  }
+  await logAdminAction({
+    actorEmail: session.email,
+    action: "LISTING_BADGES_VERIFIED",
+    entityType: "BUSINESS",
+    entityId: listingId,
+    details: "All connected vitals & trust badges marked verified by administrator.",
+  });
   return { ok: true };
 }
 

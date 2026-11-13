@@ -441,9 +441,6 @@ export function AdminReviewClient({
                       tone="neutral"
                       label={`Room: ${item.roomStatus}`}
                     />
-                    {item.isSampleData ? (
-                      <StatusChip tone="neutral" label="Sample data" />
-                    ) : null}
                   </div>
                   <span className="text-14 text-slate tabular-figures">
                     Ref:{" "}
@@ -679,9 +676,6 @@ export function AdminReviewClient({
                       tone="neutral"
                       label={verificationTypeLabel(record.type)}
                     />
-                    {record.isSampleData ? (
-                      <StatusChip tone="neutral" label="Sample data" />
-                    ) : null}
                   </div>
                   <span className="text-14 text-slate">
                     Provider:{" "}
@@ -921,9 +915,6 @@ export function AdminReviewClient({
                       tone={statusChipTone(item.status)}
                       label={item.status.replace("_", " ")}
                     />
-                    {item.isSampleData ? (
-                      <StatusChip tone="neutral" label="Sample data" />
-                    ) : null}
                   </div>
                   <span className="text-14 text-slate">
                     Seller: <strong className="text-ink">{item.sellerDisplayLabel}</strong>

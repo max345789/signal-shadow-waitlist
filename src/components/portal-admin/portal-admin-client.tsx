@@ -19,6 +19,8 @@ import {
   KeyRound,
   PanelLeft,
   PanelLeftClose,
+  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +154,42 @@ export function PortalAdminClient({
       }
     } catch {
       showNotification(undefined, "Network error updating listing.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVerifyListingBadges = async (id: string) => {
+    setIsProcessing(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/portal-admin/listings/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "VERIFY_BADGES" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(undefined, data.error || "Failed to verify badges");
+      } else {
+        showNotification("All trust badges marked Verified for this listing.");
+        setListings((prev) =>
+          prev.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  trustSummary: {
+                    ...l.trustSummary,
+                    verifiedCount: l.metrics.length || 5,
+                    sellerReportedCount: 0,
+                  },
+                }
+              : l
+          )
+        );
+      }
+    } catch {
+      showNotification(undefined, "Network error verifying badges.");
     } finally {
       setIsProcessing(false);
     }
@@ -897,31 +935,40 @@ export function PortalAdminClient({
                             className="flex-1 px-3 py-2 rounded border border-mist text-14 text-ink focus:outline-none focus:border-trust-blue"
                           />
 
-                          <div className="flex flex-wrap gap-2 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
                             <Button
                               disabled={isProcessing}
                               onClick={() => handleListingModeration(listing.id, "APPROVE")}
-                              className="bg-verified-green text-white hover:bg-verified-green/90 text-14 px-3 py-1.5 h-auto min-h-0"
+                              className="bg-verified-green text-white hover:bg-verified-green/90 text-14 px-3 py-1.5 h-auto min-h-0 font-medium inline-flex items-center gap-1.5"
                             >
-                              <Check className="w-4 h-4 mr-1" />
-                              Approve
+                              <Check className="w-4 h-4 shrink-0" />
+                              Approve &amp; Publish
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              disabled={isProcessing}
+                              onClick={() => handleVerifyListingBadges(listing.id)}
+                              className="border-verified-green text-verified-green hover:bg-verified-green/10 text-14 px-3 py-1.5 h-auto min-h-0 font-medium inline-flex items-center gap-1.5"
+                            >
+                              <ShieldCheck className="w-4 h-4 shrink-0" />
+                              Verify All Badges
                             </Button>
                             <Button
                               variant="secondary"
                               disabled={isProcessing}
                               onClick={() => handleListingModeration(listing.id, "FLAG")}
-                              className="border-amber text-amber hover:bg-amber/10 text-14 px-3 py-1.5 h-auto min-h-0"
+                              className="border-amber text-amber hover:bg-amber/10 text-14 px-3 py-1.5 h-auto min-h-0 font-medium inline-flex items-center gap-1.5"
                             >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              <AlertTriangle className="w-4 h-4 shrink-0" />
                               Flag for Edits
                             </Button>
                             <Button
                               variant="secondary"
                               disabled={isProcessing}
                               onClick={() => handleListingModeration(listing.id, "REJECT")}
-                              className="border-brick-red text-brick-red hover:bg-brick-red/10 text-14 px-3 py-1.5 h-auto min-h-0"
+                              className="border-brick-red text-brick-red hover:bg-brick-red/10 text-14 px-3 py-1.5 h-auto min-h-0 font-medium inline-flex items-center gap-1.5"
                             >
-                              <XCircle className="w-4 h-4 mr-1" />
+                              <XCircle className="w-4 h-4 shrink-0" />
                               Reject
                             </Button>
                             {listing.status === "APPROVED" && (
@@ -929,12 +976,21 @@ export function PortalAdminClient({
                                 variant="secondary"
                                 disabled={isProcessing}
                                 onClick={() => handleListingModeration(listing.id, "TAKEDOWN")}
-                                className="border-deep-navy text-deep-navy hover:bg-deep-navy/10 text-14 px-3 py-1.5 h-auto min-h-0"
+                                className="border-deep-navy text-deep-navy hover:bg-deep-navy/10 text-14 px-3 py-1.5 h-auto min-h-0 font-medium inline-flex items-center gap-1.5"
                               >
-                                <Ban className="w-4 h-4 mr-1" />
+                                <Ban className="w-4 h-4 shrink-0" />
                                 Take Down
                               </Button>
                             )}
+                            <Link
+                              href={`/listings/${listing.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-mist text-slate hover:text-deep-navy hover:border-deep-navy text-14 font-medium transition-colors no-underline"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                              <span>View Live</span>
+                            </Link>
                           </div>
                         </div>
                       </CardContent>

@@ -69,9 +69,6 @@ export function MatchResultCard({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {listing.isSampleData ? (
-              <StatusChip tone="neutral" label="Sample data" />
-            ) : null}
             {hasVerified ? (
               <StatusChip
                 tone="verified"

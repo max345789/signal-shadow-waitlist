@@ -4,8 +4,8 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 export const metadata = {
-  title: "Purchase Agreement Template — Trust Marketplace",
-  description: "Purchase Agreement template for Trust Marketplace deal rooms. Needs qualified legal review.",
+  title: "Purchase Agreement Template — Baton",
+  description: "Purchase Agreement template for Baton deal rooms. Needs qualified legal review.",
 };
 
 export default function PurchaseAgreementTemplatePage() {
@@ -86,7 +86,7 @@ export default function PurchaseAgreementTemplatePage() {
             instructions agreed between the parties.
           </p>
           <p className="text-16 text-ink">
-            Trust Marketplace does not hold funds. All consideration is held by
+            Baton does not hold funds. All consideration is held by
             the designated licensed escrow provider until transfer conditions are
             met.
           </p>

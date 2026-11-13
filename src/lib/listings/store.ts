@@ -13,6 +13,7 @@ import {
   type ListingStatusValue,
   type ListingViewerContext,
   type MetricKeyValue,
+  type MetricSourceValue,
   type MetricUnitValue,
   type RawBusinessMetricRecord,
   type RawBusinessRecord,
@@ -1195,6 +1196,57 @@ export async function reviewListingAsAdmin(
     ok: true,
     listing: sanitizeListingForViewer(updatedRaw, viewer, now),
   };
+}
+
+export async function verifyAllBadgesForListingAsAdmin(
+  id: string,
+  _actor: AuthSession
+): Promise<{ ok: boolean; reason?: string }> {
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      await prisma.verification.updateMany({
+        where: { businessId: id },
+        data: {
+          status: "VERIFIED",
+          verifiedAt: now,
+          expiresAt: new Date(now.getTime() + 90 * 86400000),
+        },
+      });
+      await prisma.businessMetric.updateMany({
+        where: { businessId: id },
+        data: { source: "STRIPE" },
+      });
+      return { ok: true };
+    } catch {
+      // Fallback to local store
+    }
+  }
+
+  const store = getLocalListingsStore();
+  const listing = store.find((b) => b.id === id);
+  if (!listing) {
+    return { ok: false, reason: "Listing not found." };
+  }
+
+  listing.metrics = listing.metrics.map((m) => ({
+    ...m,
+    source: (m.source === "SELLER_REPORTED" ? "STRIPE" : m.source) as MetricSourceValue,
+    verification: {
+      id: m.verification?.id ?? `ver-${Date.now().toString(36)}`,
+      type: m.verification?.type ?? "REVENUE",
+      status: "VERIFIED",
+      provider: m.verification?.provider ?? "Stripe",
+      verifiedAt: nowIso,
+      expiresAt: new Date(now.getTime() + 90 * 86400000).toISOString(),
+    },
+  }));
+
+  listing.updatedAt = nowIso;
+  return { ok: true };
 }
 
 export async function addListingQuestion(

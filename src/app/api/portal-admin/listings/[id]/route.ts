@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session-server";
 import { isAuthorizedAdmin } from "@/lib/auth/permissions";
-import { moderateListingActionAsAdmin } from "@/lib/admin/store";
+import { moderateListingActionAsAdmin, verifyListingBadgesActionAsAdmin } from "@/lib/admin/store";
 
 export async function POST(
   request: Request,
@@ -13,11 +13,19 @@ export async function POST(
   }
 
   const { id } = await context.params;
-  let body: { decision?: "APPROVE" | "FLAG" | "REJECT" | "TAKEDOWN"; reviewerNote?: string };
+  let body: { decision?: "APPROVE" | "FLAG" | "REJECT" | "TAKEDOWN" | "VERIFY_BADGES"; reviewerNote?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (body.decision === "VERIFY_BADGES") {
+    const result = await verifyListingBadgesActionAsAdmin(id, session!);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.reason || "Badge verification failed" }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true, verified: true });
   }
 
   if (!body.decision || !body.reviewerNote) {

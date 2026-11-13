@@ -758,9 +758,6 @@ export function DealRoomClient({
                   label={`Escrow: ${activeEscrow.status.replace("_", " ")}`}
                 />
               ) : null}
-              {dealRoom.isSampleData ? (
-                <StatusChip tone="neutral" label="Sample data" />
-              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -1955,7 +1952,7 @@ export function DealRoomClient({
                   />
                 </div>
                 <CardDescription>
-                  Trust Marketplace never holds or custodies funds. Purchase
+                  Baton never holds or custodies funds. Purchase
                   consideration is settled strictly through a licensed third-party
                   escrow provider.
                 </CardDescription>

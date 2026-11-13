@@ -132,9 +132,6 @@ export function SellerDashboardClient({
                     tone={statusTone(item.status)}
                     label={statusLabel(item.status)}
                   />
-                  {item.isSampleData ? (
-                    <StatusChip tone="neutral" label="Sample data" />
-                  ) : null}
                 </div>
                 <span className="text-14 text-slate tabular-figures">
                   Asking:{" "}

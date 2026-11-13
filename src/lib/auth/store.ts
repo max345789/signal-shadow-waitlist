@@ -125,6 +125,76 @@ export async function findUserByEmail(email: string): Promise<StoredUserRecord |
   return getLocalDevUsers().find((u) => u.email === normalizedEmail) ?? null;
 }
 
+export async function registerCustomerUser(params: {
+  name: string;
+  email: string;
+  password: string;
+  role: "BUYER" | "SELLER";
+}): Promise<{ ok: boolean; user?: StoredUserRecord; error?: string }> {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing) {
+    return { ok: false, error: "An account with this email address already exists. Please sign in." };
+  }
+
+  const passwordHash = hashPassword(params.password);
+  const userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const role: RoleName = params.role === "SELLER" ? "SELLER" : "BUYER";
+  const roles: RoleName[] = [role];
+
+  if (isDatabaseConfigured()) {
+    try {
+      const prisma = getPrismaClient();
+      const created = await prisma.user.create({
+        data: {
+          id: userId,
+          email: normalizedEmail,
+          name: params.name.trim(),
+          passwordHash,
+          roles: {
+            connectOrCreate: roles.map((r) => ({
+              where: { name: r },
+              create: { name: r, description: `${r} role` },
+            })),
+          },
+        },
+        include: { roles: true },
+      });
+      return {
+        ok: true,
+        user: {
+          id: created.id,
+          email: created.email,
+          name: created.name,
+          passwordHash: created.passwordHash!,
+          roles,
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          authMode: "database",
+          isSampleAccount: false,
+        },
+      };
+    } catch {
+      // Fallback to in-memory storage
+    }
+  }
+
+  const newUser: StoredUserRecord = {
+    id: userId,
+    email: normalizedEmail,
+    name: params.name.trim(),
+    passwordHash,
+    roles,
+    twoFactorEnabled: false,
+    twoFactorSecret: null,
+    authMode: "local-dev",
+    isSampleAccount: false,
+  };
+  getLocalDevUsers().unshift(newUser);
+
+  return { ok: true, user: newUser };
+}
+
 export async function findUserById(userId: string): Promise<StoredUserRecord | null> {
   if (isDatabaseConfigured()) {
     try {

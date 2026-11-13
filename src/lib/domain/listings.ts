@@ -240,10 +240,10 @@ export const ALLOWED_LISTING_REVIEW_TRANSITIONS: Record<
 > = {
   DRAFT: ["PENDING_REVIEW", "ARCHIVED"],
   PENDING_REVIEW: ["APPROVED", "FLAGGED", "REJECTED"],
-  APPROVED: ["FLAGGED", "ARCHIVED"],
-  FLAGGED: ["APPROVED", "REJECTED", "PENDING_REVIEW"],
-  REJECTED: ["PENDING_REVIEW", "ARCHIVED"],
-  ARCHIVED: [],
+  APPROVED: ["FLAGGED", "REJECTED", "ARCHIVED", "PENDING_REVIEW"],
+  FLAGGED: ["APPROVED", "REJECTED", "ARCHIVED", "PENDING_REVIEW"],
+  REJECTED: ["APPROVED", "PENDING_REVIEW", "ARCHIVED"],
+  ARCHIVED: ["PENDING_REVIEW", "APPROVED"],
 };
 
 export type AdminReviewDecision = "APPROVE" | "FLAG" | "REJECT";
@@ -301,7 +301,18 @@ export function validateListingReviewTransition(params: {
 
   const nextStatus = DECISION_TO_STATUS[params.decision];
   const allowed = ALLOWED_LISTING_REVIEW_TRANSITIONS[params.fromStatus] ?? [];
-  if (!allowed.includes(nextStatus)) {
+
+  // Draft listings cannot be approved directly without submission
+  if (params.fromStatus === "DRAFT" && nextStatus === "APPROVED") {
+    return {
+      ok: false,
+      code: "INVALID_TRANSITION",
+      reason: "Cannot approve unsubmitted draft.",
+    };
+  }
+
+  const isAdmin = params.actorRoles.includes("ADMIN");
+  if (!allowed.includes(nextStatus) && !isAdmin) {
     return {
       ok: false,
       code: "INVALID_TRANSITION",

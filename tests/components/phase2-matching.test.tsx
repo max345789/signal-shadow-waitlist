@@ -56,7 +56,7 @@ describe("Phase 2 UI components: MatchResultCard, ThesisBuilderClient, MatchesCl
     expect(screen.getByText("#2 match")).toBeInTheDocument();
     expect(screen.getByText("Why this matches")).toBeInTheDocument();
     expect(screen.getByText("What doesn't fit")).toBeInTheDocument();
-    expect(screen.getByText(/Sample data/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sample data/)).toBeNull();
     expect(ranked[1]!.mismatches.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(ranked[1]!.mismatches[0]!)).toBeInTheDocument();
 

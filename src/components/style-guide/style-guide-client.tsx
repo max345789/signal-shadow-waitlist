@@ -142,11 +142,11 @@ export function StyleGuideClient({ thesisPrompt }: { thesisPrompt?: string }) {
               <StatusChip tone="verified" label="WCAG AA Audited" />
             </div>
             <h1 className="font-serif text-28 font-semibold text-deep-navy sm:text-40">
-              Trust Marketplace Design System
+              Baton Design System
             </h1>
             <p className="max-w-[760px] text-16 text-slate">
               Flat, solid Section 4 colors only. Zero gradients, zero neon, zero glow
-              effects. All financial numbers below are labelled Sample data.
+              effects.
             </p>
           </div>
 
@@ -287,7 +287,7 @@ export function StyleGuideClient({ thesisPrompt }: { thesisPrompt?: string }) {
                 <StatusChip tone="caution" label="Verification expired" />
                 <StatusChip tone="risk" emphasis="solid" label="Flagged risk" />
                 <StatusChip tone="seller-reported" label="Seller-reported" />
-                <StatusChip tone="neutral" label="Sample data" />
+                <StatusChip tone="neutral" label="Verified Badge" />
               </div>
             </Card>
           </section>
@@ -630,7 +630,7 @@ export function StyleGuideClient({ thesisPrompt }: { thesisPrompt?: string }) {
 
               <div className="flex flex-col gap-2 rounded border border-mist bg-cloud p-4">
                 <span className="text-14 font-medium text-slate">
-                  Tabular Figures Alignment (Default Currency: INR — Sample data)
+                  Tabular Figures Alignment (Default Currency: INR)
                 </span>
                 <div className="flex flex-col gap-2 font-sans text-20 font-semibold text-deep-navy tabular-figures">
                   <span>{formatCurrency(12_500_000, { currency: "INR" })}</span>

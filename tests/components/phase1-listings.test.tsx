@@ -33,8 +33,8 @@ describe("Phase 1 UI components: ListingDetailClient, FinancialChart, SellerOnbo
       />
     );
 
-    // Sample data must be explicitly labelled
-    expect(screen.getAllByText("Sample data").length).toBeGreaterThanOrEqual(1);
+    // Sample data text removed as requested for customer-facing privacy
+    expect(screen.queryByText("Sample data")).toBeNull();
 
     // Confidential fields must be redacted and secret terms absent
     expect(screen.getAllByText("Redacted until NDA is signed").length).toBeGreaterThanOrEqual(3);

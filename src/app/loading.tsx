@@ -10,7 +10,7 @@ export default function AppLoading() {
           Loading marketplace
         </h1>
         <CardStateLoading
-          title="Loading Trust Marketplace"
+          title="Loading Baton"
           description="Checking verification records and preparing the screen."
         />
       </div>

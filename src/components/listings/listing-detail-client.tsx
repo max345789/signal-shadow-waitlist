@@ -249,9 +249,6 @@ export function ListingDetailClient({
             <div className="flex flex-wrap items-center gap-2">
               <StatusChip tone="neutral" label={listing.sector} />
               <StatusChip tone="neutral" label={listing.geography} />
-              {listing.isSampleData ? (
-                <StatusChip tone="neutral" label="Sample data" />
-              ) : null}
               {listing.status !== "APPROVED" ? (
                 <StatusChip
                   tone={
@@ -636,7 +633,6 @@ export function ListingDetailClient({
                 <Mic className="h-4 w-4 text-trust-blue" aria-hidden="true" />
                 <span>
                   Founder {listing.founderMediaType === "video" ? "video briefing" : "voice note"}
-                  {listing.isSampleData ? " (Sample data audio)" : ""}
                 </span>
               </div>
               {listing.founderMediaType === "video" ? (
@@ -867,9 +863,6 @@ export function ListingDetailClient({
                   <span className="text-14 font-semibold text-deep-navy">
                     {q.askerLabel}
                   </span>
-                  {q.isSampleData ? (
-                    <StatusChip tone="neutral" label="Sample data" />
-                  ) : null}
                 </div>
 
                 <p className="text-16 font-medium text-deep-navy">{q.question}</p>

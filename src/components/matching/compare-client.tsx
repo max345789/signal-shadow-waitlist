@@ -360,9 +360,6 @@ export function CompareClient({
                         </span>
                         <span>·</span>
                         <span>{item.trustSummary.verifiedCount} verified</span>
-                        {item.isSampleData ? (
-                          <StatusChip tone="neutral" label="Sample data" />
-                        ) : null}
                       </div>
                     </div>
                   </label>
@@ -443,9 +440,6 @@ export function CompareClient({
                       </h3>
 
                       <div className="flex flex-wrap gap-2">
-                        {listing.isSampleData ? (
-                          <StatusChip tone="neutral" label="Sample data" />
-                        ) : null}
                         {listing.trustSummary.verifiedCount > 0 ? (
                           <StatusChip
                             tone="verified"

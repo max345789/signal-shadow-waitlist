@@ -32,9 +32,6 @@ export function ListingCard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-14 font-medium text-slate">{listing.sector}</span>
             <div className="flex flex-wrap items-center gap-2">
-              {listing.isSampleData ? (
-                <StatusChip tone="neutral" label="Sample data" />
-              ) : null}
               {hasVerified ? (
                 <StatusChip
                   tone="verified"

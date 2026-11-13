@@ -192,9 +192,6 @@ export function DealRoomsIndexClient({
                         label={`Escrow: ${room.latestEscrowStatus.replace("_", " ")}`}
                       />
                     ) : null}
-                    {room.isSampleData ? (
-                      <StatusChip tone="neutral" label="Sample data" />
-                    ) : null}
                   </div>
                   <span className="text-14 font-medium text-slate tabular-figures">
                     Asking:{" "}

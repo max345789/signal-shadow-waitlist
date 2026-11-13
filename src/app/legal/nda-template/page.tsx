@@ -4,8 +4,8 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 export const metadata = {
-  title: "NDA Template — Trust Marketplace",
-  description: "Non-Disclosure Agreement template for Trust Marketplace deal rooms. Needs qualified legal review.",
+  title: "NDA Template — Baton",
+  description: "Non-Disclosure Agreement template for Baton deal rooms. Needs qualified legal review.",
 };
 
 export default function NdaTemplatePage() {

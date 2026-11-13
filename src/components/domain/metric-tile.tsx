@@ -143,9 +143,6 @@ export function MetricTile({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span className="text-16 font-medium text-slate">{label}</span>
         <div className="flex flex-wrap items-center gap-2">
-          {isSampleData ? (
-            <StatusChip tone="neutral" label="Sample data" />
-          ) : null}
           <StatusChip
             tone={chipTone}
             label={trust.label}
