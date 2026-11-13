@@ -1,5 +1,5 @@
 import { getAdminSupabaseClient } from "./admin";
-import { getSupabaseStorageBucket, isSupabaseConfigured } from "./config";
+import { getSupabaseStorageBucket } from "./config";
 
 export interface UploadFileOptions {
   bucket?: string;
@@ -86,8 +86,8 @@ export async function uploadDocumentToStorage({
     }
 
     return { ok: true, path: data.path };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Storage upload exception" };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Storage upload exception" };
   }
 }
 
@@ -116,8 +116,8 @@ export async function createSignedDownloadUrl(
     }
 
     return { ok: true, signedUrl: data.signedUrl };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Signed URL exception" };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Signed URL exception" };
   }
 }
 

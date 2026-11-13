@@ -221,7 +221,8 @@ function mapPrismaDealRoomToRaw(row: PrismaDealRoomFull): RawDealRoomRecord {
   const stageIndex = new Map(DEAL_STAGES_ORDER.map((s, idx) => [s, idx]));
   const sortedStages = [...row.stages].sort(
     (a, b) =>
-      (stageIndex.get(a.stage as any) ?? 99) - (stageIndex.get(b.stage as any) ?? 99)
+      (stageIndex.get(a.stage as DealStageValue) ?? 99) -
+      (stageIndex.get(b.stage as DealStageValue) ?? 99)
   );
 
   return {
@@ -1047,7 +1048,7 @@ export async function transitionDealRoomStage(
     };
   }
 
-  const toIdx = DEAL_STAGES_ORDER.indexOf(toStage as any);
+  const toIdx = DEAL_STAGES_ORDER.indexOf(toStage as DealStageValue);
   const needsTransferChecklist =
     toStage === "TRANSFER" &&
     !raw.checklistItems.some((c) => c.phase === "TRANSFER");
@@ -1143,7 +1144,7 @@ export async function transitionDealRoomStage(
   raw.currentStage = toStage;
   raw.updatedAt = nowIso;
   raw.stages = raw.stages.map((s) => {
-    const idx = DEAL_STAGES_ORDER.indexOf(s.stage as any);
+    const idx = DEAL_STAGES_ORDER.indexOf(s.stage as DealStageValue);
     if (idx < toIdx) {
       return {
         ...s,

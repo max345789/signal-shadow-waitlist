@@ -24,19 +24,22 @@ interface SampleAccountHint {
 
 export function SignInClient({
   initialSession,
-  sampleAccounts,
-  databaseConfigured,
-  auth0Configured = false,
   supabaseConfigured = false,
 }: {
   initialSession: AuthSession | null;
-  sampleAccounts: SampleAccountHint[];
-  databaseConfigured: boolean;
+  sampleAccounts?: SampleAccountHint[];
+  databaseConfigured?: boolean;
   auth0Configured?: boolean;
   supabaseConfigured?: boolean;
 }) {
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
-  const [authMode, setAuthMode] = React.useState<"signin" | "signup">("signin");
+  const [authMode, setAuthMode] = React.useState<"signin" | "signup">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("mode") === "signup" ? "signup" : "signin";
+    }
+    return "signin";
+  });
   const [signUpName, setSignUpName] = React.useState("");
   const [signUpRole, setSignUpRole] = React.useState<"BUYER" | "SELLER">("BUYER");
   const [email, setEmail] = React.useState("");
@@ -45,15 +48,6 @@ export function SignInClient({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("mode") === "signup") {
-        setAuthMode("signup");
-      }
-    }
-  }, []);
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();

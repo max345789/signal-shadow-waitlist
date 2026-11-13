@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session-server";
-import { createListingReport, listReportsForAdmin, updateReportStatusAsAdmin } from "@/lib/reports/store";
+import {
+  createListingReport,
+  listReportsForAdmin,
+  updateReportStatusAsAdmin,
+  type ReportReason,
+  type ReportStatus,
+  type ReportActionTaken,
+} from "@/lib/reports/store";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -13,8 +20,9 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const statusFilter = searchParams.get("status") as any;
-  const reports = await listReportsForAdmin(statusFilter || undefined);
+  const statusParam = searchParams.get("status");
+  const statusFilter = statusParam ? (statusParam as ReportStatus) : undefined;
+  const reports = await listReportsForAdmin(statusFilter);
   return NextResponse.json({ reports }, { status: 200 });
 }
 
@@ -25,7 +33,7 @@ export async function POST(request: Request) {
     listingId?: string;
     listingTitle?: string;
     listingSlug?: string;
-    reason?: any;
+    reason?: ReportReason;
     details?: string;
   };
 
@@ -45,7 +53,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const validReasons = ["fake_figures", "ip_breach", "impersonation", "scam", "duplicate", "other"];
+  const validReasons: ReportReason[] = ["fake_figures", "ip_breach", "impersonation", "scam", "duplicate", "other"];
   if (!validReasons.includes(body.reason)) {
     return NextResponse.json(
       { error: "Invalid report reason.", code: "INVALID_REASON" },
@@ -78,8 +86,8 @@ export async function PATCH(request: Request) {
 
   let body: {
     reportId?: string;
-    status?: any;
-    actionTaken?: any;
+    status?: ReportStatus;
+    actionTaken?: ReportActionTaken;
     adminNote?: string;
   };
 

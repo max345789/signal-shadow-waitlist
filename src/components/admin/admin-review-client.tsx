@@ -25,6 +25,7 @@ import {
 import { detectConfidentialLeak } from "@/lib/domain/valuation";
 import { formatCurrency } from "@/lib/format/currency";
 import type { VerificationWithEvaluation } from "@/lib/verification/store";
+import type { ReportRecord } from "@/lib/reports/store";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -89,7 +90,7 @@ export function AdminReviewClient({
   initialListings: SanitizedListingView[];
   initialVerifications?: VerificationWithEvaluation[];
   initialDisputes?: AdminDisputeView[];
-  initialReports?: any[];
+  initialReports?: ReportRecord[];
 }) {
   const [listings, setListings] =
     React.useState<SanitizedListingView[]>(initialListings);
@@ -97,7 +98,7 @@ export function AdminReviewClient({
     React.useState<VerificationWithEvaluation[]>(initialVerifications);
   const [disputes, setDisputes] =
     React.useState<AdminDisputeView[]>(initialDisputes);
-  const [reports, setReports] = React.useState<any[]>(initialReports);
+  const [reports, setReports] = React.useState<ReportRecord[]>(initialReports);
   const [reportNotesById, setReportNotesById] = React.useState<Record<string, string>>({});
   const [reportActionById, setReportActionById] = React.useState<Record<string, string>>({});
   const [notesById, setNotesById] = React.useState<Record<string, string>>({});
