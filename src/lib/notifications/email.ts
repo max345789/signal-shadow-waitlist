@@ -16,6 +16,8 @@ export const EMAIL_EVENTS = {
   ESCROW_STATUS_CHANGED: "escrow_status_changed",
   NDA_SIGNED: "nda_signed",
   DEAL_CANCELLED: "deal_cancelled",
+  ADMIN_OTP: "admin_otp",
+  USER_WELCOME: "user_welcome",
 } as const;
 
 export type EmailEventType = (typeof EMAIL_EVENTS)[keyof typeof EMAIL_EVENTS];
@@ -28,32 +30,57 @@ export interface SendEmailParams {
 }
 
 /**
- * Fire-and-forget email dispatch stub.
- * Never awaited in hot paths — call without await.
+ * Email dispatch handler with native zero-dependency Resend REST integration.
+ * Fires asynchronously without blocking request execution.
  *
- * Logs intent; does NOT send real email unless ENABLE_LIVE_EMAIL=true and
- * a live provider is wired.
+ * When RESEND_API_KEY is configured in environment variables, emails are
+ * dispatched to real recipients immediately. Otherwise, intent is logged cleanly.
  */
 export async function sendEmail(params: SendEmailParams): Promise<void> {
   // Always log intent for auditability (no PII in body is enforced by callers)
   console.info("[EmailDispatch] Stub — intent logged", {
     eventType: params.eventType,
     subject: params.subject,
-    // Redact recipient PII from logs in production
     to: process.env.NODE_ENV === "development" ? params.to : "[redacted]",
   });
 
-  if (process.env.ENABLE_LIVE_EMAIL !== "true") {
-    // Needs live email provider (Resend/SendGrid/Postmark) wired here.
-    // Example with Resend:
-    // const resend = new Resend(process.env.RESEND_API_KEY);
-    // await resend.emails.send({ from: "noreply@trustmarketplace.com", to: params.to, subject: params.subject, text: params.body });
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const isLiveEnabled = process.env.ENABLE_LIVE_EMAIL === "true" || Boolean(resendApiKey);
+
+  if (!isLiveEnabled) {
     return;
   }
 
-  // TODO: Wire live provider when ENABLE_LIVE_EMAIL=true
-  // Needs live email provider (Resend/SendGrid/Postmark) — configure here.
+  if (resendApiKey) {
+    try {
+      const fromAddress = process.env.EMAIL_FROM || "Baton <onboarding@resend.dev>";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromAddress,
+          to: [params.to],
+          subject: params.subject,
+          text: params.body,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[EmailDispatch] Resend delivery failed:", res.status, errorText);
+      } else {
+        console.info("[EmailDispatch] Live email delivered via Resend to recipient.");
+      }
+    } catch (err) {
+      console.error("[EmailDispatch] Network error during live email delivery:", err);
+    }
+    return;
+  }
+
   console.warn(
-    "[EmailDispatch] ENABLE_LIVE_EMAIL=true but no provider is wired. Email not sent."
+    "[EmailDispatch] ENABLE_LIVE_EMAIL=true but RESEND_API_KEY is not set. Email not sent."
   );
 }

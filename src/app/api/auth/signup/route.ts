@@ -3,6 +3,7 @@ import { z } from "zod";
 import { registerCustomerUser } from "@/lib/auth/store";
 import { SESSION_COOKIE_NAME, signSessionToken } from "@/lib/auth/session";
 import type { AuthSession } from "@/lib/auth/types";
+import { sendEmail, EMAIL_EVENTS } from "@/lib/notifications/email";
 
 const signupSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters.").max(100),
@@ -54,6 +55,15 @@ export async function POST(request: Request) {
 
   const token = await signSessionToken(session);
   const redirectUrl = parsed.data.role === "SELLER" ? "/sell" : "/listings";
+
+  void sendEmail({
+    to: res.user.email,
+    subject: `Welcome to Baton, ${res.user.name}`,
+    body: `Welcome to Baton!\n\nYour account has been registered as a ${
+      parsed.data.role === "SELLER" ? "Business Seller" : "Business Buyer"
+    }.\n\nYou can explore verified acquisitions, create listings, and connect directly with founders on https://www.dabcloud.in/listings.\n\nBest regards,\nThe Baton Team`,
+    eventType: EMAIL_EVENTS.USER_WELCOME,
+  });
 
   const response = NextResponse.json(
     {

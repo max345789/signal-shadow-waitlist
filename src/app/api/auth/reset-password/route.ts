@@ -7,6 +7,7 @@ import {
   verifyAdminOtp,
   consumeAdminOtp,
 } from "@/lib/auth/admin-otp";
+import { sendEmail, EMAIL_EVENTS } from "@/lib/notifications/email";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,13 @@ export async function POST(request: Request) {
     if (!otpResult.ok) {
       return NextResponse.json({ error: otpResult.error }, { status: 429 });
     }
+
+    void sendEmail({
+      to: email,
+      subject: "Baton Admin Security: Password Reset Verification Code",
+      body: `Your 6-digit one-time password (OTP) to reset your Baton administrator password is: ${otpResult.code}\n\nThis verification code expires in 10 minutes.\nIf you did not request this reset, your account password remains unchanged.`,
+      eventType: EMAIL_EVENTS.ADMIN_OTP,
+    });
 
     return NextResponse.json({
       ok: true,
