@@ -226,7 +226,7 @@ export function SignInClient({
               {session
                 ? "Active Account Session"
                 : authMode === "signup"
-                  ? "Customer Registration"
+                  ? "Create Account"
                   : "Account Sign In"}
             </CardTitle>
             <StatusChip
@@ -304,7 +304,7 @@ export function SignInClient({
                       : "text-slate hover:text-deep-navy border border-transparent"
                   )}
                 >
-                  Create Account (Sign Up)
+                  Sign Up
                 </button>
               </div>
 
@@ -396,7 +396,7 @@ export function SignInClient({
                             : "border-mist bg-white text-slate hover:border-deep-navy"
                         )}
                       >
-                        Buyer / Investor
+                        Buyer
                       </button>
                       <button
                         type="button"
@@ -408,13 +408,13 @@ export function SignInClient({
                             : "border-mist bg-white text-slate hover:border-deep-navy"
                         )}
                       >
-                        Business Seller
+                        Seller
                       </button>
                     </div>
                   </div>
 
                   <Button type="submit" variant="action" loading={loading} className="w-full min-h-12 text-16 font-semibold">
-                    Create Customer Account
+                    Create Account
                   </Button>
 
                   <p className="text-13 text-slate text-center m-0">
