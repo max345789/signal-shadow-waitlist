@@ -138,7 +138,7 @@ export function AppShell({
   };
 
   return (
-    <div className="min-h-screen bg-cloud text-ink flex">
+    <div className="h-screen w-full bg-cloud text-ink flex overflow-hidden">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-deep-navy focus:px-4 focus:py-2 focus:text-16 focus:text-white"
@@ -151,12 +151,12 @@ export function AppShell({
         id="desktop-side-panel"
         aria-label="Marketplace Navigation Side Panel"
         className={cn(
-          "hidden lg:flex flex-col justify-between shrink-0 bg-white border-r border-mist h-screen sticky top-0 z-40 transition-all duration-200 ease-in-out",
+          "hidden lg:flex flex-col justify-between shrink-0 bg-white border-r border-mist h-full z-40 transition-all duration-200 ease-in-out",
           isSidePanelOpen ? "w-64 xl:w-72" : "w-0 -translate-x-full overflow-hidden border-none"
         )}
       >
         {/* Side Panel Header */}
-        <div className="flex items-center justify-between h-16 sm:h-18 px-4 sm:px-5 border-b border-mist/70">
+        <div className="flex items-center justify-between h-16 sm:h-18 px-4 sm:px-5 border-b border-mist/70 shrink-0">
           <Link
             href="/"
             className="font-serif text-24 font-bold text-deep-navy no-underline hover:text-trust-blue transition-colors flex items-center gap-2"
@@ -182,7 +182,7 @@ export function AppShell({
         </div>
 
         {/* Side Panel Footer */}
-        <div className="p-4 border-t border-mist/70 flex flex-col gap-2.5 bg-white">
+        <div className="p-4 border-t border-mist/70 flex flex-col gap-2.5 bg-white shrink-0">
           <Link
             href="/sell"
             className={cn(
@@ -275,11 +275,11 @@ export function AppShell({
         </div>
       ) : null}
 
-      {/* ─── MAIN CONTENT AREA ─── */}
-      <div className="flex-1 min-w-0 flex flex-col justify-between min-h-screen">
+      {/* ─── MAIN CONTENT AREA (Scrollable, Side Panel Locked) ─── */}
+      <div className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col justify-between">
         <div>
           {/* Top Header Bar */}
-          <header className="border-b border-mist bg-white sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center">
+          <header className="border-b border-mist bg-white sticky top-0 z-30 h-16 sm:h-18 px-4 sm:px-6 lg:px-8 flex items-center shrink-0">
             <div className="w-full flex items-center justify-between gap-4">
               {/* Left Side: Toggle Panel Button + Brand Wordmark */}
               <div className="flex items-center gap-3 sm:gap-4">

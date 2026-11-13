@@ -444,9 +444,9 @@ export function PortalAdminClient({
   });
 
   return (
-    <div className="min-h-screen bg-cloud text-ink flex flex-col">
-      {/* ─── Sleek Admin Top Bar ─── */}
-      <header className="border-b border-mist/30 bg-deep-navy text-white px-4 sm:px-6 h-16 flex items-center sticky top-0 z-40">
+    <div className="h-screen w-full bg-cloud text-ink flex flex-col overflow-hidden">
+      {/* ─── Sleek Admin Top Bar (Stationary) ─── */}
+      <header className="border-b border-mist/30 bg-deep-navy text-white px-4 sm:px-6 h-16 flex items-center shrink-0 z-40">
         <div className="w-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Toggle Admin Side Panel Button */}
@@ -516,20 +516,20 @@ export function PortalAdminClient({
         </div>
       </header>
 
-      {/* ─── Admin Split View (Side Panel + Workspace) ─── */}
-      <div className="flex-1 flex min-h-[calc(100vh-64px)] bg-cloud">
-        {/* Closeable & Openable Admin Side Panel */}
+      {/* ─── Admin Split View (Locked Side Panel + Scrollable Workspace) ─── */}
+      <div className="flex-1 flex overflow-hidden bg-cloud">
+        {/* Closeable & Openable Admin Side Panel (Locked in place) */}
         <aside
           id="admin-side-panel"
           aria-label="Admin Navigation Panel"
-          className={`shrink-0 bg-deep-navy text-white border-r border-mist/20 flex flex-col justify-between sticky top-16 h-[calc(100vh-64px)] overflow-y-auto z-20 transition-all duration-200 ease-in-out ${
+          className={`shrink-0 bg-deep-navy text-white border-r border-mist/20 flex flex-col justify-between h-full z-20 transition-all duration-200 ease-in-out ${
             isAdminSidePanelOpen
               ? "w-64 lg:w-72"
               : "w-0 -translate-x-full overflow-hidden border-none"
           }`}
         >
           {/* Side Panel Header */}
-          <div className="p-4 border-b border-mist/20 flex items-center justify-between">
+          <div className="p-4 border-b border-mist/20 flex items-center justify-between shrink-0">
             <span className="text-12 font-bold uppercase tracking-wider text-mist">
               Executive Modules
             </span>
@@ -544,7 +544,7 @@ export function PortalAdminClient({
           </div>
 
           {/* Navigation Items */}
-          <div className="flex-1 px-3 py-3 flex flex-col gap-1.5">
+          <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-1.5">
             {[
               { id: "overview", label: "Executive Overview", icon: Activity, count: null },
               { id: "listings", label: "Listings Moderation", icon: Building, count: listings.length },
@@ -589,14 +589,14 @@ export function PortalAdminClient({
           </div>
 
           {/* Side Panel Footer */}
-          <div className="p-3 border-t border-mist/20 text-11 text-mist/80 bg-deep-navy">
+          <div className="p-3 border-t border-mist/20 text-11 text-mist/80 bg-deep-navy shrink-0">
             <p className="m-0 leading-tight">Stealth Perimeter Active</p>
             <p className="m-0 text-mist/60 text-10">Air-gapped administrative portal</p>
           </div>
         </aside>
 
-        {/* Main Console Content Area */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-7xl mx-auto w-full">
+        {/* Main Console Content Area (Scrollable Workspace) */}
+        <main className="flex-1 min-w-0 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         {/* Alerts / Feedback Banner */}
         {actionSuccess && (
           <div className="rounded border border-verified-green bg-white p-4 text-verified-green font-medium flex items-center gap-2">
