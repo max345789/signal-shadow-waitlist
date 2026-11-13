@@ -1,5 +1,3 @@
-import { checkRateLimit } from "@/lib/auth/rate-limit";
-
 interface OtpRecord {
   email: string;
   code: string;

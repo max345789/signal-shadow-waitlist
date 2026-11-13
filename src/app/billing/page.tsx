@@ -1,11 +1,11 @@
 import React from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getServerSession } from "@/lib/auth/session-server";
 import { getUserBillingState } from "@/lib/billing/store";
-import { Receipt, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "lucide-react";
 
 export const metadata = {
   title: "Baton | Account Billing — Manage subscriptions and invoices",

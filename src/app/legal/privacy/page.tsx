@@ -1,6 +1,6 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export const metadata = {
   title: "Baton | Privacy Policy — Data protection and privacy practices",

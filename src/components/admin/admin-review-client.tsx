@@ -100,7 +100,7 @@ export function AdminReviewClient({
     React.useState<AdminDisputeView[]>(initialDisputes);
   const [reports, setReports] = React.useState<ReportRecord[]>(initialReports);
   const [reportNotesById, setReportNotesById] = React.useState<Record<string, string>>({});
-  const [reportActionById, setReportActionById] = React.useState<Record<string, string>>({});
+  const [reportActionById] = React.useState<Record<string, string>>({});
   const [notesById, setNotesById] = React.useState<Record<string, string>>({});
   const [fieldErrorsById, setFieldErrorsById] = React.useState<
     Record<string, string | undefined>

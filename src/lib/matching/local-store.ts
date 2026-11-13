@@ -3,7 +3,6 @@ import type {
   SavedThesisRecord,
   ThesisNotificationRecord,
 } from "@/lib/domain/matching";
-import { createSampleSeedTheses } from "@/lib/listings/sample-data";
 
 export interface LocalMatchRecord extends MatchEvaluationResult {
   id: string;

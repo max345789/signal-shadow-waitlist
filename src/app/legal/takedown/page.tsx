@@ -1,6 +1,6 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { AlertTriangle, ShieldAlert } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export const metadata = {
   title: "Baton | Report & Takedown — Integrity and takedown policy",

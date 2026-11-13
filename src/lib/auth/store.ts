@@ -90,10 +90,6 @@ function getLocalDevUsers(): StoredUserRecord[] {
   return localDevUsersCache;
 }
 
-function isLocalDevAuthAllowed(): boolean {
-  return process.env.NODE_ENV !== "production" || process.env.AUTH_PROVIDER === "local-dev";
-}
-
 export async function findUserByEmail(email: string): Promise<StoredUserRecord | null> {
   const normalizedEmail = email.trim().toLowerCase();
 

@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { CheckCircle2, ShieldAlert, ArrowLeft, ExternalLink } from "lucide-react";
+import { ShieldAlert, ArrowLeft } from "lucide-react";
 
 export const metadata = {
   title: "Baton | How closing works — Platform guide for buyers and sellers",

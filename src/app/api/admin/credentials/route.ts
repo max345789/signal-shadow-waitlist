@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session-server";
 import { isAuthorizedAdmin } from "@/lib/auth/permissions";
 import {
-  findUserByEmail,
   updateAdminEmail,
   updateAdminPassword,
   verifyAdminPassword,

@@ -19,7 +19,6 @@ import {
   Palette,
   Home,
   User,
-  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PageContainer } from "@/components/layout/page-container";

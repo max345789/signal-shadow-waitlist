@@ -1,6 +1,6 @@
 import React from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { AlertTriangle, BookOpen } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export const metadata = {
   title: "Baton | Listing Rules — Marketplace publishing guidelines",

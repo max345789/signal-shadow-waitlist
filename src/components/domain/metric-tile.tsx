@@ -82,7 +82,7 @@ export function MetricTile({
   compactCurrency = false,
   sourceLabel,
   verification = null,
-  isSampleData = false,
+  isSampleData: _isSampleData = false,
   referenceNow,
   allowCautionAccent = true,
   allowRiskAccent = true,

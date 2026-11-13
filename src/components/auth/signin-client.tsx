@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { AuthSession } from "@/lib/auth/types";
@@ -32,6 +33,7 @@ export function SignInClient({
   auth0Configured?: boolean;
   supabaseConfigured?: boolean;
 }) {
+  const router = useRouter();
   const [session, setSession] = React.useState<AuthSession | null>(initialSession);
   const [authMode, setAuthMode] = React.useState<"signin" | "signup">(() => {
     if (typeof window !== "undefined") {
@@ -108,7 +110,8 @@ export function SignInClient({
 
       if (data.session?.roles?.includes("ADMIN")) {
         setStatusMessage("Admin verified. Redirecting to Executive Console...");
-        window.location.href = "/boost";
+        router.push("/boost");
+        router.refresh();
         return;
       }
 

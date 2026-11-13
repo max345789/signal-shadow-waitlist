@@ -4,7 +4,6 @@ import type { AuthSession } from "@/lib/auth/types";
 import { createListingReport } from "@/lib/reports/store";
 import {
   getAdminOverviewMetrics,
-  moderateListingActionAsAdmin,
   toggleUserSuspension,
   updateUserRoles,
   resolveReportAction,

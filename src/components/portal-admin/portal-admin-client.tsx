@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Shield,
   CheckCircle2,
@@ -69,6 +70,7 @@ export function PortalAdminClient({
   initialFinancials,
   initialAuditLogs,
 }: PortalAdminClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [isAdminSidePanelOpen, setIsAdminSidePanelOpen] = useState(true);
   const [listings, setListings] = useState(initialListings);
@@ -540,9 +542,11 @@ export function PortalAdminClient({
               onClick={async () => {
                 try {
                   await fetch("/api/auth/logout", { method: "POST" });
-                  window.location.href = "/";
+                  router.push("/");
+                  router.refresh();
                 } catch {
-                  window.location.href = "/";
+                  router.push("/");
+                  router.refresh();
                 }
               }}
               className="inline-flex h-10 items-center justify-center gap-2 px-4 rounded-md border border-white/25 bg-white/10 text-white hover:bg-white/20 text-13 sm:text-14 font-medium transition-colors cursor-pointer whitespace-nowrap leading-none shrink-0"
