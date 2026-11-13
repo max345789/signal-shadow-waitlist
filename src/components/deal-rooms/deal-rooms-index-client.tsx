@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Eye, FileText, Lock, MessageSquare, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, FileText, Lock, MessageSquare, RefreshCw, Scale, ShieldCheck, X } from "lucide-react";
 import type { DealRoomSummary } from "@/lib/domain/deal-room";
 import { DEAL_STAGE_DEFINITIONS } from "@/lib/domain/deal-stages";
 import { formatCurrency } from "@/lib/format/currency";
 import { Button } from "@/components/ui/button";
+import { UniversalNdaModal } from "@/components/auth/universal-nda-modal";
 import {
   Card,
   CardContent,
@@ -37,8 +38,19 @@ export function DealRoomsIndexClient({
 }) {
   const [rooms, setRooms] = React.useState<DealRoomSummary[]>(initialRooms);
   const [showPreviewModal, setShowPreviewModal] = React.useState(false);
+  const [showUniversalNdaModal, setShowUniversalNdaModal] = React.useState(false);
+  const [universalNdaSigned, setUniversalNdaSigned] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/auth/universal-nda")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.signed) setUniversalNdaSigned(true);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleRefresh() {
     setLoading(true);
@@ -219,6 +231,28 @@ export function DealRoomsIndexClient({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {universalNdaSigned ? (
+            <span className="inline-flex items-center gap-1.5 rounded border border-forest-green/20 bg-forest-green/10 px-3 py-1.5 text-13 font-medium text-forest-green">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Universal Buyer NDA Active</span>
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowUniversalNdaModal(true)}
+              className="inline-flex items-center gap-1.5 text-trust-blue"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Sign Universal Master NDA</span>
+            </Button>
+          )}
+          <Button asChild variant="secondary">
+            <Link href="/legal-partners" className="inline-flex items-center gap-1.5">
+              <Scale className="h-4 w-4 text-slate" />
+              <span>Legal &amp; CA Directory</span>
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="secondary"
@@ -359,6 +393,17 @@ export function DealRoomsIndexClient({
             </Card>
           ))}
         </div>
+      )}
+
+      {showUniversalNdaModal && (
+        <UniversalNdaModal
+          isOpen={showUniversalNdaModal}
+          onClose={() => setShowUniversalNdaModal(false)}
+          onSuccess={() => {
+            setUniversalNdaSigned(true);
+            void handleRefresh();
+          }}
+        />
       )}
     </div>
   );

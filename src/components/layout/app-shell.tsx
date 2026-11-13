@@ -15,6 +15,7 @@ import {
   PlusCircle,
   CreditCard,
   BookOpen,
+  Scale,
   ShieldCheck,
   Palette,
   Home,
@@ -39,6 +40,7 @@ export interface AppShellProps {
     | "pricing"
     | "billing"
     | "closing-guide"
+    | "legal-partners"
     | "admin"
     | "style-guide"
     | "signin";
@@ -73,6 +75,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "sell", href: "/sell", label: "List a Business", icon: PlusCircle, group: "resources" },
   { key: "pricing", href: "/pricing", label: "Pricing", icon: CreditCard, group: "resources" },
   { key: "closing-guide", href: "/closing-guide", label: "Closing Guide", icon: BookOpen, group: "resources" },
+  { key: "legal-partners", href: "/legal-partners", label: "Legal & CA Directory", icon: Scale, group: "resources" },
   { key: "style-guide", href: "/style-guide", label: "Style Guide", icon: Palette, group: "resources" },
 ];
 
@@ -444,6 +447,12 @@ export function AppShell({
                 className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
               >
                 Closing Guide
+              </Link>
+              <Link
+                href="/legal-partners"
+                className="text-trust-blue underline hover:text-deep-navy text-14 min-h-[44px] inline-flex items-center"
+              >
+                Legal &amp; CA Directory
               </Link>
               <Link
                 href="/pricing"

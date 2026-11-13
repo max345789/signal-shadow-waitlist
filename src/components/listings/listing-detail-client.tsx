@@ -636,14 +636,51 @@ export function ListingDetailClient({
                 </span>
               </div>
               {listing.founderMediaType === "video" ? (
-                <a
-                  href={listing.founderMediaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-16 font-medium text-trust-blue underline"
-                >
-                  Open founder briefing video
-                </a>
+                (() => {
+                  const url = listing.founderMediaUrl;
+                  // Handle YouTube embed
+                  const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+                  // Handle Loom embed
+                  const loomMatch = url.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
+                  
+                  if (ytMatch && ytMatch[1]) {
+                    return (
+                      <div className="relative aspect-video w-full overflow-hidden rounded border border-mist bg-black mt-2">
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${ytMatch[1]}`}
+                          title="Founder briefing video"
+                          className="h-full w-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (loomMatch && loomMatch[1]) {
+                    return (
+                      <div className="relative aspect-video w-full overflow-hidden rounded border border-mist bg-black mt-2">
+                        <iframe
+                          src={`https://www.loom.com/embed/${loomMatch[1]}`}
+                          title="Founder briefing video"
+                          className="h-full w-full"
+                          allowFullScreen
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <a
+                      href={listing.founderMediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-16 font-medium text-trust-blue underline"
+                    >
+                      Open founder briefing video ({listing.founderMediaUrl})
+                    </a>
+                  );
+                })()
               ) : (
                 <audio
                   controls

@@ -16,6 +16,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { HomeSavedThesesFeed } from "@/components/home/home-saved-theses-feed";
 import { HomeThesisForm } from "@/components/home/home-thesis-form";
 import { ListingCard } from "@/components/listings/listing-card";
+import { InstantValuationCalculator } from "@/components/valuation/instant-valuation-calculator";
 import { getServerSession } from "@/lib/auth/session-server";
 import {
   canEnterDealRoom,
@@ -108,6 +109,11 @@ export default async function HomePage() {
               </div>
             </div>
           </Card>
+        </section>
+
+        {/* Baton.com Instant Public Valuation Calculator */}
+        <section aria-labelledby="instant-valuation-heading">
+          <InstantValuationCalculator />
         </section>
 
         {/* Saved-thesis feed + Approved Listings Preview */}
